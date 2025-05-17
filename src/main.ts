@@ -8,6 +8,9 @@ import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { SkyMaterial } from "@babylonjs/materials/sky";
 import { WaterMaterial } from "@babylonjs/materials/water";
+import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
+import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
+import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import "@babylonjs/core/Meshes/Builders/sphereBuilder";
 import "@babylonjs/core/Meshes/Builders/groundBuilder";
 import "@babylonjs/core/Meshes/Builders/boxBuilder";
@@ -220,6 +223,51 @@ const wall4 = MeshBuilder.CreateBox(
 wall4.position = new Vector3(groundSize / 2, wallHeight / 2, 0);
 wall4.checkCollisions = true;
 wall4.isVisible = false;
+
+SceneLoader.ImportMeshAsync(
+  "",
+  "assets/animated_enemies_by_quaternius/",
+  "Spider.glb",
+  scene
+).then((result) => {
+  const spiderRoot = result.meshes[0] as AbstractMesh;
+  spiderRoot.name = "spiderVisual";
+  spiderRoot.position = new Vector3(5, 0, 5); // Assuming GLB origin is at the model's base
+  spiderRoot.scaling = new Vector3(0.5, 0.5, 0.5);
+
+  // Disable collisions on the visual mesh and its children
+  spiderRoot.checkCollisions = false;
+  spiderRoot
+    .getChildMeshes(false, (node): node is Mesh => node instanceof Mesh)
+    .forEach((childMesh) => {
+      childMesh.checkCollisions = false;
+    });
+
+  // Ensure transformations are applied before getting bounding box
+  spiderRoot.computeWorldMatrix(true);
+
+  // Get the bounding vectors for the entire hierarchy
+  const boundingInfo = spiderRoot.getHierarchyBoundingVectors(true);
+  const spiderDimensions = boundingInfo.max.subtract(boundingInfo.min);
+
+  // Create an invisible collider box
+  const colliderBox = MeshBuilder.CreateBox(
+    "spiderCollider",
+    {
+      width: spiderDimensions.x > 0 ? spiderDimensions.x : 0.1, // Ensure non-zero dimensions
+      height: spiderDimensions.y > 0 ? spiderDimensions.y : 0.1,
+      depth: spiderDimensions.z > 0 ? spiderDimensions.z : 0.1,
+    },
+    scene
+  );
+
+  // Position the collider box to encapsulate the visual model
+  // The center of the bounding box is (min + max) / 2
+  colliderBox.position = boundingInfo.min.add(spiderDimensions.scale(0.5));
+
+  colliderBox.checkCollisions = true;
+  colliderBox.isVisible = false; // Set to true to debug collider position/size
+});
 
 engine.runRenderLoop(() => {
   const deltaTime = engine.getDeltaTime() / 1000; // Delta time in seconds

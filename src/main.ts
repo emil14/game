@@ -53,18 +53,6 @@ camera.keysDown.push(83); // S
 camera.keysLeft.push(65); // A
 camera.keysRight.push(68); // D
 
-// Jerk/Roll mechanics
-const jerkDistance = 3.0; // Distance of the jerk/roll
-const doubleTapInterval = 300; // ms
-let lastKeyPressTime: { [key: number]: number } = {};
-let isJerking = false;
-const jerkCooldown = 0; // ms
-let lastJerkTime = 0;
-const jerkDuration = 150; // ms - How long the jerk animation should take
-let jerkStartTime = 0;
-let jerkStartPosition: Vector3 | null = null;
-let jerkTargetPosition: Vector3 | null = null;
-
 // Lock mouse pointer on click for FPS controls
 scene.onPointerDown = (evt) => {
   if (evt.button === 0) {
@@ -91,66 +79,9 @@ window.addEventListener("keydown", (event) => {
     // Shift key
     if (!isSprinting) {
       isSprinting = true;
-      if (!isJerking) {
-        // Only update speed if not jerking
-        camera.speed = defaultSpeed * runSpeedMultiplier;
-      }
+      camera.speed = defaultSpeed * runSpeedMultiplier;
     }
   }
-
-  // Jerk logic for WASD
-  if ([87, 83, 65, 68].includes(keyCode)) {
-    // W, S, A, D
-    const previousPressTime = lastKeyPressTime[keyCode];
-    lastKeyPressTime[keyCode] = now; // Always update for these keys for next check
-
-    if (
-      !isJerking && // Not already jerking
-      now - lastJerkTime > jerkCooldown && // Cooldown met
-      previousPressTime &&
-      now - previousPressTime < doubleTapInterval // Double tap
-    ) {
-      // Double tap detected
-      isJerking = true;
-      lastJerkTime = now; // Record time of this jerk start for cooldown
-
-      camera.speed = 0; // Temporarily disable normal movement input
-      camera.applyGravity = false;
-
-      const forward = new Vector3(
-        Math.sin(camera.rotation.y),
-        0,
-        Math.cos(camera.rotation.y)
-      );
-      const right = new Vector3(
-        Math.sin(camera.rotation.y + Math.PI / 2),
-        0,
-        Math.cos(camera.rotation.y + Math.PI / 2)
-      );
-      const moveDirection = Vector3.Zero();
-
-      if (keyCode === 87) {
-        // W
-        moveDirection.addInPlace(forward.scale(jerkDistance));
-      } else if (keyCode === 83) {
-        // S
-        moveDirection.addInPlace(forward.scale(-jerkDistance));
-      } else if (keyCode === 65) {
-        // A
-        moveDirection.addInPlace(right.scale(-jerkDistance));
-      } else if (keyCode === 68) {
-        // D
-        moveDirection.addInPlace(right.scale(jerkDistance));
-      }
-
-      jerkStartPosition = camera.position.clone();
-      jerkTargetPosition = camera.position.add(moveDirection);
-      jerkStartTime = now;
-    }
-  }
-
-  // Original sprint logic was here, now integrated above and in keyup
-  // if (event.keyCode === 16 && !isSprinting) { ... }
 });
 
 window.addEventListener("keyup", (event) => {
@@ -159,10 +90,7 @@ window.addEventListener("keyup", (event) => {
     // Shift key
     if (isSprinting) {
       isSprinting = false;
-      if (!isJerking) {
-        // Only update speed if not jerking
-        camera.speed = defaultSpeed;
-      }
+      camera.speed = defaultSpeed;
     }
   }
 });
@@ -190,30 +118,6 @@ ground.checkCollisions = true; // Enable collisions for the ground
 // Render loop
 engine.runRenderLoop(() => {
   const now = Date.now();
-  if (isJerking && jerkStartPosition && jerkTargetPosition) {
-    const elapsed = now - jerkStartTime;
-    const progress = Math.min(elapsed / jerkDuration, 1);
-
-    camera.position = Vector3.Lerp(
-      jerkStartPosition,
-      jerkTargetPosition,
-      progress
-    );
-
-    if (progress >= 1) {
-      isJerking = false;
-      jerkStartPosition = null;
-      jerkTargetPosition = null;
-      camera.applyGravity = true; // Restore gravity
-
-      // Restore camera speed based on current sprint state
-      if (isSprinting) {
-        camera.speed = defaultSpeed * runSpeedMultiplier;
-      } else {
-        camera.speed = defaultSpeed;
-      }
-    }
-  }
 
   // console.log("Render loop running..."); // DBG - Remove this log
   scene.render();

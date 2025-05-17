@@ -1,0 +1,14 @@
+You are designing a browser-based first-person action RPG where nearly everything in the world is procedurally generated at runtime, with minimal hardcoded content. The game features stylized low-poly graphics optimized for performance (no real-time shadows, fog and LODs are used, and sprites may be utilized for effects).
+
+Core gameplay includes:
+
+- Exploration of a seamless, (pseudo-)open world.
+- Ranged and melee combat.
+- Classic RPG progression: stats, gear with bonuses, and leveling up through experience from quests or combat.
+- Dynamic world reactions to player actions.
+- Simple physics: running, jumping, stamina system.
+- An “AI sandbox” system where all NPCs and creatures have memories and relationships, and their behavior is influenced by a simulated world state.
+- An integrated LLM (large language model) generates dynamic events, dialogue, and world reactions, creating emergent stories and experiences for each player.
+- All music is either public domain/classical or royalty-free.
+
+No pre-written quests, NPC personalities, or hand-authored scenes—everything is meant to be unique and generated during gameplay. The goal is a living world that feels different for every player.

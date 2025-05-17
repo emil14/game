@@ -1,2 +1,18 @@
-# game
-Action/RPG with generative open world
+# Game
+
+Action/RPG with generative open world.
+
+## Где брать low-poly ассеты:
+
+- Kenney.nl 3D: много бесплатных low-poly моделей (персонажи, природа, предметы, техника).
+- Poly Pizza: огромная библиотека бесплатных low-poly моделей (CC0).
+- OpenGameArt 3D: некоторые наборы, смотри лицензию.
+- Sketchfab (low-poly фильтр): фильтруй по лицензии CC0/CC-BY.
+
+## Готовые анимации:
+
+- Mixamo: огромная бесплатная библиотека анимаций для гуманоидов (бег, прыжок, ближний бой, смерть и др.).
+- Скачай как glTF или FBX, импортируй в Babylon.js.
+- Kenney 3D: иногда в наборах есть простые анимированные модели.
+- OpenGameArt: фильтруй по “3D” и “animation”.
+- Sketchfab: часть моделей уже с анимациями.

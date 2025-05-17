@@ -1,0 +1,31 @@
+{
+  "name": "game",
+  "version": "1.0.0",
+  "description": "Action/RPG with generative open world",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/emil14/game.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/emil14/game/issues"
+  },
+  "homepage": "https://github.com/emil14/game#readme",
+  "devDependencies": {
+    "@babylonjs/core": "^8.8.5",
+    "@babylonjs/loaders": "^8.8.5",
+    "@types/node": "^22.15.18",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5"
+  }
+}

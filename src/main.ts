@@ -60,6 +60,10 @@ let lastKeyPressTime: { [key: number]: number } = {};
 let isJerking = false;
 const jerkCooldown = 0; // ms
 let lastJerkTime = 0;
+const jerkDuration = 150; // ms - How long the jerk animation should take
+let jerkStartTime = 0;
+let jerkStartPosition: Vector3 | null = null;
+let jerkTargetPosition: Vector3 | null = null;
 
 // Lock mouse pointer on click for FPS controls
 scene.onPointerDown = (evt) => {
@@ -133,19 +137,23 @@ window.addEventListener("keydown", (event) => {
     }
 
     // Store original gravity and temporarily disable it for the jerk
-    const originalGravity = scene.gravity;
-    const originalApplyGravity = camera.applyGravity;
+    // const originalGravity = scene.gravity; // We'll handle this in the animation loop
+    // const originalApplyGravity = camera.applyGravity; // We'll handle this in the animation loop
     camera.applyGravity = false;
-    scene.gravity = new Vector3(0, 0, 0);
+    // scene.gravity = new Vector3(0,0,0); // Setting scene.gravity might affect other elements, better to just disable for camera.
 
-    camera.position.addInPlace(moveDirection);
+    jerkStartPosition = camera.position.clone();
+    jerkTargetPosition = camera.position.add(moveDirection);
+    jerkStartTime = Date.now();
+
+    // camera.position.addInPlace(moveDirection); // Remove direct position update
 
     // Restore gravity after a short delay to allow the jerk to complete
-    setTimeout(() => {
-      camera.applyGravity = originalApplyGravity;
-      scene.gravity = originalGravity;
-      isJerking = false;
-    }, 100); // Short duration for the jerk movement itself
+    // setTimeout(() => {
+    //   camera.applyGravity = originalApplyGravity;
+    //   scene.gravity = originalGravity;
+    //   isJerking = false;
+    // }, 100); // Short duration for the jerk movement itself
   } else {
     lastKeyPressTime[event.keyCode] = now;
   }
@@ -187,6 +195,25 @@ ground.checkCollisions = true; // Enable collisions for the ground
 
 // Render loop
 engine.runRenderLoop(() => {
+  const now = Date.now();
+  if (isJerking && jerkStartPosition && jerkTargetPosition) {
+    const elapsed = now - jerkStartTime;
+    const progress = Math.min(elapsed / jerkDuration, 1);
+
+    camera.position = Vector3.Lerp(
+      jerkStartPosition,
+      jerkTargetPosition,
+      progress
+    );
+
+    if (progress >= 1) {
+      isJerking = false;
+      jerkStartPosition = null;
+      jerkTargetPosition = null;
+      camera.applyGravity = true; // Restore gravity
+    }
+  }
+
   // console.log("Render loop running..."); // DBG - Remove this log
   scene.render();
   if (fpsDisplay) {

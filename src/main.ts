@@ -5,6 +5,7 @@ import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { FreeCamera } from "@babylonjs/core/Cameras/freeCamera";
 import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { SkyMaterial } from "@babylonjs/materials/sky";
 import { WaterMaterial } from "@babylonjs/materials/water";
 import "@babylonjs/core/Meshes/Builders/sphereBuilder";
@@ -92,6 +93,10 @@ const ground = MeshBuilder.CreateGround(
   scene
 );
 ground.checkCollisions = true;
+
+const groundMaterial = new StandardMaterial("groundMaterial", scene);
+groundMaterial.diffuseColor = new Color3(0.9, 0.8, 0.6);
+ground.material = groundMaterial;
 
 const skybox = MeshBuilder.CreateBox("skyBox", { size: 1000.0 }, scene);
 const skyMaterial = new SkyMaterial("skyMaterial", scene);

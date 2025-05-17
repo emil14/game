@@ -11,6 +11,7 @@ import { WaterMaterial } from "@babylonjs/materials/water";
 import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
+import { AnimationGroup } from "@babylonjs/core/Animations/animationGroup";
 import "@babylonjs/core/Meshes/Builders/sphereBuilder";
 import "@babylonjs/core/Meshes/Builders/groundBuilder";
 import "@babylonjs/core/Meshes/Builders/boxBuilder";
@@ -31,6 +32,11 @@ const engine = new Engine(canvas, false, {
 });
 
 const scene = new Scene(engine);
+
+let spiderColliderMesh: Mesh | null = null; // To store the spider's collider
+let spiderWalkAnimation: AnimationGroup | null = null; // To store the spider's walk animation
+let spiderIdleAnimation: AnimationGroup | null = null; // To store the spider's idle animation
+let spiderAttackAnimation: AnimationGroup | null = null; // To store the spider's attack animation
 
 const camera = new FreeCamera("camera1", new Vector3(0, 1.6, -5), scene);
 camera.setTarget(Vector3.Zero());
@@ -230,47 +236,162 @@ SceneLoader.ImportMeshAsync(
   "Spider.glb",
   scene
 ).then((result) => {
-  const spiderRoot = result.meshes[0] as AbstractMesh;
-  spiderRoot.name = "spiderVisual";
-  spiderRoot.position = new Vector3(5, 0, 5); // Assuming GLB origin is at the model's base
-  spiderRoot.scaling = new Vector3(0.5, 0.5, 0.5);
+  const visualSpider = result.meshes[0] as AbstractMesh;
+  visualSpider.name = "spiderVisual";
+
+  const initialVisualSpiderWorldPos = new Vector3(5, 0, 5); // Desired initial world position for the spider entity
+  visualSpider.position = initialVisualSpiderWorldPos.clone();
+  visualSpider.scaling = new Vector3(0.5, 0.5, 0.5);
 
   // Disable collisions on the visual mesh and its children
-  spiderRoot.checkCollisions = false;
-  spiderRoot
+  visualSpider.checkCollisions = false;
+  visualSpider
     .getChildMeshes(false, (node): node is Mesh => node instanceof Mesh)
     .forEach((childMesh) => {
       childMesh.checkCollisions = false;
     });
 
   // Ensure transformations are applied before getting bounding box
-  spiderRoot.computeWorldMatrix(true);
+  visualSpider.computeWorldMatrix(true);
 
-  // Get the bounding vectors for the entire hierarchy
-  const boundingInfo = spiderRoot.getHierarchyBoundingVectors(true);
+  // Get the bounding vectors for the entire hierarchy in world space
+  const boundingInfo = visualSpider.getHierarchyBoundingVectors(true);
   const spiderDimensions = boundingInfo.max.subtract(boundingInfo.min);
 
-  // Create an invisible collider box
-  const colliderBox = MeshBuilder.CreateBox(
+  // Create an invisible collider box and assign to the scene-level variable
+  spiderColliderMesh = MeshBuilder.CreateBox(
     "spiderCollider",
     {
-      width: spiderDimensions.x > 0 ? spiderDimensions.x : 0.1, // Ensure non-zero dimensions
+      width: spiderDimensions.x > 0 ? spiderDimensions.x : 0.1,
       height: spiderDimensions.y > 0 ? spiderDimensions.y : 0.1,
       depth: spiderDimensions.z > 0 ? spiderDimensions.z : 0.1,
     },
     scene
   );
 
-  // Position the collider box to encapsulate the visual model
+  // Position the collider box to encapsulate the visual model in world space
   // The center of the bounding box is (min + max) / 2
-  colliderBox.position = boundingInfo.min.add(spiderDimensions.scale(0.5));
+  spiderColliderMesh.position = boundingInfo.min.add(
+    spiderDimensions.scale(0.5)
+  );
 
-  colliderBox.checkCollisions = true;
-  colliderBox.isVisible = false; // Set to true to debug collider position/size
+  spiderColliderMesh.checkCollisions = true;
+  spiderColliderMesh.isVisible = false; // Set to true to debug collider position/size
+
+  // Parent the visual spider to the collider box
+  visualSpider.parent = spiderColliderMesh;
+  visualSpider.position = initialVisualSpiderWorldPos.subtract(
+    spiderColliderMesh.position
+  );
+
+  // Find and store walk, idle, and attack animations
+  if (result.animationGroups && result.animationGroups.length > 0) {
+    for (let group of result.animationGroups) {
+      if (group.name === "SpiderArmature|Spider_Walk") {
+        spiderWalkAnimation = group;
+        spiderWalkAnimation.stop();
+      } else if (group.name === "SpiderArmature|Spider_Idle") {
+        spiderIdleAnimation = group;
+        spiderIdleAnimation.stop();
+      } else if (group.name === "SpiderArmature|Spider_Attack") {
+        // Assuming this is the attack animation name
+        spiderAttackAnimation = group;
+        spiderAttackAnimation.stop();
+      }
+    }
+  }
 });
 
 engine.runRenderLoop(() => {
   const deltaTime = engine.getDeltaTime() / 1000; // Delta time in seconds
+
+  // Spider movement and rotation logic
+  if (spiderColliderMesh) {
+    const spiderSpeed = defaultSpeed; // Slightly faster than player's default walk speed
+    const aggroRadius = 20.0; // Spider starts following if player is within this distance
+    const stoppingDistance = 2.5; // Spider stops this close to the player (collider center to camera center)
+
+    // Calculate direction on X-Z plane only for movement
+    const directionToPlayerXZ = camera.globalPosition.subtract(
+      spiderColliderMesh.position
+    );
+    directionToPlayerXZ.y = 0; // Keep movement horizontal
+    const distanceToPlayer = directionToPlayerXZ.length();
+
+    let isSpiderMoving = false;
+    if (distanceToPlayer < aggroRadius && distanceToPlayer > stoppingDistance) {
+      directionToPlayerXZ.normalize();
+      spiderColliderMesh.position.addInPlace(
+        directionToPlayerXZ.scale(spiderSpeed * deltaTime)
+      );
+      isSpiderMoving = true;
+    }
+
+    // Make the spider look at the player if aggroed
+    if (distanceToPlayer < aggroRadius) {
+      const lookAtTargetPosition = new Vector3(
+        camera.globalPosition.x,
+        spiderColliderMesh.position.y,
+        camera.globalPosition.z
+      );
+      spiderColliderMesh.lookAt(lookAtTargetPosition, Math.PI);
+    }
+
+    // Animation control
+    if (distanceToPlayer <= stoppingDistance) {
+      // Attacking state
+      if (spiderWalkAnimation && spiderWalkAnimation.isPlaying) {
+        spiderWalkAnimation.stop();
+      }
+      if (spiderIdleAnimation && spiderIdleAnimation.isPlaying) {
+        spiderIdleAnimation.stop();
+      }
+      if (spiderAttackAnimation && !spiderAttackAnimation.isPlaying) {
+        // Consider if attack animation should loop or play once
+        spiderAttackAnimation.start(
+          true,
+          1.0,
+          spiderAttackAnimation.from,
+          spiderAttackAnimation.to,
+          false
+        );
+      }
+    } else if (isSpiderMoving) {
+      // Following state (implies distanceToPlayer > stoppingDistance && distanceToPlayer < aggroRadius)
+      if (spiderAttackAnimation && spiderAttackAnimation.isPlaying) {
+        spiderAttackAnimation.stop();
+      }
+      if (spiderIdleAnimation && spiderIdleAnimation.isPlaying) {
+        spiderIdleAnimation.stop();
+      }
+      if (spiderWalkAnimation && !spiderWalkAnimation.isPlaying) {
+        spiderWalkAnimation.start(
+          true,
+          1.0,
+          spiderWalkAnimation.from,
+          spiderWalkAnimation.to,
+          false
+        );
+      }
+    } else {
+      // Idle state (implies distanceToPlayer >= aggroRadius, so !isSpiderMoving)
+      if (spiderWalkAnimation && spiderWalkAnimation.isPlaying) {
+        spiderWalkAnimation.stop();
+      }
+      if (spiderAttackAnimation && spiderAttackAnimation.isPlaying) {
+        spiderAttackAnimation.stop();
+      }
+      if (spiderIdleAnimation && !spiderIdleAnimation.isPlaying) {
+        spiderIdleAnimation.start(
+          true,
+          1.0,
+          spiderIdleAnimation.from,
+          spiderIdleAnimation.to,
+          false
+        );
+      }
+    }
+  }
 
   // Stamina logic
   if (isSprinting) {

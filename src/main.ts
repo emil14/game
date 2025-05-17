@@ -38,6 +38,19 @@ const runSpeedMultiplier = 2.0;
 camera.angularSensibility = 2000;
 camera.inertia = 0;
 
+// Stamina variables
+let maxStamina = 100;
+let currentStamina = maxStamina;
+const staminaDepletionRate = 10; // units per second
+const staminaRegenerationRate = 5; // units per second
+let isShiftPressed = false; // To track if shift is held down
+
+// Track movement keys state
+let isMovingForward = false;
+let isMovingBackward = false;
+let isMovingLeft = false;
+let isMovingRight = false;
+
 camera.keysUp.push(87);
 camera.keysDown.push(83);
 camera.keysLeft.push(65);
@@ -60,20 +73,48 @@ window.addEventListener("keydown", (event) => {
   const keyCode = event.keyCode;
 
   if (keyCode === 16) {
-    if (!isSprinting) {
+    // Shift key
+    isShiftPressed = true;
+    if (currentStamina > 0 && !isSprinting) {
       isSprinting = true;
       camera.speed = defaultSpeed * runSpeedMultiplier;
     }
+  } else if (keyCode === 87) {
+    // W
+    isMovingForward = true;
+  } else if (keyCode === 83) {
+    // S
+    isMovingBackward = true;
+  } else if (keyCode === 65) {
+    // A
+    isMovingLeft = true;
+  } else if (keyCode === 68) {
+    // D
+    isMovingRight = true;
   }
 });
 
 window.addEventListener("keyup", (event) => {
   const keyCode = event.keyCode;
   if (keyCode === 16) {
+    // Shift key
+    isShiftPressed = false;
     if (isSprinting) {
       isSprinting = false;
       camera.speed = defaultSpeed;
     }
+  } else if (keyCode === 87) {
+    // W
+    isMovingForward = false;
+  } else if (keyCode === 83) {
+    // S
+    isMovingBackward = false;
+  } else if (keyCode === 65) {
+    // A
+    isMovingLeft = false;
+  } else if (keyCode === 68) {
+    // D
+    isMovingRight = false;
   }
 });
 
@@ -173,9 +214,57 @@ wall4.checkCollisions = true;
 wall4.isVisible = false;
 
 engine.runRenderLoop(() => {
+  const deltaTime = engine.getDeltaTime() / 1000; // Delta time in seconds
+
+  // Stamina logic
+  if (isSprinting) {
+    if (currentStamina > 0) {
+      currentStamina -= staminaDepletionRate * deltaTime;
+      if (currentStamina < 0) {
+        currentStamina = 0;
+      }
+    }
+    if (currentStamina === 0) {
+      isSprinting = false;
+      camera.speed = defaultSpeed;
+    }
+  } else {
+    // If shift is not pressed and not sprinting (e.g. ran out of stamina but still holding shift)
+    // ensure speed is normal.
+    if (camera.speed !== defaultSpeed && !isShiftPressed) {
+      camera.speed = defaultSpeed;
+    }
+
+    if (currentStamina < maxStamina) {
+      let currentRegenRate = staminaRegenerationRate;
+      const isMoving =
+        isMovingForward || isMovingBackward || isMovingLeft || isMovingRight;
+      if (isMoving) {
+        currentRegenRate /= 2;
+      }
+
+      currentStamina += currentRegenRate * deltaTime;
+      if (currentStamina > maxStamina) {
+        currentStamina = maxStamina;
+      }
+    }
+  }
+
+  // Keep sprinting if shift is held and stamina is available
+  if (isShiftPressed && !isSprinting && currentStamina > 0) {
+    isSprinting = true;
+    camera.speed = defaultSpeed * runSpeedMultiplier;
+  }
+
   scene.render();
   if (fpsDisplay) {
-    fpsDisplay.textContent = "FPS: " + engine.getFps().toFixed();
+    fpsDisplay.textContent =
+      "FPS: " +
+      engine.getFps().toFixed() +
+      " | Stamina: " +
+      currentStamina.toFixed(0) +
+      "/" +
+      maxStamina;
   }
 });
 

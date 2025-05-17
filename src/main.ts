@@ -41,7 +41,7 @@ camera.attachControl(canvas, true);
 camera.ellipsoid = new Vector3(0.5, 0.8, 0.5);
 camera.checkCollisions = true;
 camera.applyGravity = true;
-camera.speed = 2.0; // Balanced base speed for light running
+camera.speed = 2.0; // Explicitly set base speed before reading it into defaultSpeed
 const defaultSpeed = camera.speed;
 const runSpeedMultiplier = 2.0; // Sprint will be twice the base speed
 camera.angularSensibility = 2000;
@@ -54,7 +54,7 @@ camera.keysLeft.push(65); // A
 camera.keysRight.push(68); // D
 
 // Jerk/Roll mechanics
-const jerkDistance = 2.0; // Distance of the jerk/roll
+const jerkDistance = 3.0; // Distance of the jerk/roll
 const doubleTapInterval = 300; // ms
 let lastKeyPressTime: { [key: number]: number } = {};
 let isJerking = false;
@@ -84,92 +84,86 @@ scene.onPointerUp = (evt) => {
 let isSprinting = false;
 window.addEventListener("keydown", (event) => {
   const now = Date.now();
-  if (
-    !isJerking &&
-    now - lastJerkTime > jerkCooldown &&
-    lastKeyPressTime[event.keyCode] &&
-    now - lastKeyPressTime[event.keyCode] < doubleTapInterval
-  ) {
-    // Double tap detected
-    isJerking = true;
-    lastJerkTime = now;
-    const direction = new Vector3(0, 0, 0);
-    switch (event.keyCode) {
-      case 87: // W (forward)
-        direction.z = jerkDistance;
-        break;
-      case 83: // S (backward)
-        direction.z = -jerkDistance;
-        break;
-      case 65: // A (left)
-        direction.x = -jerkDistance;
-        break;
-      case 68: // D (right)
-        direction.x = jerkDistance;
-        break;
-    }
+  const keyCode = event.keyCode;
 
-    // Apply jerk relative to camera's local space
-    const forward = new Vector3(
-      Math.sin(camera.rotation.y),
-      0,
-      Math.cos(camera.rotation.y)
-    );
-    const right = new Vector3(
-      Math.sin(camera.rotation.y + Math.PI / 2),
-      0,
-      Math.cos(camera.rotation.y + Math.PI / 2)
-    );
-    const moveDirection = new Vector3(0, 0, 0);
-
-    if (event.keyCode === 87) {
-      // W
-      moveDirection.addInPlace(forward.scale(jerkDistance));
-    } else if (event.keyCode === 83) {
-      // S
-      moveDirection.addInPlace(forward.scale(-jerkDistance));
-    } else if (event.keyCode === 65) {
-      // A
-      moveDirection.addInPlace(right.scale(-jerkDistance));
-    } else if (event.keyCode === 68) {
-      // D
-      moveDirection.addInPlace(right.scale(jerkDistance));
-    }
-
-    // Store original gravity and temporarily disable it for the jerk
-    // const originalGravity = scene.gravity; // We'll handle this in the animation loop
-    // const originalApplyGravity = camera.applyGravity; // We'll handle this in the animation loop
-    camera.applyGravity = false;
-    // scene.gravity = new Vector3(0,0,0); // Setting scene.gravity might affect other elements, better to just disable for camera.
-
-    jerkStartPosition = camera.position.clone();
-    jerkTargetPosition = camera.position.add(moveDirection);
-    jerkStartTime = Date.now();
-
-    // camera.position.addInPlace(moveDirection); // Remove direct position update
-
-    // Restore gravity after a short delay to allow the jerk to complete
-    // setTimeout(() => {
-    //   camera.applyGravity = originalApplyGravity;
-    //   scene.gravity = originalGravity;
-    //   isJerking = false;
-    // }, 100); // Short duration for the jerk movement itself
-  } else {
-    lastKeyPressTime[event.keyCode] = now;
-  }
-
-  if (event.keyCode === 16 && !isSprinting) {
+  // Sprint state update
+  if (keyCode === 16) {
     // Shift key
-    isSprinting = true;
-    camera.speed = defaultSpeed * runSpeedMultiplier;
+    if (!isSprinting) {
+      isSprinting = true;
+      if (!isJerking) {
+        // Only update speed if not jerking
+        camera.speed = defaultSpeed * runSpeedMultiplier;
+      }
+    }
   }
+
+  // Jerk logic for WASD
+  if ([87, 83, 65, 68].includes(keyCode)) {
+    // W, S, A, D
+    const previousPressTime = lastKeyPressTime[keyCode];
+    lastKeyPressTime[keyCode] = now; // Always update for these keys for next check
+
+    if (
+      !isJerking && // Not already jerking
+      now - lastJerkTime > jerkCooldown && // Cooldown met
+      previousPressTime &&
+      now - previousPressTime < doubleTapInterval // Double tap
+    ) {
+      // Double tap detected
+      isJerking = true;
+      lastJerkTime = now; // Record time of this jerk start for cooldown
+
+      camera.speed = 0; // Temporarily disable normal movement input
+      camera.applyGravity = false;
+
+      const forward = new Vector3(
+        Math.sin(camera.rotation.y),
+        0,
+        Math.cos(camera.rotation.y)
+      );
+      const right = new Vector3(
+        Math.sin(camera.rotation.y + Math.PI / 2),
+        0,
+        Math.cos(camera.rotation.y + Math.PI / 2)
+      );
+      const moveDirection = Vector3.Zero();
+
+      if (keyCode === 87) {
+        // W
+        moveDirection.addInPlace(forward.scale(jerkDistance));
+      } else if (keyCode === 83) {
+        // S
+        moveDirection.addInPlace(forward.scale(-jerkDistance));
+      } else if (keyCode === 65) {
+        // A
+        moveDirection.addInPlace(right.scale(-jerkDistance));
+      } else if (keyCode === 68) {
+        // D
+        moveDirection.addInPlace(right.scale(jerkDistance));
+      }
+
+      jerkStartPosition = camera.position.clone();
+      jerkTargetPosition = camera.position.add(moveDirection);
+      jerkStartTime = now;
+    }
+  }
+
+  // Original sprint logic was here, now integrated above and in keyup
+  // if (event.keyCode === 16 && !isSprinting) { ... }
 });
 
 window.addEventListener("keyup", (event) => {
-  if (event.keyCode === 16) {
+  const keyCode = event.keyCode;
+  if (keyCode === 16) {
     // Shift key
-    isSprinting = false;
-    camera.speed = defaultSpeed;
+    if (isSprinting) {
+      isSprinting = false;
+      if (!isJerking) {
+        // Only update speed if not jerking
+        camera.speed = defaultSpeed;
+      }
+    }
   }
 });
 
@@ -211,6 +205,13 @@ engine.runRenderLoop(() => {
       jerkStartPosition = null;
       jerkTargetPosition = null;
       camera.applyGravity = true; // Restore gravity
+
+      // Restore camera speed based on current sprint state
+      if (isSprinting) {
+        camera.speed = defaultSpeed * runSpeedMultiplier;
+      } else {
+        camera.speed = defaultSpeed;
+      }
     }
   }
 

@@ -6,15 +6,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Babylon.js RPG</title>
     <link rel="stylesheet" href="src/style.css" />
-  </head>
-  <body>
-    <div id="app">
-      <canvas id="renderCanvas"></canvas>
-    </div>
-    <div class="crosshair"></div>
-    <div
-      id="fpsDisplay"
-      style="
+    <style>
+      /* Basic styling for the stamina bar */
+      .stamina-bar-container {
+        width: 200px; /* Increased width */
+        height: 25px; /* Increased height */
+        background-color: #333; /* Darker background for better contrast potentially */
+        border-radius: 5px; /* Slightly larger radius */
+        margin-top: 5px;
+        overflow: hidden;
+        position: relative; /* For positioning text inside */
+        display: flex; /* For centering text */
+        align-items: center; /* For centering text vertically */
+        justify-content: center; /* For centering text horizontally */
+      }
+      .stamina-bar-fill {
+        height: 100%;
+        background-color: #4caf50;
+        width: 100%;
+        border-radius: 5px; /* Match parent's border radius */
+        transition: width 0.1s linear;
+        position: absolute; /* Position behind text */
+        top: 0;
+        left: 0;
+      }
+      .ui-container {
         position: absolute;
         top: 10px;
         left: 10px;
@@ -22,10 +38,42 @@
         background-color: rgba(0, 0, 0, 0.5);
         padding: 5px;
         font-family: sans-serif;
-      "
-    >
-      FPS: 0
+        border-radius: 5px;
+      }
+      .fps-display {
+        /* New class for FPS specific styling */
+        position: absolute;
+        top: 10px;
+        right: 10px; /* Moved to top-right */
+        color: white;
+        background-color: rgba(0, 0, 0, 0.5);
+        padding: 5px;
+        font-family: sans-serif;
+        border-radius: 5px;
+      }
+      .stamina-text {
+        font-size: 0.9em;
+        color: white; /* Ensure text is white */
+        z-index: 1; /* Ensure text is on top of the fill */
+        position: relative; /* To ensure z-index works as expected */
+        text-shadow: 1px 1px 2px black; /* Add shadow for better visibility */
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="renderCanvas"></canvas>
     </div>
+    <div class="crosshair"></div>
+    <div class="ui-container">
+      <div>
+        <div class="stamina-bar-container">
+          <span id="staminaText" class="stamina-text">Stamina: 100/100</span>
+          <div id="staminaBarFill" class="stamina-bar-fill"></div>
+        </div>
+      </div>
+    </div>
+    <div id="fpsDisplay" class="fps-display">FPS: 0</div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

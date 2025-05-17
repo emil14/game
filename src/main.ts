@@ -16,6 +16,8 @@ import "@babylonjs/inspector";
 
 const canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
 const fpsDisplay = document.getElementById("fpsDisplay") as HTMLElement;
+const staminaText = document.getElementById("staminaText") as HTMLElement;
+const staminaBarFill = document.getElementById("staminaBarFill") as HTMLElement;
 
 const engine = new Engine(canvas, false, {
   preserveDrawingBuffer: true,
@@ -258,13 +260,12 @@ engine.runRenderLoop(() => {
 
   scene.render();
   if (fpsDisplay) {
-    fpsDisplay.textContent =
-      "FPS: " +
-      engine.getFps().toFixed() +
-      " | Stamina: " +
-      currentStamina.toFixed(0) +
-      "/" +
-      maxStamina;
+    fpsDisplay.textContent = "FPS: " + engine.getFps().toFixed();
+  }
+  if (staminaText && staminaBarFill) {
+    staminaText.textContent =
+      "Stamina: " + currentStamina.toFixed(0) + "/" + maxStamina;
+    staminaBarFill.style.width = (currentStamina / maxStamina) * 100 + "%";
   }
 });
 

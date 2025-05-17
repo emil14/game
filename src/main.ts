@@ -53,6 +53,14 @@ camera.keysDown.push(83); // S
 camera.keysLeft.push(65); // A
 camera.keysRight.push(68); // D
 
+// Jerk/Roll mechanics
+const jerkDistance = 2.0; // Distance of the jerk/roll
+const doubleTapInterval = 300; // ms
+let lastKeyPressTime: { [key: number]: number } = {};
+let isJerking = false;
+const jerkCooldown = 0; // ms
+let lastJerkTime = 0;
+
 // Lock mouse pointer on click for FPS controls
 scene.onPointerDown = (evt) => {
   if (evt.button === 0) {
@@ -71,6 +79,77 @@ scene.onPointerUp = (evt) => {
 // Sprinting with Shift key
 let isSprinting = false;
 window.addEventListener("keydown", (event) => {
+  const now = Date.now();
+  if (
+    !isJerking &&
+    now - lastJerkTime > jerkCooldown &&
+    lastKeyPressTime[event.keyCode] &&
+    now - lastKeyPressTime[event.keyCode] < doubleTapInterval
+  ) {
+    // Double tap detected
+    isJerking = true;
+    lastJerkTime = now;
+    const direction = new Vector3(0, 0, 0);
+    switch (event.keyCode) {
+      case 87: // W (forward)
+        direction.z = jerkDistance;
+        break;
+      case 83: // S (backward)
+        direction.z = -jerkDistance;
+        break;
+      case 65: // A (left)
+        direction.x = -jerkDistance;
+        break;
+      case 68: // D (right)
+        direction.x = jerkDistance;
+        break;
+    }
+
+    // Apply jerk relative to camera's local space
+    const forward = new Vector3(
+      Math.sin(camera.rotation.y),
+      0,
+      Math.cos(camera.rotation.y)
+    );
+    const right = new Vector3(
+      Math.sin(camera.rotation.y + Math.PI / 2),
+      0,
+      Math.cos(camera.rotation.y + Math.PI / 2)
+    );
+    const moveDirection = new Vector3(0, 0, 0);
+
+    if (event.keyCode === 87) {
+      // W
+      moveDirection.addInPlace(forward.scale(jerkDistance));
+    } else if (event.keyCode === 83) {
+      // S
+      moveDirection.addInPlace(forward.scale(-jerkDistance));
+    } else if (event.keyCode === 65) {
+      // A
+      moveDirection.addInPlace(right.scale(-jerkDistance));
+    } else if (event.keyCode === 68) {
+      // D
+      moveDirection.addInPlace(right.scale(jerkDistance));
+    }
+
+    // Store original gravity and temporarily disable it for the jerk
+    const originalGravity = scene.gravity;
+    const originalApplyGravity = camera.applyGravity;
+    camera.applyGravity = false;
+    scene.gravity = new Vector3(0, 0, 0);
+
+    camera.position.addInPlace(moveDirection);
+
+    // Restore gravity after a short delay to allow the jerk to complete
+    setTimeout(() => {
+      camera.applyGravity = originalApplyGravity;
+      scene.gravity = originalGravity;
+      isJerking = false;
+    }, 100); // Short duration for the jerk movement itself
+  } else {
+    lastKeyPressTime[event.keyCode] = now;
+  }
+
   if (event.keyCode === 16 && !isSprinting) {
     // Shift key
     isSprinting = true;

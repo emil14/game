@@ -27,5 +27,8 @@
     "@types/node": "^22.15.18",
     "typescript": "^5.8.3",
     "vite": "^6.3.5"
+  },
+  "dependencies": {
+    "@babylonjs/inspector": "^8.8.5"
   }
 }

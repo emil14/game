@@ -88,6 +88,19 @@
         position: relative;
         text-shadow: 1px 1px 2px black;
       }
+      /* Styling for the blood screen effect */
+      .blood-screen-effect {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: rgba(255, 0, 0, 0); /* Initially transparent */
+        opacity: 0;
+        pointer-events: none; /* So it doesn't block interactions */
+        z-index: 1000; /* Ensure it's on top */
+        transition: opacity 0.2s ease-out; /* Smooth fade out */
+      }
     </style>
   </head>
   <body>
@@ -95,6 +108,7 @@
       <canvas id="renderCanvas"></canvas>
     </div>
     <div class="crosshair"></div>
+    <div id="bloodScreenEffect" class="blood-screen-effect"></div>
     <div class="ui-container">
       <div>
         <div class="health-bar-container">

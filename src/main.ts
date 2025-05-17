@@ -24,6 +24,9 @@ const staminaText = document.getElementById("staminaText") as HTMLElement;
 const staminaBarFill = document.getElementById("staminaBarFill") as HTMLElement;
 const healthText = document.getElementById("healthText") as HTMLElement;
 const healthBarFill = document.getElementById("healthBarFill") as HTMLElement;
+const bloodScreenEffect = document.getElementById(
+  "bloodScreenEffect"
+) as HTMLElement;
 
 const engine = new Engine(canvas, false, {
   preserveDrawingBuffer: true,
@@ -61,6 +64,12 @@ let isShiftPressed = false; // To track if shift is held down
 // Health variables
 let maxHealth = 100;
 let currentHealth = maxHealth;
+let playerIsDead = false; // To track player death state
+
+// Spider attack parameters
+const spiderAttackDamage = 10;
+const spiderAttackCooldown = 1.5; // Seconds
+let timeSinceLastSpiderAttack = 0;
 
 // Track movement keys state
 let isMovingForward = false;
@@ -306,7 +315,8 @@ engine.runRenderLoop(() => {
   const deltaTime = engine.getDeltaTime() / 1000; // Delta time in seconds
 
   // Spider movement and rotation logic
-  if (spiderColliderMesh) {
+  if (spiderColliderMesh && !playerIsDead) {
+    // Spider acts only if player is alive
     const spiderSpeed = defaultSpeed; // Slightly faster than player's default walk speed
     const aggroRadius = 20.0; // Spider starts following if player is within this distance
     const stoppingDistance = 2.5; // Spider stops this close to the player (collider center to camera center)
@@ -337,7 +347,7 @@ engine.runRenderLoop(() => {
       spiderColliderMesh.lookAt(lookAtTargetPosition, Math.PI);
     }
 
-    // Animation control
+    // Animation control & Attack Logic
     if (distanceToPlayer <= stoppingDistance) {
       // Attacking state
       if (spiderWalkAnimation && spiderWalkAnimation.isPlaying) {
@@ -347,7 +357,6 @@ engine.runRenderLoop(() => {
         spiderIdleAnimation.stop();
       }
       if (spiderAttackAnimation && !spiderAttackAnimation.isPlaying) {
-        // Consider if attack animation should loop or play once
         spiderAttackAnimation.start(
           true,
           1.0,
@@ -355,6 +364,33 @@ engine.runRenderLoop(() => {
           spiderAttackAnimation.to,
           false
         );
+      }
+
+      // Handle spider attack
+      timeSinceLastSpiderAttack += deltaTime;
+      if (timeSinceLastSpiderAttack >= spiderAttackCooldown) {
+        currentHealth -= spiderAttackDamage;
+        timeSinceLastSpiderAttack = 0; // Reset cooldown
+
+        if (bloodScreenEffect) {
+          bloodScreenEffect.style.backgroundColor = "rgba(255, 0, 0, 0.3)"; // Red with some transparency
+          bloodScreenEffect.style.opacity = "1";
+          setTimeout(() => {
+            bloodScreenEffect.style.opacity = "0";
+          }, 200); // Duration of the flash
+        }
+
+        if (currentHealth < 0) {
+          currentHealth = 0;
+        }
+        // console.log(`Player hit by spider! Health: ${currentHealth}`); // Debug log
+
+        if (currentHealth === 0) {
+          playerIsDead = true;
+          alert("Player is dead");
+          // Optional: Stop player input or other game features
+          // camera.detachControl(canvas);
+        }
       }
     } else if (isSpiderMoving) {
       // Following state (implies distanceToPlayer > stoppingDistance && distanceToPlayer < aggroRadius)
@@ -373,6 +409,7 @@ engine.runRenderLoop(() => {
           false
         );
       }
+      timeSinceLastSpiderAttack = 0; // Reset attack cooldown if player moves out of range
     } else {
       // Idle state (implies distanceToPlayer >= aggroRadius, so !isSpiderMoving)
       if (spiderWalkAnimation && spiderWalkAnimation.isPlaying) {
@@ -390,47 +427,71 @@ engine.runRenderLoop(() => {
           false
         );
       }
+      timeSinceLastSpiderAttack = 0; // Reset attack cooldown if spider is idle
+    }
+  } else if (spiderColliderMesh && playerIsDead) {
+    // Spider behavior after player death (e.g., return to idle)
+    const isAttacking =
+      spiderAttackAnimation && spiderAttackAnimation.isPlaying;
+    const isWalking = spiderWalkAnimation && spiderWalkAnimation.isPlaying;
+
+    if (isAttacking && spiderAttackAnimation) spiderAttackAnimation.stop();
+    if (isWalking && spiderWalkAnimation) spiderWalkAnimation.stop();
+
+    if (!isAttacking && !isWalking) {
+      if (spiderIdleAnimation && !spiderIdleAnimation.isPlaying) {
+        spiderIdleAnimation.start(
+          true,
+          1.0,
+          spiderIdleAnimation.from,
+          spiderIdleAnimation.to,
+          false
+        );
+      }
     }
   }
 
   // Stamina logic
-  if (isSprinting) {
-    if (currentStamina > 0) {
-      currentStamina -= staminaDepletionRate * deltaTime;
-      if (currentStamina < 0) {
-        currentStamina = 0;
+  if (!playerIsDead) {
+    // Only process stamina if player is alive
+    if (isSprinting) {
+      if (currentStamina > 0) {
+        currentStamina -= staminaDepletionRate * deltaTime;
+        if (currentStamina < 0) {
+          currentStamina = 0;
+        }
       }
-    }
-    if (currentStamina === 0) {
-      isSprinting = false;
-      camera.speed = defaultSpeed;
-    }
-  } else {
-    // If shift is not pressed and not sprinting (e.g. ran out of stamina but still holding shift)
-    // ensure speed is normal.
-    if (camera.speed !== defaultSpeed && !isShiftPressed) {
-      camera.speed = defaultSpeed;
-    }
-
-    if (currentStamina < maxStamina) {
-      let currentRegenRate = staminaRegenerationRate;
-      const isMoving =
-        isMovingForward || isMovingBackward || isMovingLeft || isMovingRight;
-      if (isMoving) {
-        currentRegenRate = 0;
+      if (currentStamina === 0) {
+        isSprinting = false;
+        camera.speed = defaultSpeed;
+      }
+    } else {
+      // If shift is not pressed and not sprinting (e.g. ran out of stamina but still holding shift)
+      // ensure speed is normal.
+      if (camera.speed !== defaultSpeed && !isShiftPressed) {
+        camera.speed = defaultSpeed;
       }
 
-      if (currentRegenRate > 0) {
-        currentStamina += currentRegenRate * deltaTime;
-        if (currentStamina > maxStamina) {
-          currentStamina = maxStamina;
+      if (currentStamina < maxStamina) {
+        let currentRegenRate = staminaRegenerationRate;
+        const isMoving =
+          isMovingForward || isMovingBackward || isMovingLeft || isMovingRight;
+        if (isMoving) {
+          currentRegenRate = 0;
+        }
+
+        if (currentRegenRate > 0) {
+          currentStamina += currentRegenRate * deltaTime;
+          if (currentStamina > maxStamina) {
+            currentStamina = maxStamina;
+          }
         }
       }
     }
   }
 
   // Keep sprinting if shift is held and stamina is available
-  if (isShiftPressed && !isSprinting && currentStamina > 0) {
+  if (!playerIsDead && isShiftPressed && !isSprinting && currentStamina > 0) {
     isSprinting = true;
     camera.speed = defaultSpeed * runSpeedMultiplier;
   }

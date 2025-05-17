@@ -18,6 +18,8 @@ const canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
 const fpsDisplay = document.getElementById("fpsDisplay") as HTMLElement;
 const staminaText = document.getElementById("staminaText") as HTMLElement;
 const staminaBarFill = document.getElementById("staminaBarFill") as HTMLElement;
+const healthText = document.getElementById("healthText") as HTMLElement;
+const healthBarFill = document.getElementById("healthBarFill") as HTMLElement;
 
 const engine = new Engine(canvas, false, {
   preserveDrawingBuffer: true,
@@ -46,6 +48,10 @@ let currentStamina = maxStamina;
 const staminaDepletionRate = 10; // units per second
 const staminaRegenerationRate = 5; // units per second
 let isShiftPressed = false; // To track if shift is held down
+
+// Health variables
+let maxHealth = 100;
+let currentHealth = maxHealth;
 
 // Track movement keys state
 let isMovingForward = false;
@@ -242,12 +248,14 @@ engine.runRenderLoop(() => {
       const isMoving =
         isMovingForward || isMovingBackward || isMovingLeft || isMovingRight;
       if (isMoving) {
-        currentRegenRate /= 2;
+        currentRegenRate = 0;
       }
 
-      currentStamina += currentRegenRate * deltaTime;
-      if (currentStamina > maxStamina) {
-        currentStamina = maxStamina;
+      if (currentRegenRate > 0) {
+        currentStamina += currentRegenRate * deltaTime;
+        if (currentStamina > maxStamina) {
+          currentStamina = maxStamina;
+        }
       }
     }
   }
@@ -264,8 +272,12 @@ engine.runRenderLoop(() => {
   }
   if (staminaText && staminaBarFill) {
     staminaText.textContent =
-      "Stamina: " + currentStamina.toFixed(0) + "/" + maxStamina;
+      "👟 " + currentStamina.toFixed(0) + "/" + maxStamina;
     staminaBarFill.style.width = (currentStamina / maxStamina) * 100 + "%";
+  }
+  if (healthText && healthBarFill) {
+    healthText.textContent = "❤️ " + currentHealth.toFixed(0) + "/" + maxHealth;
+    healthBarFill.style.width = (currentHealth / maxHealth) * 100 + "%";
   }
 });
 

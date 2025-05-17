@@ -1,0 +1,43 @@
+body {
+  margin: 0;
+  overflow: hidden; /* Prevents scrollbars if canvas is larger than viewport */
+}
+
+#renderCanvas {
+  width: 100vw;
+  height: 100vh;
+  display: block;
+  touch-action: none; /* Essential for touch controls */
+}
+
+.crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 20px;
+  height: 20px;
+  transform: translate(-50%, -50%);
+}
+
+.crosshair::before,
+.crosshair::after {
+  content: "";
+  position: absolute;
+  background-color: white; /* Adjust color as needed */
+}
+
+.crosshair::before {
+  left: 50%;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  transform: translateX(-50%);
+}
+
+.crosshair::after {
+  left: 0;
+  top: 50%;
+  width: 100%;
+  height: 2px;
+  transform: translateY(-50%);
+} 

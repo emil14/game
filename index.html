@@ -5,21 +5,13 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Babylon.js RPG</title>
-    <style>
-      body {
-        margin: 0;
-        overflow: hidden; /* Prevents scrollbars */
-      }
-      #renderCanvas {
-        width: 100vw;
-        height: 100vh;
-        display: block;
-        touch-action: none; /* Essential for touch controls */
-      }
-    </style>
+    <link rel="stylesheet" href="src/style.css" />
   </head>
   <body>
-    <canvas id="renderCanvas"></canvas>
+    <div id="app">
+      <canvas id="renderCanvas"></canvas>
+    </div>
+    <div class="crosshair"></div>
     <div
       id="fpsDisplay"
       style="

@@ -6,8 +6,10 @@ import { Color4 } from "@babylonjs/core/Maths/math.color"; // Import Color4
 import { FreeCamera } from "@babylonjs/core/Cameras/freeCamera";
 import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
+import { SkyMaterial } from "@babylonjs/materials/sky"; // Import SkyMaterial
 import "@babylonjs/core/Meshes/Builders/sphereBuilder"; // For MeshBuilder.CreateSphere
 import "@babylonjs/core/Meshes/Builders/groundBuilder"; // For MeshBuilder.CreateGround
+import "@babylonjs/core/Meshes/Builders/boxBuilder"; // For MeshBuilder.CreateBox (skybox)
 import "@babylonjs/core/Collisions/collisionCoordinator"; // Needed for collisions
 import "@babylonjs/inspector"; // Import the inspector
 
@@ -114,6 +116,66 @@ const ground = MeshBuilder.CreateGround(
   scene
 );
 ground.checkCollisions = true; // Enable collisions for the ground
+
+// Create Skybox
+const skybox = MeshBuilder.CreateBox("skyBox", { size: 1000.0 }, scene);
+const skyMaterial = new SkyMaterial("skyMaterial", scene);
+skyMaterial.backFaceCulling = false;
+// Configure sky material properties (optional, defaults are often fine)
+skyMaterial.turbidity = 10;
+skyMaterial.luminance = 1;
+skyMaterial.inclination = 0.2; // 0 is noon, 0.5 is sunset/sunrise. Let's try 0.2 for daytime.
+skyMaterial.azimuth = 0.25; // Direction of the sun
+// skyMaterial.useSunPosition = true; // Use the sun position
+// skyMaterial.sunPosition = new Vector3(0, 100, 0); // Example sun position
+
+skybox.material = skyMaterial;
+skybox.infiniteDistance = true; // Ensure skybox is always in the background
+
+// Invisible Walls
+const wallHeight = 100; // Make walls very tall
+const wallThickness = 0.1; // Make walls very thin
+const groundSize = 50; // Should match ground dimensions
+
+// Wall 1 (front)
+const wall1 = MeshBuilder.CreateBox(
+  "wall1",
+  { width: groundSize, height: wallHeight, depth: wallThickness },
+  scene
+);
+wall1.position = new Vector3(0, wallHeight / 2, groundSize / 2);
+wall1.checkCollisions = true;
+wall1.isVisible = false;
+
+// Wall 2 (back)
+const wall2 = MeshBuilder.CreateBox(
+  "wall2",
+  { width: groundSize, height: wallHeight, depth: wallThickness },
+  scene
+);
+wall2.position = new Vector3(0, wallHeight / 2, -groundSize / 2);
+wall2.checkCollisions = true;
+wall2.isVisible = false;
+
+// Wall 3 (left)
+const wall3 = MeshBuilder.CreateBox(
+  "wall3",
+  { width: wallThickness, height: wallHeight, depth: groundSize },
+  scene
+);
+wall3.position = new Vector3(-groundSize / 2, wallHeight / 2, 0);
+wall3.checkCollisions = true;
+wall3.isVisible = false;
+
+// Wall 4 (right)
+const wall4 = MeshBuilder.CreateBox(
+  "wall4",
+  { width: wallThickness, height: wallHeight, depth: groundSize },
+  scene
+);
+wall4.position = new Vector3(groundSize / 2, wallHeight / 2, 0);
+wall4.checkCollisions = true;
+wall4.isVisible = false;
 
 // Render loop
 engine.runRenderLoop(() => {

@@ -43,6 +43,7 @@ const gameTimeDisplay = document.getElementById(
   "gameTimeDisplay"
 ) as HTMLElement;
 const crosshairElement = document.getElementById("crosshair") as HTMLElement;
+const fightMusic = document.getElementById("fightMusic") as HTMLAudioElement;
 
 if (crosshairElement) {
   crosshairElement.textContent = "•"; // Set default crosshair to bullet
@@ -99,6 +100,9 @@ let isMovingForward = false;
 let isMovingBackward = false;
 let isMovingLeft = false;
 let isMovingRight = false;
+
+// Fight mode state
+let isInFightMode = false;
 
 camera.keysUp.push(87);
 camera.keysDown.push(83);
@@ -465,6 +469,8 @@ engine.runRenderLoop(() => {
   // If sunPosition is (0,1,0) (zenith), light direction should be (0,-1,0) (straight down).
   sunLight.direction = skyMaterial.sunPosition.scale(-1);
 
+  let isAnyEnemyAggro = false; // Reset per frame
+
   // Spider movement and rotation logic
   if (spiderColliderMesh && !playerIsDead) {
     // Spider acts only if player is alive
@@ -486,6 +492,7 @@ engine.runRenderLoop(() => {
         directionToPlayerXZ.scale(spiderSpeed * deltaTime)
       );
       isSpiderMoving = true;
+      isAnyEnemyAggro = true; // Spider is aggro if following
     }
 
     // Make the spider look at the player if aggroed
@@ -496,6 +503,7 @@ engine.runRenderLoop(() => {
         camera.globalPosition.z
       );
       spiderColliderMesh.lookAt(lookAtTargetPosition, Math.PI);
+      isAnyEnemyAggro = true; // Spider is aggro if looking/close enough to attack
     }
 
     // Animation control & Attack Logic
@@ -599,6 +607,22 @@ engine.runRenderLoop(() => {
           false
         );
       }
+    }
+  }
+
+  // Update fight music based on aggro state
+  if (isAnyEnemyAggro && !isInFightMode) {
+    isInFightMode = true;
+    if (fightMusic) {
+      fightMusic
+        .play()
+        .catch((error) => console.warn("Fight music play failed:", error));
+    }
+  } else if (!isAnyEnemyAggro && isInFightMode) {
+    isInFightMode = false;
+    if (fightMusic) {
+      fightMusic.pause();
+      fightMusic.currentTime = 0; // Reset music to the beginning
     }
   }
 

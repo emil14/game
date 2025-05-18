@@ -61,6 +61,7 @@ let spiderColliderMesh: Mesh | null = null; // To store the spider's collider
 let spiderWalkAnimation: AnimationGroup | null = null; // To store the spider's walk animation
 let spiderIdleAnimation: AnimationGroup | null = null; // To store the spider's idle animation
 let spiderAttackAnimation: AnimationGroup | null = null; // To store the spider's attack animation
+let spiderAttackAnimationDurationSeconds = 0.75; // Default/fallback, will be calculated
 
 const camera = new FreeCamera("camera1", new Vector3(0, 1.6, -5), scene);
 camera.setTarget(Vector3.Zero());
@@ -351,6 +352,32 @@ SceneLoader.ImportMeshAsync("", "assets/enemies/", "spider.glb", scene).then(
           // Assuming this is the attack animation name
           spiderAttackAnimation = group;
           spiderAttackAnimation.stop();
+
+          if (spiderAttackAnimation.targetedAnimations.length > 0) {
+            // Assuming all tracks in this group share the same frame rate
+            // and the group's 'from' and 'to' correctly define the clip's range.
+            const firstAnimTrack =
+              spiderAttackAnimation.targetedAnimations[0].animation;
+            const frameRate = firstAnimTrack.framePerSecond;
+            // Use the group's full range for duration calculation as it represents the clip
+            const numFrames = group.to - group.from;
+            if (frameRate > 0 && numFrames > 0) {
+              spiderAttackAnimationDurationSeconds = numFrames / frameRate;
+              console.log(
+                `Spider attack animation duration: ${spiderAttackAnimationDurationSeconds}s`
+              );
+            } else {
+              console.warn(
+                "Spider attack animation has frameRate 0, undefined, or no frames. Using fallback duration."
+              );
+              // Fallback duration is already set at declaration (e.g., 0.75s)
+            }
+          } else {
+            console.warn(
+              "Spider attack animation group has no targeted animations. Using fallback duration."
+            );
+            // Fallback duration is already set at declaration
+          }
         }
       }
     }
@@ -506,49 +533,89 @@ engine.runRenderLoop(() => {
       isAnyEnemyAggro = true; // Spider is aggro if looking/close enough to attack
     }
 
+    // Always increment the cooldown timer for the next potential attack
+    timeSinceLastSpiderAttack += deltaTime;
+
     // Animation control & Attack Logic
     if (distanceToPlayer <= stoppingDistance) {
-      // Attacking state
-      if (spiderWalkAnimation && spiderWalkAnimation.isPlaying) {
-        spiderWalkAnimation.stop();
-      }
-      if (spiderIdleAnimation && spiderIdleAnimation.isPlaying) {
-        spiderIdleAnimation.stop();
-      }
-      if (spiderAttackAnimation && !spiderAttackAnimation.isPlaying) {
-        spiderAttackAnimation.start(
-          true,
-          1.0,
-          spiderAttackAnimation.from,
-          spiderAttackAnimation.to,
-          false
-        );
-      }
+      // Player is in attack range
+      isAnyEnemyAggro = true; // Ensure aggro status
 
-      // Handle spider attack
-      timeSinceLastSpiderAttack += deltaTime;
       if (timeSinceLastSpiderAttack >= spiderAttackCooldown) {
-        currentHealth -= spiderAttackDamage;
-        timeSinceLastSpiderAttack = 0; // Reset cooldown
+        // Cooldown is over, ready to attack
+        if (spiderWalkAnimation && spiderWalkAnimation.isPlaying) {
+          spiderWalkAnimation.stop();
+        }
+        if (spiderIdleAnimation && spiderIdleAnimation.isPlaying) {
+          spiderIdleAnimation.stop();
+        }
 
-        if (bloodScreenEffect) {
-          bloodScreenEffect.style.backgroundColor = "rgba(255, 0, 0, 0.3)"; // Red with some transparency
-          bloodScreenEffect.style.opacity = "1";
+        if (spiderAttackAnimation && !spiderAttackAnimation.isPlaying) {
+          spiderAttackAnimation.start(
+            false, // Play ONCE
+            1.0,
+            spiderAttackAnimation.from,
+            spiderAttackAnimation.to,
+            false
+          );
+          timeSinceLastSpiderAttack = 0; // Reset cooldown AFTER initiating the attack animation
+
+          // Schedule damage to occur part-way through the animation
+          const damageDelayFactor = 0.6; // Apply damage 60% of the way through animation (can be tweaked)
+          const damageDelayMilliseconds =
+            spiderAttackAnimationDurationSeconds * damageDelayFactor * 1000;
+
           setTimeout(() => {
-            bloodScreenEffect.style.opacity = "0";
-          }, 200); // Duration of the flash
-        }
+            if (playerIsDead || !spiderColliderMesh || !camera) return; // Safety checks
 
-        if (currentHealth < 0) {
-          currentHealth = 0;
-        }
-        // console.log(`Player hit by spider! Health: ${currentHealth}`); // Debug log
+            // Check distance again at the moment of intended impact
+            const finalDistanceToPlayer = camera.globalPosition
+              .subtract(spiderColliderMesh.position)
+              .length();
+            // Allow a small tolerance for player movement during animation wind-up
+            if (finalDistanceToPlayer <= stoppingDistance + 0.75) {
+              currentHealth -= spiderAttackDamage;
 
-        if (currentHealth === 0) {
-          playerIsDead = true;
-          alert("Player is dead");
-          // Optional: Stop player input or other game features
-          // camera.detachControl(canvas);
+              if (bloodScreenEffect) {
+                bloodScreenEffect.style.backgroundColor =
+                  "rgba(255, 0, 0, 0.3)";
+                bloodScreenEffect.style.opacity = "1";
+                setTimeout(() => {
+                  bloodScreenEffect.style.opacity = "0";
+                }, 200); // Duration of the flash
+              }
+
+              if (currentHealth < 0) {
+                currentHealth = 0;
+              }
+              // console.log(`Player hit by spider via setTimeout! Health: ${currentHealth}`);
+
+              if (currentHealth === 0 && !playerIsDead) {
+                playerIsDead = true;
+                alert("Player is dead");
+                // camera.detachControl(canvas);
+              }
+            }
+          }, damageDelayMilliseconds);
+        }
+      } else {
+        // Attack is on cooldown, but player is still in range. Play idle.
+        // Let current attack animation play out if it is, then switch to idle.
+        if (spiderAttackAnimation && spiderAttackAnimation.isPlaying) {
+          // Animation is playing, do nothing, let it finish its visual course
+        } else {
+          if (spiderWalkAnimation && spiderWalkAnimation.isPlaying) {
+            spiderWalkAnimation.stop();
+          }
+          if (spiderIdleAnimation && !spiderIdleAnimation.isPlaying) {
+            spiderIdleAnimation.start(
+              true,
+              1.0,
+              spiderIdleAnimation.from,
+              spiderIdleAnimation.to,
+              false
+            );
+          }
         }
       }
     } else if (isSpiderMoving) {
@@ -568,14 +635,15 @@ engine.runRenderLoop(() => {
           false
         );
       }
-      timeSinceLastSpiderAttack = 0; // Reset attack cooldown if player moves out of range
+      // timeSinceLastSpiderAttack continues to increment. No reset here.
     } else {
-      // Idle state (implies distanceToPlayer >= aggroRadius, so !isSpiderMoving)
+      // Idle state (implies distanceToPlayer >= aggroRadius, or not moving for other reasons)
       if (spiderWalkAnimation && spiderWalkAnimation.isPlaying) {
         spiderWalkAnimation.stop();
       }
       if (spiderAttackAnimation && spiderAttackAnimation.isPlaying) {
-        spiderAttackAnimation.stop();
+        // If player moved out of range while attack animation was playing (e.g. very long anim)
+        spiderAttackAnimation.stop(); // This will prevent onAnimationEndObservable from firing for damage
       }
       if (spiderIdleAnimation && !spiderIdleAnimation.isPlaying) {
         spiderIdleAnimation.start(
@@ -586,7 +654,7 @@ engine.runRenderLoop(() => {
           false
         );
       }
-      timeSinceLastSpiderAttack = 0; // Reset attack cooldown if spider is idle
+      // timeSinceLastSpiderAttack continues to increment. No reset here.
     }
   } else if (spiderColliderMesh && playerIsDead) {
     // Spider behavior after player death (e.g., return to idle)

@@ -203,6 +203,20 @@ playerLight.parent = camera;
 const CYCLE_DURATION_SECONDS = 1440;
 let currentCycleTime = CYCLE_DURATION_SECONDS / 2;
 
+// New Day/Night Cycle Parameters
+const NEW_SUNRISE_HOUR = 5;
+const NEW_SUNSET_HOUR = 20;
+
+const newSunrisePoint = NEW_SUNRISE_HOUR / 24; // Progress point for sunrise center
+const newSunsetPoint = NEW_SUNSET_HOUR / 24; // Progress point for sunset center
+const newMiddayPoint = (newSunrisePoint + newSunsetPoint) / 2; // Sun is highest
+
+const dayNightTransitionWidth = 0.05; // Half-width of the transition period (0.05 * 24h = 1.2h)
+
+const sunAngleNight = -0.2; // Sun inclination during full night
+const sunAngleHorizon = 0.0; // Sun inclination at horizon (sunrise/sunset peak)
+const sunAnglePeak = 0.5; // Sun inclination at midday peak
+
 const ground = MeshBuilder.CreateGround(
   "ground1",
   { width: 50, height: 50, subdivisions: 2 },
@@ -523,67 +537,90 @@ engine.runRenderLoop(() => {
 
   const currentDaySkyMaterial = daySkybox.material as SkyMaterial;
   const currentNightSkyMaterial = nightSkybox.material as StandardMaterial;
-  let currentInclination;
-  const dayNightTransition = 0.05;
-  let dayLuminance = currentDaySkyMaterial.luminance;
-  let nightAlpha = currentNightSkyMaterial.alpha;
 
-  if (cycleProgress >= 0 && cycleProgress < 0.25 - dayNightTransition) {
-    currentInclination = -0.2;
-    light.intensity = 0.05;
-    sunLight.intensity = 0;
-    dayLuminance = 0.005;
-    nightAlpha = 1.0;
-  } else if (cycleProgress < 0.25 + dayNightTransition) {
+  // Target values, to be determined by cycleProgress
+  let targetInclination: number;
+  let targetHemisphericIntensity: number;
+  let targetSunLightIntensity: number;
+  let targetDaySkyLuminance: number;
+  let targetNightSkyAlpha: number;
+
+  const sr_transition_start = newSunrisePoint - dayNightTransitionWidth;
+  const sr_transition_end = newSunrisePoint + dayNightTransitionWidth;
+  const ss_transition_start = newSunsetPoint - dayNightTransitionWidth;
+  const ss_transition_end = newSunsetPoint + dayNightTransitionWidth;
+
+  if (
+    cycleProgress >= sr_transition_start &&
+    cycleProgress < sr_transition_end
+  ) {
+    // Sunrise Transition
     const transProgress =
-      (cycleProgress - (0.25 - dayNightTransition)) / (dayNightTransition * 2);
-    currentInclination = -0.2 + transProgress * 0.2;
-    light.intensity = 0.05 + transProgress * 0.65;
-    sunLight.intensity = transProgress * 1.0;
-    dayLuminance = 0.005 + transProgress * (1.0 - 0.005);
-    nightAlpha = 1.0 - transProgress;
-  } else if (cycleProgress < 0.5 - dayNightTransition) {
-    const dayProgress =
-      (cycleProgress - (0.25 + dayNightTransition)) /
-      (0.5 - dayNightTransition - (0.25 + dayNightTransition));
-    currentInclination = dayProgress * 0.5;
-    light.intensity = 0.7;
-    sunLight.intensity = 1.0;
-    dayLuminance = 1.0;
-    nightAlpha = 0.0;
-  } else if (cycleProgress < 0.5 + dayNightTransition) {
-    currentInclination = 0.5;
-    light.intensity = 0.7;
-    sunLight.intensity = 1.0;
-    dayLuminance = 1.0;
-    nightAlpha = 0.0;
-  } else if (cycleProgress < 0.75 - dayNightTransition) {
-    const afternoonProgress =
-      (cycleProgress - (0.5 + dayNightTransition)) /
-      (0.75 - dayNightTransition - (0.5 + dayNightTransition));
-    currentInclination = 0.5 - afternoonProgress * 0.5;
-    light.intensity = 0.7;
-    sunLight.intensity = 1.0;
-    dayLuminance = 1.0;
-    nightAlpha = 0.0;
-  } else if (cycleProgress < 0.75 + dayNightTransition) {
+      (cycleProgress - sr_transition_start) / (dayNightTransitionWidth * 2);
+    targetInclination =
+      sunAngleNight + transProgress * (sunAngleHorizon - sunAngleNight);
+    targetHemisphericIntensity = 0.05 + transProgress * 0.65; // Night (0.05) to Day (0.7)
+    targetSunLightIntensity = transProgress * 1.0; // Night (0) to Day (1.0)
+    targetDaySkyLuminance = 0.005 + transProgress * (1.0 - 0.005); // Night (0.005) to Day (1.0)
+    targetNightSkyAlpha = 1.0 - transProgress; // Night (1.0) to Day (0.0)
+  } else if (
+    cycleProgress >= ss_transition_start &&
+    cycleProgress < ss_transition_end
+  ) {
+    // Sunset Transition
     const transProgress =
-      (cycleProgress - (0.75 - dayNightTransition)) / (dayNightTransition * 2);
-    currentInclination = 0.0 - transProgress * 0.2;
-    light.intensity = 0.7 - transProgress * 0.65;
-    sunLight.intensity = 1.0 - transProgress * 1.0;
-    dayLuminance = 1.0 - transProgress * (1.0 - 0.005);
-    nightAlpha = transProgress;
+      (cycleProgress - ss_transition_start) / (dayNightTransitionWidth * 2);
+    targetInclination =
+      sunAngleHorizon - transProgress * (sunAngleHorizon - sunAngleNight); // Horizon to Night
+    targetHemisphericIntensity = 0.7 - transProgress * 0.65; // Day (0.7) to Night (0.05)
+    targetSunLightIntensity = 1.0 - transProgress * 1.0; // Day (1.0) to Night (0)
+    targetDaySkyLuminance = 1.0 - transProgress * (1.0 - 0.005); // Day (1.0) to Night (0.005)
+    targetNightSkyAlpha = transProgress; // Day (0.0) to Night (1.0)
+  } else if (
+    cycleProgress >= sr_transition_end &&
+    cycleProgress < ss_transition_start
+  ) {
+    // Full Day (between sunrise and sunset transitions)
+    targetHemisphericIntensity = 0.7;
+    targetSunLightIntensity = 1.0;
+    targetDaySkyLuminance = 1.0;
+    targetNightSkyAlpha = 0.0;
+
+    if (cycleProgress < newMiddayPoint) {
+      // Morning: from end of sunrise transition to midday peak
+      const morningProgress =
+        (cycleProgress - sr_transition_end) /
+        (newMiddayPoint - sr_transition_end);
+      targetInclination =
+        sunAngleHorizon + morningProgress * (sunAnglePeak - sunAngleHorizon);
+    } else {
+      // Afternoon: from midday peak to start of sunset transition
+      const afternoonProgress =
+        (cycleProgress - newMiddayPoint) /
+        (ss_transition_start - newMiddayPoint);
+      targetInclination =
+        sunAnglePeak - afternoonProgress * (sunAnglePeak - sunAngleHorizon);
+    }
+    // Clamp inclination during day to avoid going below horizon if logic is imperfect
+    targetInclination = Math.max(
+      sunAngleHorizon,
+      Math.min(sunAnglePeak, targetInclination)
+    );
   } else {
-    currentInclination = -0.2;
-    light.intensity = 0.05;
-    sunLight.intensity = 0;
-    dayLuminance = 0.005;
-    nightAlpha = 1.0;
+    // Full Night (covers periods: after sunset_end up to 1.0, and from 0.0 up to sunrise_start)
+    targetInclination = sunAngleNight;
+    targetHemisphericIntensity = 0.05;
+    targetSunLightIntensity = 0;
+    targetDaySkyLuminance = 0.005;
+    targetNightSkyAlpha = 1.0;
   }
-  currentDaySkyMaterial.luminance = dayLuminance;
-  currentNightSkyMaterial.alpha = nightAlpha;
-  currentDaySkyMaterial.inclination = currentInclination;
+
+  // Apply the calculated values
+  currentDaySkyMaterial.inclination = targetInclination;
+  light.intensity = targetHemisphericIntensity;
+  sunLight.intensity = targetSunLightIntensity;
+  currentDaySkyMaterial.luminance = targetDaySkyLuminance;
+  currentNightSkyMaterial.alpha = targetNightSkyAlpha;
 
   if (currentDaySkyMaterial.useSunPosition) {
     const phi = currentDaySkyMaterial.inclination * Math.PI;
@@ -927,79 +964,94 @@ function handleConsoleCommand(command: string | null): void {
           ).padStart(2, "0")}`
         );
 
+        // Apply the same lighting logic as in runRenderLoop
         const currentDaySkyMaterial = daySkybox.material as SkyMaterial;
         const currentNightSkyMaterial =
           nightSkybox.material as StandardMaterial;
-        let currentInclinationUpdate;
-        const dayNightTransitionUpdate = 0.05;
-        let dayLuminanceUpdate;
-        let nightAlphaUpdate;
+
+        let targetInclinationUpdate: number;
+        let targetHemisphericIntensityUpdate: number;
+        let targetSunLightIntensityUpdate: number;
+        let targetDaySkyLuminanceUpdate: number;
+        let targetNightSkyAlphaUpdate: number;
+
+        const sr_transition_start = newSunrisePoint - dayNightTransitionWidth;
+        const sr_transition_end = newSunrisePoint + dayNightTransitionWidth;
+        const ss_transition_start = newSunsetPoint - dayNightTransitionWidth;
+        const ss_transition_end = newSunsetPoint + dayNightTransitionWidth;
 
         if (
-          targetCycleProgress >= 0 &&
-          targetCycleProgress < 0.25 - dayNightTransitionUpdate
+          targetCycleProgress >= sr_transition_start &&
+          targetCycleProgress < sr_transition_end
         ) {
-          currentInclinationUpdate = -0.2;
-          light.intensity = 0.05;
-          sunLight.intensity = 0;
-          dayLuminanceUpdate = 0.005;
-          nightAlphaUpdate = 1.0;
-        } else if (targetCycleProgress < 0.25 + dayNightTransitionUpdate) {
+          // Sunrise Transition
           const transProgress =
-            (targetCycleProgress - (0.25 - dayNightTransitionUpdate)) /
-            (dayNightTransitionUpdate * 2);
-          currentInclinationUpdate = -0.2 + transProgress * 0.2;
-          light.intensity = 0.05 + transProgress * 0.65;
-          sunLight.intensity = transProgress * 1.0;
-          dayLuminanceUpdate = 0.005 + transProgress * (1.0 - 0.005);
-          nightAlphaUpdate = 1.0 - transProgress;
-        } else if (targetCycleProgress < 0.5 - dayNightTransitionUpdate) {
-          const dayProgress =
-            (targetCycleProgress - (0.25 + dayNightTransitionUpdate)) /
-            (0.5 -
-              dayNightTransitionUpdate -
-              (0.25 + dayNightTransitionUpdate));
-          currentInclinationUpdate = dayProgress * 0.5;
-          light.intensity = 0.7;
-          sunLight.intensity = 1.0;
-          dayLuminanceUpdate = 1.0;
-          nightAlphaUpdate = 0.0;
-        } else if (targetCycleProgress < 0.5 + dayNightTransitionUpdate) {
-          currentInclinationUpdate = 0.5;
-          light.intensity = 0.7;
-          sunLight.intensity = 1.0;
-          dayLuminanceUpdate = 1.0;
-          nightAlphaUpdate = 0.0;
-        } else if (targetCycleProgress < 0.75 - dayNightTransitionUpdate) {
-          const afternoonProgress =
-            (targetCycleProgress - (0.5 + dayNightTransitionUpdate)) /
-            (0.75 -
-              dayNightTransitionUpdate -
-              (0.5 + dayNightTransitionUpdate));
-          currentInclinationUpdate = 0.5 - afternoonProgress * 0.5;
-          light.intensity = 0.7;
-          sunLight.intensity = 1.0;
-          dayLuminanceUpdate = 1.0;
-          nightAlphaUpdate = 0.0;
-        } else if (targetCycleProgress < 0.75 + dayNightTransitionUpdate) {
+            (targetCycleProgress - sr_transition_start) /
+            (dayNightTransitionWidth * 2);
+          targetInclinationUpdate =
+            sunAngleNight + transProgress * (sunAngleHorizon - sunAngleNight);
+          targetHemisphericIntensityUpdate = 0.05 + transProgress * 0.65;
+          targetSunLightIntensityUpdate = transProgress * 1.0;
+          targetDaySkyLuminanceUpdate = 0.005 + transProgress * (1.0 - 0.005);
+          targetNightSkyAlphaUpdate = 1.0 - transProgress;
+        } else if (
+          targetCycleProgress >= ss_transition_start &&
+          targetCycleProgress < ss_transition_end
+        ) {
+          // Sunset Transition
           const transProgress =
-            (targetCycleProgress - (0.75 - dayNightTransitionUpdate)) /
-            (dayNightTransitionUpdate * 2);
-          currentInclinationUpdate = 0.0 - transProgress * 0.2;
-          light.intensity = 0.7 - transProgress * 0.65;
-          sunLight.intensity = 1.0 - transProgress * 1.0;
-          dayLuminanceUpdate = 1.0 - transProgress * (1.0 - 0.005);
-          nightAlphaUpdate = transProgress;
+            (targetCycleProgress - ss_transition_start) /
+            (dayNightTransitionWidth * 2);
+          targetInclinationUpdate =
+            sunAngleHorizon - transProgress * (sunAngleHorizon - sunAngleNight);
+          targetHemisphericIntensityUpdate = 0.7 - transProgress * 0.65;
+          targetSunLightIntensityUpdate = 1.0 - transProgress * 1.0;
+          targetDaySkyLuminanceUpdate = 1.0 - transProgress * (1.0 - 0.005);
+          targetNightSkyAlphaUpdate = transProgress;
+        } else if (
+          targetCycleProgress >= sr_transition_end &&
+          targetCycleProgress < ss_transition_start
+        ) {
+          // Full Day
+          targetHemisphericIntensityUpdate = 0.7;
+          targetSunLightIntensityUpdate = 1.0;
+          targetDaySkyLuminanceUpdate = 1.0;
+          targetNightSkyAlphaUpdate = 0.0;
+
+          if (targetCycleProgress < newMiddayPoint) {
+            const morningProgress =
+              (targetCycleProgress - sr_transition_end) /
+              (newMiddayPoint - sr_transition_end);
+            targetInclinationUpdate =
+              sunAngleHorizon +
+              morningProgress * (sunAnglePeak - sunAngleHorizon);
+          } else {
+            const afternoonProgress =
+              (targetCycleProgress - newMiddayPoint) /
+              (ss_transition_start - newMiddayPoint);
+            targetInclinationUpdate =
+              sunAnglePeak -
+              afternoonProgress * (sunAnglePeak - sunAngleHorizon);
+          }
+          targetInclinationUpdate = Math.max(
+            sunAngleHorizon,
+            Math.min(sunAnglePeak, targetInclinationUpdate)
+          );
         } else {
-          currentInclinationUpdate = -0.2;
-          light.intensity = 0.05;
-          sunLight.intensity = 0;
-          dayLuminanceUpdate = 0.005;
-          nightAlphaUpdate = 1.0;
+          // Full Night
+          targetInclinationUpdate = sunAngleNight;
+          targetHemisphericIntensityUpdate = 0.05;
+          targetSunLightIntensityUpdate = 0;
+          targetDaySkyLuminanceUpdate = 0.005;
+          targetNightSkyAlphaUpdate = 1.0;
         }
-        currentDaySkyMaterial.luminance = dayLuminanceUpdate;
-        currentNightSkyMaterial.alpha = nightAlphaUpdate;
-        currentDaySkyMaterial.inclination = currentInclinationUpdate;
+
+        currentDaySkyMaterial.inclination = targetInclinationUpdate;
+        light.intensity = targetHemisphericIntensityUpdate;
+        sunLight.intensity = targetSunLightIntensityUpdate;
+        currentDaySkyMaterial.luminance = targetDaySkyLuminanceUpdate;
+        currentNightSkyMaterial.alpha = targetNightSkyAlphaUpdate;
+
         if (currentDaySkyMaterial.useSunPosition) {
           const phi = currentDaySkyMaterial.inclination * Math.PI;
           const theta = currentDaySkyMaterial.azimuth * 2 * Math.PI;

@@ -19,6 +19,8 @@ import "@babylonjs/core/Meshes/Builders/groundBuilder";
 import "@babylonjs/core/Meshes/Builders/boxBuilder";
 import "@babylonjs/core/Collisions/collisionCoordinator";
 import "@babylonjs/inspector";
+import { Animation } from "@babylonjs/core/Animations/animation";
+import { PointerEventTypes } from "@babylonjs/core/Events/pointerEvents";
 
 // +++ Import Chest and registration logic +++
 import { Chest, registerChest } from "./interactables"; // playerHasKey is used by Chest internally, playerAcquiresKey for testing
@@ -64,7 +66,11 @@ let spiderIdleAnimation: AnimationGroup | null = null; // To store the spider's 
 let spiderAttackAnimation: AnimationGroup | null = null; // To store the spider's attack animation
 let spiderAttackAnimationDurationSeconds = 0.75; // Default/fallback, will be calculated
 
+let playerSword: AbstractMesh | null = null;
+let isSwinging = false; // Moved here to be accessible by onPointerDown
+
 const camera = new FreeCamera("camera1", new Vector3(0, 1.6, -5), scene);
+console.log("Camera minZ:", camera.minZ, "Camera maxZ:", camera.maxZ);
 camera.setTarget(Vector3.Zero());
 camera.attachControl(canvas, true);
 
@@ -624,6 +630,89 @@ SceneLoader.ImportMeshAsync(
   // waterMaterial.addToRenderList(chestCollider); // Or collider if that's more appropriate and visible
   // }
 });
+
+// Sword Loading and Setup
+SceneLoader.ImportMeshAsync("", "assets/models/pirate_kit/", "sword.glb", scene)
+  .then((result) => {
+    const swordMesh = result.meshes[0];
+    if (swordMesh) {
+      playerSword = swordMesh;
+      playerSword.name = "playerSword";
+
+      // Parent to camera
+      playerSword.parent = camera;
+
+      // Approximate position and rotation (adjust these values as needed)
+      playerSword.position = new Vector3(0.35, -0.35, 1.2); // Moved slightly further away
+      playerSword.rotationQuaternion = null; // Use Euler angles for simpler initial setup
+      // Rotate to point the blade forward (adjust Y rotation)
+      playerSword.rotation = new Vector3(0, Math.PI / 12 + Math.PI / 2, 0);
+
+      // Scale if necessary (e.g., if the model is too large or small)
+      playerSword.scaling = new Vector3(0.7, 0.7, 0.7); // Reduced scale
+
+      // Ensure sword doesn't cast shadows or interact with collisions for now
+      playerSword.receiveShadows = false;
+      playerSword.renderingGroupId = 1; // Render on top of other objects
+      playerSword.getChildMeshes().forEach((mesh) => {
+        mesh.receiveShadows = false;
+        mesh.checkCollisions = false;
+        mesh.renderingGroupId = 1; // Apply to children as well
+      });
+      swordMesh.checkCollisions = false;
+      swordMesh.renderingGroupId = 1; // Also apply to the root mesh of the sword import
+
+      console.log("Player sword loaded:", playerSword);
+      console.log("Sword position (local to camera):", playerSword.position);
+      console.log("Sword rotation (local to camera):", playerSword.rotation);
+      console.log("Sword visibility:", playerSword.isVisible);
+    } else {
+      console.error("Sword mesh could not be loaded from the GLB file.");
+    }
+  })
+  .catch((error) => {
+    console.error("Error loading sword:", error);
+  });
+
+// Sword Swing Animation (defined but keys set dynamically)
+const swingAnimation = new Animation(
+  "swordSwing",
+  "rotation.z", // Changed from rotation.x to rotation.z
+  30, // FPS
+  Animation.ANIMATIONTYPE_FLOAT,
+  Animation.ANIMATIONLOOPMODE_CONSTANT
+);
+
+scene.onPointerDown = (evt) => {
+  // evt.button === 0 for left mouse button
+  if (evt.button === 0 && playerSword && !isSwinging) {
+    isSwinging = true;
+
+    // Define animation keys dynamically when swing starts
+    const initialRotationZ = playerSword.rotation.z; // Current resting Z rotation
+    const swingAngle = Math.PI / 3; // Swing out by 60 degrees around Z-axis
+
+    const swingKeysDynamic = [];
+    swingKeysDynamic.push({ frame: 0, value: initialRotationZ });
+    swingKeysDynamic.push({ frame: 5, value: initialRotationZ + swingAngle }); // Swing out
+    swingKeysDynamic.push({ frame: 15, value: initialRotationZ }); // Return to initial Z rotation
+
+    swingAnimation.setKeys(swingKeysDynamic);
+
+    scene.beginDirectAnimation(
+      playerSword, // Target
+      [swingAnimation], // Animations
+      0, // Start frame
+      15, // End frame
+      false, // Loop animation
+      1, // Speed ratio
+      () => {
+        // On animation end
+        isSwinging = false;
+      }
+    );
+  }
+};
 
 engine.runRenderLoop(() => {
   const deltaTime = engine.getDeltaTime() / 1000; // Delta time in seconds

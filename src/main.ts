@@ -242,17 +242,14 @@ const skybox = MeshBuilder.CreateBox(
 );
 skybox.infiniteDistance = true;
 
-// --- Procedural skybox (commented out for night skybox) ---
-// const skyboxMaterial = new SkyMaterial("skyBox", scene);
-// skyboxMaterial.backFaceCulling = false;
-// skyboxMaterial.turbidity = 10;
-// skyboxMaterial.luminance = 1.0;
-// skyboxMaterial.mieDirectionalG = 0.8;
-// skyboxMaterial.useSunPosition = true;
-// skybox.material = skyboxMaterial;
-// skybox.infiniteDistance = true;
-
-// --- Night skybox using CubeTexture ---
+// --- Procedural skybox (for day) ---
+const skyboxMaterial = new SkyMaterial("skyBox", scene);
+skyboxMaterial.backFaceCulling = false;
+skyboxMaterial.turbidity = 10;
+skyboxMaterial.luminance = 1.0;
+skyboxMaterial.mieDirectionalG = 0.8;
+skyboxMaterial.useSunPosition = true;
+// --- Night skybox using CubeTexture (for night, will be replaced with a different one later) ---
 const nightSkyboxMaterial = new StandardMaterial("nightSkyboxMaterial", scene);
 nightSkyboxMaterial.backFaceCulling = false;
 nightSkyboxMaterial.reflectionTexture = new CubeTexture(
@@ -269,7 +266,8 @@ nightSkyboxMaterial.reflectionTexture = new CubeTexture(
 );
 nightSkyboxMaterial.reflectionTexture.coordinatesMode = 5; // SKYBOX_MODE
 nightSkyboxMaterial.disableLighting = true;
-skybox.material = nightSkyboxMaterial;
+// Set initial skybox material to day
+skybox.material = skyboxMaterial;
 
 // const waterMesh = MeshBuilder.CreateGround(
 //   "waterMesh",
@@ -851,6 +849,68 @@ engine.runRenderLoop(() => {
     }
   }
 
+  // Stamina logic
+  if (!playerIsDead) {
+    // Only process stamina if player is alive
+    if (isSprinting) {
+      if (currentStamina > 0) {
+        currentStamina -= staminaDepletionRate * deltaTime;
+        if (currentStamina < 0) {
+          currentStamina = 0;
+        }
+      }
+      if (currentStamina === 0) {
+        isSprinting = false;
+        if (isCrouching) {
+          camera.speed = defaultSpeed * crouchSpeedMultiplier;
+        } else {
+          camera.speed = defaultSpeed;
+        }
+      }
+    } else {
+      // If shift is not pressed and not sprinting (e.g. ran out of stamina but still holding shift)
+      // ensure speed is normal/crouch speed.
+      if (isCrouching) {
+        if (
+          camera.speed !== defaultSpeed * crouchSpeedMultiplier &&
+          !isShiftPressed
+        ) {
+          camera.speed = defaultSpeed * crouchSpeedMultiplier;
+        }
+      } else {
+        if (camera.speed !== defaultSpeed && !isShiftPressed) {
+          camera.speed = defaultSpeed;
+        }
+      }
+
+      if (currentStamina < maxStamina) {
+        let currentRegenRate = staminaRegenerationRate;
+        const isMoving =
+          isMovingForward || isMovingBackward || isMovingLeft || isMovingRight;
+        if (isMoving) {
+          currentRegenRate = 0;
+        }
+
+        if (currentRegenRate > 0) {
+          currentStamina += currentRegenRate * deltaTime;
+          if (currentStamina > maxStamina) {
+            currentStamina = maxStamina;
+          }
+        }
+      }
+    }
+  }
+
+  // Keep sprinting if shift is held and stamina is available
+  if (!playerIsDead && isShiftPressed && !isSprinting && currentStamina > 0) {
+    isSprinting = true;
+    if (isCrouching) {
+      camera.speed = defaultSpeed; // Sprinting while crouching
+    } else {
+      camera.speed = defaultSpeed * runSpeedMultiplier;
+    }
+  }
+
   // Raycasting for enemy info
   if (
     enemyInfoContainer &&
@@ -925,6 +985,17 @@ engine.runRenderLoop(() => {
       // crosshairElement.classList.remove("crosshair-interactable-focus");
       if (crosshairElement) crosshairElement.textContent = "•"; // Normal crosshair
     }
+  }
+
+  // --- Skybox switching logic ---
+  // Use procedural skybox for day, static for night
+  const isDay =
+    cycleProgress >= 0.25 - dayNightTransition &&
+    cycleProgress < 0.75 + dayNightTransition;
+  if (isDay && skybox.material !== skyboxMaterial) {
+    skybox.material = skyboxMaterial;
+  } else if (!isDay && skybox.material !== nightSkyboxMaterial) {
+    skybox.material = nightSkyboxMaterial;
   }
 
   scene.render();

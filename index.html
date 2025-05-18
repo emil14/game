@@ -9,24 +9,20 @@
     <style>
       /* Basic styling for the stamina bar */
       .stamina-bar-container {
-        width: 200px; /* Increased width */
-        height: 25px; /* Increased height */
-        background-color: #333; /* Darker background for better contrast potentially */
-        border-radius: 5px; /* Slightly larger radius */
-        margin-top: 5px; /* Adjusted margin for when it's below health */
-        overflow: hidden;
-        position: relative; /* For positioning text inside */
-        display: flex; /* For centering text */
-        align-items: center; /* For centering text vertically */
-        justify-content: center; /* For centering text horizontally */
+        width: 200px;
+        height: 25px;
+        margin-top: 5px;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
       }
       .stamina-bar-fill {
         height: 100%;
         background-color: #4caf50;
         width: 100%;
-        border-radius: 5px; /* Match parent's border radius */
+        border-radius: 5px;
         transition: width 0.1s linear;
-        position: absolute; /* Position behind text */
+        position: absolute;
         top: 0;
         left: 0;
       }
@@ -41,10 +37,9 @@
         border-radius: 5px;
       }
       .fps-display {
-        /* New class for FPS specific styling */
         position: absolute;
         top: 10px;
-        right: 10px; /* Moved to top-right */
+        right: 10px;
         color: white;
         background-color: rgba(0, 0, 0, 0.5);
         padding: 5px;
@@ -53,28 +48,24 @@
       }
       .stamina-text {
         font-size: 0.9em;
-        color: white; /* Ensure text is white */
-        z-index: 1; /* Ensure text is on top of the fill */
-        position: relative; /* To ensure z-index works as expected */
-        text-shadow: 1px 1px 2px black; /* Add shadow for better visibility */
+        color: white;
+        z-index: 1;
+        position: relative;
+        text-shadow: 1px 1px 2px black;
       }
       /* Basic styling for the health bar */
       .health-bar-container {
         width: 200px;
         height: 25px;
-        background-color: #333;
-        border-radius: 5px;
-        margin-top: 5px; /* Adjusted margin for when it's on top */
-        overflow: hidden;
-        position: relative;
+        margin-top: 5px;
         display: flex;
         align-items: center;
-        justify-content: center;
+        justify-content: flex-start;
       }
       .health-bar-fill {
         height: 100%;
-        background-color: #e74c3c; /* Red color for health */
-        width: 100%; /* Start full */
+        background-color: #ff0000;
+        width: 100%;
         border-radius: 5px;
         transition: width 0.1s linear;
         position: absolute;
@@ -95,11 +86,38 @@
         left: 0;
         width: 100vw;
         height: 100vh;
-        background-color: rgba(255, 0, 0, 0); /* Initially transparent */
+        background-color: rgba(255, 0, 0, 0);
         opacity: 0;
-        pointer-events: none; /* So it doesn't block interactions */
-        z-index: 1000; /* Ensure it's on top */
-        transition: opacity 0.2s ease-out; /* Smooth fade out */
+        pointer-events: none;
+        z-index: 1000;
+        transition: opacity 0.2s ease-out;
+      }
+
+      .bar-emoji {
+        font-size: 1.2em;
+        color: white;
+        text-shadow: 1px 1px 2px black;
+        margin-right: 8px;
+      }
+
+      .bar-content-wrapper {
+        position: relative;
+        flex-grow: 1;
+        height: 100%;
+        background-color: #333;
+        border-radius: 5px;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      /* Update existing bar containers */
+      .health-bar-container,
+      .stamina-bar-container {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
       }
     </style>
   </head>
@@ -112,16 +130,80 @@
     <div class="ui-container">
       <div>
         <div class="health-bar-container">
-          <span id="healthText" class="health-text">❤️ 100/100</span>
-          <div id="healthBarFill" class="health-bar-fill"></div>
+          <span class="bar-emoji">❤️</span>
+          <div class="bar-content-wrapper">
+            <div id="healthBarFill" class="health-bar-fill"></div>
+            <span id="healthText" class="health-text">100/100</span>
+          </div>
         </div>
         <div class="stamina-bar-container">
-          <span id="staminaText" class="stamina-text">👟 100/100</span>
-          <div id="staminaBarFill" class="stamina-bar-fill"></div>
+          <span class="bar-emoji">👟</span>
+          <div class="bar-content-wrapper">
+            <div id="staminaBarFill" class="stamina-bar-fill"></div>
+            <span id="staminaText" class="stamina-text">100/100</span>
+          </div>
+        </div>
+        <div id="gameTimeContainer" style="margin-top: 5px; text-align: left">
+          <span class="bar-emoji">⏱️</span>
+          <span id="gameTimeDisplay">00:00</span>
         </div>
       </div>
     </div>
     <div id="fpsDisplay" class="fps-display">FPS: 0</div>
+    <div
+      id="enemyInfoContainer"
+      style="
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        text-align: center;
+        display: none;
+        color: white;
+        font-size: 18px;
+        text-shadow: 1px 1px 2px black;
+      "
+    >
+      <div id="enemyName"></div>
+      <div
+        id="enemyHealthBarContainer"
+        style="
+          width: 200px;
+          height: 20px;
+          background-color: #555;
+          border-radius: 5px;
+          margin-top: 5px;
+          overflow: hidden;
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        "
+      >
+        <div
+          id="enemyHealthBarFill"
+          style="
+            width: 100%;
+            height: 100%;
+            background-color: #ff0000;
+            border-radius: 5px;
+            position: absolute;
+            top: 0;
+            left: 0;
+          "
+        ></div>
+        <div
+          id="enemyHealthText"
+          style="
+            font-size: 14px;
+            color: white;
+            z-index: 1;
+            position: relative;
+            text-shadow: 1px 1px 2px black;
+          "
+        ></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

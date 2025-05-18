@@ -29,6 +29,16 @@ const healthBarFill = document.getElementById("healthBarFill") as HTMLElement;
 const bloodScreenEffect = document.getElementById(
   "bloodScreenEffect"
 ) as HTMLElement;
+const enemyInfoContainer = document.getElementById(
+  "enemyInfoContainer"
+) as HTMLElement;
+const enemyName = document.getElementById("enemyName") as HTMLElement;
+const enemyHealthText = document.getElementById(
+  "enemyHealthText"
+) as HTMLElement;
+const enemyHealthBarFill = document.getElementById(
+  "enemyHealthBarFill"
+) as HTMLElement;
 
 const engine = new Engine(canvas, false, {
   preserveDrawingBuffer: true,
@@ -46,6 +56,9 @@ let spiderAttackAnimation: AnimationGroup | null = null; // To store the spider'
 const camera = new FreeCamera("camera1", new Vector3(0, 1.6, -5), scene);
 camera.setTarget(Vector3.Zero());
 camera.attachControl(canvas, true);
+
+// Define a max distance for the raycast
+const crosshairMaxDistance = 30; // Adjust as needed, maximum distance to detect enemy
 
 camera.ellipsoid = new Vector3(0.5, 0.8, 0.5);
 camera.checkCollisions = true;
@@ -626,17 +639,49 @@ engine.runRenderLoop(() => {
     camera.speed = defaultSpeed * runSpeedMultiplier;
   }
 
+  // Raycasting for enemy info
+  if (
+    enemyInfoContainer &&
+    enemyName &&
+    enemyHealthText &&
+    enemyHealthBarFill
+  ) {
+    const ray = camera.getForwardRay(crosshairMaxDistance);
+    const pickInfo = scene.pickWithRay(
+      ray,
+      (mesh) => mesh === spiderColliderMesh
+    );
+
+    if (
+      pickInfo &&
+      pickInfo.hit &&
+      pickInfo.pickedMesh === spiderColliderMesh
+    ) {
+      enemyInfoContainer.style.display = "block";
+      enemyName.textContent = "Spider"; // Placeholder name
+
+      // Placeholder health as requested
+      const placeholderMaxHealth = 100;
+      const placeholderCurrentHealth = 100;
+      enemyHealthText.textContent = `${placeholderCurrentHealth}/${placeholderMaxHealth}`;
+      enemyHealthBarFill.style.width = `${
+        (placeholderCurrentHealth / placeholderMaxHealth) * 100
+      }%`;
+    } else {
+      enemyInfoContainer.style.display = "none";
+    }
+  }
+
   scene.render();
   if (fpsDisplay) {
     fpsDisplay.textContent = "FPS: " + engine.getFps().toFixed();
   }
   if (staminaText && staminaBarFill) {
-    staminaText.textContent =
-      "👟 " + currentStamina.toFixed(0) + "/" + maxStamina;
+    staminaText.textContent = currentStamina.toFixed(0) + "/" + maxStamina;
     staminaBarFill.style.width = (currentStamina / maxStamina) * 100 + "%";
   }
   if (healthText && healthBarFill) {
-    healthText.textContent = "❤️ " + currentHealth.toFixed(0) + "/" + maxHealth;
+    healthText.textContent = currentHealth.toFixed(0) + "/" + maxHealth;
     healthBarFill.style.width = (currentHealth / maxHealth) * 100 + "%";
   }
 });

@@ -326,7 +326,7 @@ SceneLoader.ImportMeshAsync("", "assets/enemies/", "spider.glb", scene).then(
     const visualSpider = result.meshes[0] as AbstractMesh;
     visualSpider.name = "spiderVisual";
 
-    const initialVisualSpiderWorldPos = new Vector3(5, 0, 5); // Desired initial world position for the spider entity
+    const initialVisualSpiderWorldPos = new Vector3(20, 0, 20); // Desired initial world position for the spider entity
     visualSpider.position = initialVisualSpiderWorldPos.clone();
     visualSpider.scaling = new Vector3(0.5, 0.5, 0.5);
 

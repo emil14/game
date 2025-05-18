@@ -114,18 +114,6 @@ camera.keysDown.push(83);
 camera.keysLeft.push(65);
 camera.keysRight.push(68);
 
-scene.onPointerDown = (evt) => {
-  if (evt.button === 0) {
-    engine.enterPointerlock();
-  }
-};
-
-scene.onPointerUp = (evt) => {
-  if (evt.button === 0) {
-    engine.exitPointerlock();
-  }
-};
-
 let isSprinting = false;
 window.addEventListener("keydown", (event) => {
   const keyCode = event.keyCode;
@@ -321,100 +309,162 @@ wall4.position = new Vector3(groundSize / 2, wallHeight / 2, 0);
 wall4.checkCollisions = true;
 wall4.isVisible = false;
 
-SceneLoader.ImportMeshAsync("", "assets/enemies/", "spider.glb", scene).then(
-  (result) => {
-    const visualSpider = result.meshes[0] as AbstractMesh;
-    visualSpider.name = "spiderVisual";
+SceneLoader.ImportMeshAsync(
+  "",
+  "assets/models/enemies/",
+  "spider.glb",
+  scene
+).then((result) => {
+  const visualSpider = result.meshes[0] as AbstractMesh;
+  visualSpider.name = "spiderVisual";
 
-    const initialVisualSpiderWorldPos = new Vector3(20, 0, 20); // Desired initial world position for the spider entity
-    visualSpider.position = initialVisualSpiderWorldPos.clone();
-    visualSpider.scaling = new Vector3(0.5, 0.5, 0.5);
+  const initialVisualSpiderWorldPos = new Vector3(20, 0, 20); // Desired initial world position for the spider entity
+  visualSpider.position = initialVisualSpiderWorldPos.clone();
+  visualSpider.scaling = new Vector3(0.5, 0.5, 0.5);
 
-    // Disable collisions on the visual mesh and its children
-    visualSpider.checkCollisions = false;
-    visualSpider
-      .getChildMeshes(false, (node): node is Mesh => node instanceof Mesh)
-      .forEach((childMesh) => {
-        childMesh.checkCollisions = false;
-      });
+  // Disable collisions on the visual mesh and its children
+  visualSpider.checkCollisions = false;
+  visualSpider
+    .getChildMeshes(false, (node): node is Mesh => node instanceof Mesh)
+    .forEach((childMesh) => {
+      childMesh.checkCollisions = false;
+    });
 
-    // Ensure transformations are applied before getting bounding box
-    visualSpider.computeWorldMatrix(true);
+  // Ensure transformations are applied before getting bounding box
+  visualSpider.computeWorldMatrix(true);
 
-    // Get the bounding vectors for the entire hierarchy in world space
-    const boundingInfo = visualSpider.getHierarchyBoundingVectors(true);
-    const spiderDimensions = boundingInfo.max.subtract(boundingInfo.min);
+  // Get the bounding vectors for the entire hierarchy in world space
+  const boundingInfo = visualSpider.getHierarchyBoundingVectors(true);
+  const spiderDimensions = boundingInfo.max.subtract(boundingInfo.min);
 
-    // Create an invisible collider box and assign to the scene-level variable
-    spiderColliderMesh = MeshBuilder.CreateBox(
-      "spiderCollider",
-      {
-        width: spiderDimensions.x > 0 ? spiderDimensions.x : 0.1,
-        height: spiderDimensions.y > 0 ? spiderDimensions.y : 0.1,
-        depth: spiderDimensions.z > 0 ? spiderDimensions.z : 0.1,
-      },
-      scene
-    );
+  // Create an invisible collider box and assign to the scene-level variable
+  spiderColliderMesh = MeshBuilder.CreateBox(
+    "spiderCollider",
+    {
+      width: spiderDimensions.x > 0 ? spiderDimensions.x : 0.1,
+      height: spiderDimensions.y > 0 ? spiderDimensions.y : 0.1,
+      depth: spiderDimensions.z > 0 ? spiderDimensions.z : 0.1,
+    },
+    scene
+  );
 
-    // Position the collider box to encapsulate the visual model in world space
-    // The center of the bounding box is (min + max) / 2
-    spiderColliderMesh.position = boundingInfo.min.add(
-      spiderDimensions.scale(0.5)
-    );
+  // Position the collider box to encapsulate the visual model in world space
+  // The center of the bounding box is (min + max) / 2
+  spiderColliderMesh.position = boundingInfo.min.add(
+    spiderDimensions.scale(0.5)
+  );
 
-    spiderColliderMesh.checkCollisions = true;
-    spiderColliderMesh.isVisible = false; // Set to true to debug collider position/size
+  spiderColliderMesh.checkCollisions = true;
+  spiderColliderMesh.isVisible = false; // Set to true to debug collider position/size
 
-    // Parent the visual spider to the collider box
-    visualSpider.parent = spiderColliderMesh;
-    visualSpider.position = initialVisualSpiderWorldPos.subtract(
-      spiderColliderMesh.position
-    );
+  // Parent the visual spider to the collider box
+  visualSpider.parent = spiderColliderMesh;
+  visualSpider.position = initialVisualSpiderWorldPos.subtract(
+    spiderColliderMesh.position
+  );
 
-    // Find and store walk, idle, and attack animations
-    if (result.animationGroups && result.animationGroups.length > 0) {
-      for (let group of result.animationGroups) {
-        if (group.name === "SpiderArmature|Spider_Walk") {
-          spiderWalkAnimation = group;
-          spiderWalkAnimation.stop();
-        } else if (group.name === "SpiderArmature|Spider_Idle") {
-          spiderIdleAnimation = group;
-          spiderIdleAnimation.stop();
-        } else if (group.name === "SpiderArmature|Spider_Attack") {
-          // Assuming this is the attack animation name
-          spiderAttackAnimation = group;
-          spiderAttackAnimation.stop();
+  // Find and store walk, idle, and attack animations
+  if (result.animationGroups && result.animationGroups.length > 0) {
+    for (let group of result.animationGroups) {
+      if (group.name === "SpiderArmature|Spider_Walk") {
+        spiderWalkAnimation = group;
+        spiderWalkAnimation.stop();
+      } else if (group.name === "SpiderArmature|Spider_Idle") {
+        spiderIdleAnimation = group;
+        spiderIdleAnimation.stop();
+      } else if (group.name === "SpiderArmature|Spider_Attack") {
+        // Assuming this is the attack animation name
+        spiderAttackAnimation = group;
+        spiderAttackAnimation.stop();
 
-          if (spiderAttackAnimation.targetedAnimations.length > 0) {
-            // Assuming all tracks in this group share the same frame rate
-            // and the group's 'from' and 'to' correctly define the clip's range.
-            const firstAnimTrack =
-              spiderAttackAnimation.targetedAnimations[0].animation;
-            const frameRate = firstAnimTrack.framePerSecond;
-            // Use the group's full range for duration calculation as it represents the clip
-            const numFrames = group.to - group.from;
-            if (frameRate > 0 && numFrames > 0) {
-              spiderAttackAnimationDurationSeconds = numFrames / frameRate;
-              console.log(
-                `Spider attack animation duration: ${spiderAttackAnimationDurationSeconds}s`
-              );
-            } else {
-              console.warn(
-                "Spider attack animation has frameRate 0, undefined, or no frames. Using fallback duration."
-              );
-              // Fallback duration is already set at declaration (e.g., 0.75s)
-            }
+        if (spiderAttackAnimation.targetedAnimations.length > 0) {
+          // Assuming all tracks in this group share the same frame rate
+          // and the group's 'from' and 'to' correctly define the clip's range.
+          const firstAnimTrack =
+            spiderAttackAnimation.targetedAnimations[0].animation;
+          const frameRate = firstAnimTrack.framePerSecond;
+          // Use the group's full range for duration calculation as it represents the clip
+          const numFrames = group.to - group.from;
+          if (frameRate > 0 && numFrames > 0) {
+            spiderAttackAnimationDurationSeconds = numFrames / frameRate;
+            console.log(
+              `Spider attack animation duration: ${spiderAttackAnimationDurationSeconds}s`
+            );
           } else {
             console.warn(
-              "Spider attack animation group has no targeted animations. Using fallback duration."
+              "Spider attack animation has frameRate 0, undefined, or no frames. Using fallback duration."
             );
-            // Fallback duration is already set at declaration
+            // Fallback duration is already set at declaration (e.g., 0.75s)
           }
+        } else {
+          console.warn(
+            "Spider attack animation group has no targeted animations. Using fallback duration."
+          );
+          // Fallback duration is already set at declaration
         }
       }
     }
   }
-);
+});
+
+SceneLoader.ImportMeshAsync(
+  "",
+  "assets/models/pirate_kit/",
+  "palm_tree1.glb",
+  scene
+).then((result) => {
+  const palmTreeVisual = result.meshes[0] as AbstractMesh;
+  palmTreeVisual.name = "palmTreeVisual";
+
+  // Set initial desired world position and scaling for the visual model first
+  const initialPalmTreeWorldPos = new Vector3(10, 0, 10);
+  palmTreeVisual.position = initialPalmTreeWorldPos.clone();
+  palmTreeVisual.scaling = new Vector3(2, 2, 2); // User updated scaling
+
+  // Disable collisions on the visual mesh and its children early
+  palmTreeVisual.checkCollisions = false;
+  palmTreeVisual
+    .getChildMeshes(false, (node): node is Mesh => node instanceof Mesh)
+    .forEach((childMesh) => {
+      childMesh.checkCollisions = false;
+    });
+
+  // Ensure transformations are applied before getting bounding box
+  palmTreeVisual.computeWorldMatrix(true);
+
+  // Get the bounding vectors for the entire hierarchy in world space
+  const boundingInfo = palmTreeVisual.getHierarchyBoundingVectors(true);
+  const palmTreeDimensions = boundingInfo.max.subtract(boundingInfo.min);
+
+  // Create an invisible collider box based on the visual model's dimensions
+  const palmTreeCollider = MeshBuilder.CreateBox(
+    "palmTreeCollider",
+    {
+      width: palmTreeDimensions.x > 0 ? palmTreeDimensions.x : 0.1,
+      height: palmTreeDimensions.y > 0 ? palmTreeDimensions.y : 0.1,
+      depth: palmTreeDimensions.z > 0 ? palmTreeDimensions.z : 0.1,
+    },
+    scene
+  );
+
+  // Position the collider box to encapsulate the visual model in world space
+  // The center of the bounding box is (min + max) / 2
+  palmTreeCollider.position = boundingInfo.min.add(
+    palmTreeDimensions.scale(0.5)
+  );
+
+  palmTreeCollider.checkCollisions = true;
+  palmTreeCollider.isVisible = false; // Set to true to debug collider position/size
+
+  // Parent the visual model to the collider box
+  // The visual model's world position was already set. Now, by parenting,
+  // its local position will be automatically calculated relative to the collider.
+  // To ensure it stays in the same world spot after parenting, we can subtract the new parent's world position.
+  palmTreeVisual.parent = palmTreeCollider;
+  palmTreeVisual.position = initialPalmTreeWorldPos.subtract(
+    palmTreeCollider.position
+  );
+});
 
 engine.runRenderLoop(() => {
   const deltaTime = engine.getDeltaTime() / 1000; // Delta time in seconds
@@ -910,6 +960,15 @@ document.addEventListener("DOMContentLoaded", () => {
     experienceToNextLevel: 1000,
   };
 
+  // Canvas click listener for pointer lock
+  if (canvas) {
+    canvas.addEventListener("click", () => {
+      if (!isTabMenuOpen && !engine.isPointerLock) {
+        engine.enterPointerlock();
+      }
+    });
+  }
+
   function updateStatsTabData() {
     if (
       !tabMenu ||
@@ -992,6 +1051,10 @@ document.addEventListener("DOMContentLoaded", () => {
       crosshair,
     ].forEach((el) => el?.classList.add("hidden"));
 
+    if (engine.isPointerLock) {
+      engine.exitPointerlock();
+    }
+
     const targetTab = tabIdToShow || currentActiveTab || "player-stats-tab";
     setActiveTab(targetTab);
   }
@@ -1032,6 +1095,17 @@ document.addEventListener("DOMContentLoaded", () => {
       event.preventDefault();
       toggleTabMenu(); // Opens to last active or default, or closes
     }
+    // Added Escape key to exit pointer lock
+    if (event.key.toLowerCase() === "escape") {
+      if (engine.isPointerLock) {
+        engine.exitPointerlock();
+      }
+      // Optionally, if the tab menu is open, Escape could also close it:
+      // if (isTabMenuOpen) {
+      //   closeTabMenu();
+      // }
+    }
+
     if (!event.metaKey && !event.ctrlKey && !event.altKey) {
       // Avoid conflicts with browser shortcuts
       switch (event.key.toLowerCase()) {

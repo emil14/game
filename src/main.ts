@@ -13,14 +13,12 @@ import { WaterMaterial } from "@babylonjs/materials/water";
 import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
-import { AnimationGroup } from "@babylonjs/core/Animations/animationGroup";
 import "@babylonjs/core/Meshes/Builders/sphereBuilder";
 import "@babylonjs/core/Meshes/Builders/groundBuilder";
 import "@babylonjs/core/Meshes/Builders/boxBuilder";
 import "@babylonjs/core/Collisions/collisionCoordinator";
 import "@babylonjs/inspector";
 import { Animation } from "@babylonjs/core/Animations/animation";
-import { PointerEventTypes } from "@babylonjs/core/Events/pointerEvents";
 
 // +++ Import Chest and registration logic +++
 import { Chest, registerChest } from "./interactables"; // playerHasKey is used by Chest internally, playerAcquiresKey for testing
@@ -103,6 +101,9 @@ let isShiftPressed = false; // To track if shift is held down
 let maxHealth = 100;
 let currentHealth = maxHealth;
 let playerIsDead = false; // To track player death state
+
+// Player attack damage
+const playerAttackDamage = 15; // Player deals 15 damage per hit
 
 // Track movement keys state
 let isMovingForward = false;
@@ -576,6 +577,35 @@ scene.onPointerDown = (evt) => {
     swingKeysDynamic.push({ frame: 15, value: initialRotationZ }); // Return to initial Z rotation
 
     swingAnimation.setKeys(swingKeysDynamic);
+
+    // --- Attack Hit Detection ---
+    // Check for hit shortly after swing starts
+    // Animation is 15 frames at 30 FPS (0.5 seconds total)
+    // Let's check for hit around 150ms into the swing
+    const hitCheckDelay = 150; // milliseconds
+
+    setTimeout(() => {
+      if (!playerSword || playerIsDead) return; // Check if sword exists and player is alive
+
+      const ray = camera.getForwardRay(crosshairMaxDistance);
+      const pickInfo = scene.pickWithRay(
+        ray,
+        (mesh) => mesh.metadata && mesh.metadata.enemyType === "spider"
+      );
+
+      if (pickInfo && pickInfo.hit && pickInfo.pickedMesh) {
+        const spiderInstance = pickInfo.pickedMesh.metadata.instance as Spider;
+        if (spiderInstance && spiderInstance.currentHealth > 0) {
+          console.log(
+            `Player hit ${spiderInstance.name} for ${playerAttackDamage} damage.`
+          );
+          spiderInstance.takeDamage(playerAttackDamage);
+          // Future: Play a hit sound effect
+          // Future: If spider has a 'getHit' animation, play it here
+        }
+      }
+    }, hitCheckDelay);
+    // --- End Attack Hit Detection ---
 
     scene.beginDirectAnimation(
       playerSword, // Target

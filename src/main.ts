@@ -1239,3 +1239,75 @@ document.addEventListener("DOMContentLoaded", () => {
   if (tabMenu) tabMenu.classList.add("hidden");
   setActiveTab(currentActiveTab); // Set initial active tab even if menu is hidden
 });
+
+// Console command handler
+function handleConsoleCommand(command: string | null): void {
+  if (command) {
+    const lowerCommand = command.toLowerCase();
+    if (lowerCommand.startsWith("set_time ")) {
+      const timeString = command.substring("set_time ".length);
+      const timeParts = timeString.split(":");
+      if (timeParts.length === 2) {
+        const hours = parseInt(timeParts[0], 10);
+        const minutes = parseInt(timeParts[1], 10);
+
+        if (
+          !isNaN(hours) &&
+          !isNaN(minutes) &&
+          hours >= 0 &&
+          hours <= 23 &&
+          minutes >= 0 &&
+          minutes <= 59
+        ) {
+          const totalMinutesInDay = 24 * 60;
+          const inputTotalMinutes = hours * 60 + minutes;
+          const cycleProgress = inputTotalMinutes / totalMinutesInDay;
+          currentCycleTime = cycleProgress * CYCLE_DURATION_SECONDS;
+          console.log(
+            `Game time set to ${String(hours).padStart(2, "0")}:${String(
+              minutes
+            ).padStart(2, "0")}`
+          );
+          // Immediately update sky/lighting based on new time
+          // This logic is duplicated from the render loop for an immediate visual update.
+          // Consider refactoring into a reusable function if more complex time-based updates are needed.
+          const newCycleProgress = currentCycleTime / CYCLE_DURATION_SECONDS;
+          const dayNightTransition = 0.05; // Make sure this matches the one in render loop
+
+          // Simplified logic to switch skybox material immediately
+          const isDay =
+            newCycleProgress >= 0.25 - dayNightTransition &&
+            newCycleProgress < 0.75 + dayNightTransition;
+          if (isDay && skybox.material !== skyboxMaterial) {
+            skybox.material = skyboxMaterial;
+          } else if (!isDay && skybox.material !== nightSkyboxMaterial) {
+            skybox.material = nightSkyboxMaterial;
+          }
+          // Note: sunLight.intensity and light.intensity updates would also be needed here
+          // for a full immediate visual change. For now, only skybox material is switched.
+          // A more robust solution would be to extract the full day/night update logic
+          // from the render loop into a function that can be called here and in the loop.
+        } else {
+          console.error(
+            "Invalid time format or value for set_time. Use HH:MM (00:00 - 23:59)."
+          );
+        }
+      } else {
+        console.error("Invalid time format for set_time. Use HH:MM.");
+      }
+    } else {
+      console.log(`Console command entered: ${command}`);
+      // TODO: Implement other cheat command logic here
+    }
+  }
+}
+
+// Event listener for console toggle
+window.addEventListener("keydown", (event) => {
+  // Use key for `/` or `~` (usually next to 1)
+  if (event.key === "/" || event.key === "~") {
+    event.preventDefault(); // Prevent typing `/` or `~` in other inputs if any are focused
+    const input = window.prompt("Enter command:");
+    handleConsoleCommand(input);
+  }
+});

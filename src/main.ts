@@ -25,6 +25,9 @@ import { PointerEventTypes } from "@babylonjs/core/Events/pointerEvents";
 // +++ Import Chest and registration logic +++
 import { Chest, registerChest } from "./interactables"; // playerHasKey is used by Chest internally, playerAcquiresKey for testing
 
+// +++ Import Spider class +++
+import { Spider } from "./enemies/spider";
+
 const canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
 const fpsDisplay = document.getElementById("fpsDisplay") as HTMLElement;
 const staminaText = document.getElementById("staminaText") as HTMLElement;
@@ -60,11 +63,8 @@ const engine = new Engine(canvas, false, {
 
 const scene = new Scene(engine);
 
-let spiderColliderMesh: Mesh | null = null; // To store the spider's collider
-let spiderWalkAnimation: AnimationGroup | null = null; // To store the spider's walk animation
-let spiderIdleAnimation: AnimationGroup | null = null; // To store the spider's idle animation
-let spiderAttackAnimation: AnimationGroup | null = null; // To store the spider's attack animation
-let spiderAttackAnimationDurationSeconds = 0.75; // Default/fallback, will be calculated
+// +++ Add array to hold spider instances +++
+let spiders: Spider[] = [];
 
 let playerSword: AbstractMesh | null = null;
 let isSwinging = false; // Moved here to be accessible by onPointerDown
@@ -103,11 +103,6 @@ let isShiftPressed = false; // To track if shift is held down
 let maxHealth = 100;
 let currentHealth = maxHealth;
 let playerIsDead = false; // To track player death state
-
-// Spider attack parameters
-const spiderAttackDamage = 10;
-const spiderAttackCooldown = 1.5; // Seconds
-let timeSinceLastSpiderAttack = 0;
 
 // Track movement keys state
 let isMovingForward = false;
@@ -309,123 +304,6 @@ const wall4 = MeshBuilder.CreateBox(
 wall4.position = new Vector3(groundSize / 2, wallHeight / 2, 0);
 wall4.checkCollisions = true;
 wall4.isVisible = false;
-
-SceneLoader.ImportMeshAsync(
-  "",
-  "assets/models/enemies/",
-  "spider.glb",
-  scene
-).then((result) => {
-  const visualSpider = result.meshes[0] as AbstractMesh;
-  visualSpider.name = "spiderVisual";
-
-  const initialVisualSpiderWorldPos = new Vector3(20, 0, 20); // Desired initial world position for the spider entity
-  visualSpider.position = initialVisualSpiderWorldPos.clone();
-  visualSpider.scaling = new Vector3(0.5, 0.5, 0.5);
-
-  // Disable collisions on the visual mesh and its children
-  visualSpider.checkCollisions = false;
-  visualSpider
-    .getChildMeshes(false, (node): node is Mesh => node instanceof Mesh)
-    .forEach((childMesh) => {
-      childMesh.checkCollisions = false;
-    });
-
-  // Ensure transformations are applied before getting bounding box
-  visualSpider.computeWorldMatrix(true);
-
-  // Get the bounding vectors for the entire hierarchy in world space
-  const boundingInfo = visualSpider.getHierarchyBoundingVectors(true);
-  const spiderDimensions = boundingInfo.max.subtract(boundingInfo.min);
-
-  // Create an invisible collider box and assign to the scene-level variable
-  spiderColliderMesh = MeshBuilder.CreateBox(
-    "spiderCollider",
-    {
-      width: spiderDimensions.x > 0 ? spiderDimensions.x : 0.1,
-      height: spiderDimensions.y > 0 ? spiderDimensions.y : 0.1,
-      depth: spiderDimensions.z > 0 ? spiderDimensions.z : 0.1,
-    },
-    scene
-  );
-
-  // Position the collider box to encapsulate the visual model in world space
-  // The center of the bounding box is (min + max) / 2
-  spiderColliderMesh.position = boundingInfo.min.add(
-    spiderDimensions.scale(0.5)
-  );
-
-  spiderColliderMesh.checkCollisions = true;
-  spiderColliderMesh.isVisible = false; // Set to true to debug collider position/size
-
-  // Define ellipsoid for collision with moveWithCollisions
-  if (
-    spiderDimensions.x > 0 &&
-    spiderDimensions.y > 0 &&
-    spiderDimensions.z > 0
-  ) {
-    spiderColliderMesh.ellipsoid = new Vector3(
-      spiderDimensions.x / 2,
-      spiderDimensions.y / 2,
-      spiderDimensions.z / 2
-    );
-  } else {
-    // Fallback ellipsoid if dimensions are zero
-    spiderColliderMesh.ellipsoid = new Vector3(0.05, 0.05, 0.05); // A small default
-    console.warn(
-      "Spider dimensions for ellipsoid were zero or negative, using fallback ellipsoid."
-    );
-  }
-
-  // Parent the visual spider to the collider box
-  visualSpider.parent = spiderColliderMesh;
-  visualSpider.position = initialVisualSpiderWorldPos.subtract(
-    spiderColliderMesh.position
-  );
-
-  // Find and store walk, idle, and attack animations
-  if (result.animationGroups && result.animationGroups.length > 0) {
-    for (let group of result.animationGroups) {
-      if (group.name === "SpiderArmature|Spider_Walk") {
-        spiderWalkAnimation = group;
-        spiderWalkAnimation.stop();
-      } else if (group.name === "SpiderArmature|Spider_Idle") {
-        spiderIdleAnimation = group;
-        spiderIdleAnimation.stop();
-      } else if (group.name === "SpiderArmature|Spider_Attack") {
-        // Assuming this is the attack animation name
-        spiderAttackAnimation = group;
-        spiderAttackAnimation.stop();
-
-        if (spiderAttackAnimation.targetedAnimations.length > 0) {
-          // Assuming all tracks in this group share the same frame rate
-          // and the group's 'from' and 'to' correctly define the clip's range.
-          const firstAnimTrack =
-            spiderAttackAnimation.targetedAnimations[0].animation;
-          const frameRate = firstAnimTrack.framePerSecond;
-          // Use the group's full range for duration calculation as it represents the clip
-          const numFrames = group.to - group.from;
-          if (frameRate > 0 && numFrames > 0) {
-            spiderAttackAnimationDurationSeconds = numFrames / frameRate;
-            console.log(
-              `Spider attack animation duration: ${spiderAttackAnimationDurationSeconds}s`
-            );
-          } else {
-            console.warn(
-              "Spider attack animation has frameRate 0, undefined, or no frames. Using fallback duration."
-            );
-            // Fallback duration is already set at declaration (e.g., 0.75s)
-          }
-        } else {
-          console.warn(
-            "Spider attack animation group has no targeted animations. Using fallback duration."
-          );
-          // Fallback duration is already set at declaration
-        }
-      }
-    }
-  }
-});
 
 SceneLoader.ImportMeshAsync(
   "",
@@ -714,6 +592,58 @@ scene.onPointerDown = (evt) => {
   }
 };
 
+// Function to initialize game elements, including spiders
+async function initializeGameAssets() {
+  // Create a spider instance
+  try {
+    const spiderInstance = await Spider.Create(
+      scene,
+      new Vector3(20, 0, 20),
+      defaultSpeed
+    );
+    spiders.push(spiderInstance);
+
+    // Setup player damage callback for this spider
+    spiderInstance.setOnPlayerDamaged((damage: number) => {
+      if (playerIsDead) return;
+
+      currentHealth -= damage;
+      if (bloodScreenEffect) {
+        bloodScreenEffect.style.backgroundColor = "rgba(255, 0, 0, 0.3)";
+        bloodScreenEffect.style.opacity = "1";
+        setTimeout(() => {
+          bloodScreenEffect.style.opacity = "0";
+        }, 200); // Duration of the flash
+      }
+
+      if (currentHealth < 0) {
+        currentHealth = 0;
+      }
+
+      if (currentHealth === 0 && !playerIsDead) {
+        playerIsDead = true;
+        alert("You are dead! The page will now reload.");
+        window.location.reload();
+      }
+    });
+
+    console.log("Spider created and added to scene.");
+  } catch (error) {
+    console.error("Failed to create spider:", error);
+  }
+
+  // Potentially load other assets or initialize other game entities here
+}
+
+// Call initializeGameAssets after scene setup and before render loop for initial spider
+// Ensure this is called in a context where `await` is allowed, e.g., an async IIFE or a .then() block
+// For simplicity, let's assume it's called appropriately. One way:
+(async () => {
+  // Any other async setup that needs to happen before spiders are created
+  // For example, if `defaultSpeed` or `scene` relied on other async operations not shown.
+  await initializeGameAssets();
+})();
+
 engine.runRenderLoop(() => {
   const deltaTime = engine.getDeltaTime() / 1000; // Delta time in seconds
   currentCycleTime = (currentCycleTime + deltaTime) % CYCLE_DURATION_SECONDS;
@@ -835,184 +765,17 @@ engine.runRenderLoop(() => {
 
   let isAnyEnemyAggro = false; // Reset per frame
 
-  // Spider movement and rotation logic
-  if (spiderColliderMesh && !playerIsDead) {
-    // Spider acts only if player is alive
-    const spiderSpeed = defaultSpeed; // Spider's speed is equal to player's default walk speed
-    const aggroRadius = 20.0; // Spider starts following if player is within this distance
-    const stoppingDistance = 2.5; // Spider stops this close to the player (collider center to camera center)
-
-    // Calculate direction on X-Z plane only for movement
-    const directionToPlayerXZ = camera.globalPosition.subtract(
-      spiderColliderMesh.position
-    );
-    directionToPlayerXZ.y = 0; // Keep movement horizontal
-    const distanceToPlayer = directionToPlayerXZ.length();
-
-    let isSpiderMoving = false;
-    if (distanceToPlayer < aggroRadius && distanceToPlayer > stoppingDistance) {
-      directionToPlayerXZ.normalize();
-      const moveVector = directionToPlayerXZ.scale(spiderSpeed * deltaTime);
-      spiderColliderMesh.moveWithCollisions(moveVector);
-      isSpiderMoving = true;
-      isAnyEnemyAggro = true; // Spider is aggro if following
-    }
-
-    // Make the spider look at the player if aggroed
-    if (distanceToPlayer < aggroRadius) {
-      const lookAtTargetPosition = new Vector3(
-        camera.globalPosition.x,
-        spiderColliderMesh.position.y,
-        camera.globalPosition.z
-      );
-      spiderColliderMesh.lookAt(lookAtTargetPosition, Math.PI);
-      isAnyEnemyAggro = true; // Spider is aggro if looking/close enough to attack
-    }
-
-    // Always increment the cooldown timer for the next potential attack
-    timeSinceLastSpiderAttack += deltaTime;
-
-    // Animation control & Attack Logic
-    if (distanceToPlayer <= stoppingDistance) {
-      // Player is in attack range
-      isAnyEnemyAggro = true; // Ensure aggro status
-
-      if (timeSinceLastSpiderAttack >= spiderAttackCooldown) {
-        // Cooldown is over, ready to attack
-        if (spiderWalkAnimation && spiderWalkAnimation.isPlaying) {
-          spiderWalkAnimation.stop();
-        }
-        if (spiderIdleAnimation && spiderIdleAnimation.isPlaying) {
-          spiderIdleAnimation.stop();
-        }
-
-        if (spiderAttackAnimation && !spiderAttackAnimation.isPlaying) {
-          spiderAttackAnimation.start(
-            false, // Play ONCE
-            1.0,
-            spiderAttackAnimation.from,
-            spiderAttackAnimation.to,
-            false
-          );
-          timeSinceLastSpiderAttack = 0; // Reset cooldown AFTER initiating the attack animation
-
-          // Schedule damage to occur part-way through the animation
-          const damageDelayFactor = 0.6; // Apply damage 60% of the way through animation (can be tweaked)
-          const damageDelayMilliseconds =
-            spiderAttackAnimationDurationSeconds * damageDelayFactor * 1000;
-
-          setTimeout(() => {
-            if (playerIsDead || !spiderColliderMesh || !camera) return; // Safety checks
-
-            // Check distance again at the moment of intended impact
-            const finalDistanceToPlayer = camera.globalPosition
-              .subtract(spiderColliderMesh.position)
-              .length();
-            // Allow a small tolerance for player movement during animation wind-up
-            if (finalDistanceToPlayer <= stoppingDistance + 0.75) {
-              currentHealth -= spiderAttackDamage;
-
-              if (bloodScreenEffect) {
-                bloodScreenEffect.style.backgroundColor =
-                  "rgba(255, 0, 0, 0.3)";
-                bloodScreenEffect.style.opacity = "1";
-                setTimeout(() => {
-                  bloodScreenEffect.style.opacity = "0";
-                }, 200); // Duration of the flash
-              }
-
-              if (currentHealth < 0) {
-                currentHealth = 0;
-              }
-              // console.log(`Player hit by spider via setTimeout! Health: ${currentHealth}`);
-
-              if (currentHealth === 0 && !playerIsDead) {
-                playerIsDead = true;
-                // camera.detachControl(canvas); // Keep camera control for now
-                alert("You are dead! The page will now reload.");
-                window.location.reload();
-              }
-            }
-          }, damageDelayMilliseconds);
-        }
-      } else {
-        // Attack is on cooldown, but player is still in range. Play idle.
-        // Let current attack animation play out if it is, then switch to idle.
-        if (spiderAttackAnimation && spiderAttackAnimation.isPlaying) {
-          // Animation is playing, do nothing, let it finish its visual course
-        } else {
-          if (spiderWalkAnimation && spiderWalkAnimation.isPlaying) {
-            spiderWalkAnimation.stop();
-          }
-          if (spiderIdleAnimation && !spiderIdleAnimation.isPlaying) {
-            spiderIdleAnimation.start(
-              true,
-              1.0,
-              spiderIdleAnimation.from,
-              spiderIdleAnimation.to,
-              false
-            );
-          }
+  // +++ Update spiders and check for aggro +++
+  if (!playerIsDead) {
+    spiders.forEach((spider) => {
+      if (spider.currentHealth > 0) {
+        // Only update active spiders
+        spider.update(deltaTime, camera);
+        if (spider.getIsAggro()) {
+          isAnyEnemyAggro = true;
         }
       }
-    } else if (isSpiderMoving) {
-      // Following state (implies distanceToPlayer > stoppingDistance && distanceToPlayer < aggroRadius)
-      if (spiderAttackAnimation && spiderAttackAnimation.isPlaying) {
-        spiderAttackAnimation.stop();
-      }
-      if (spiderIdleAnimation && spiderIdleAnimation.isPlaying) {
-        spiderIdleAnimation.stop();
-      }
-      if (spiderWalkAnimation && !spiderWalkAnimation.isPlaying) {
-        spiderWalkAnimation.start(
-          true,
-          1.0,
-          spiderWalkAnimation.from,
-          spiderWalkAnimation.to,
-          false
-        );
-      }
-      // timeSinceLastSpiderAttack continues to increment. No reset here.
-    } else {
-      // Idle state (implies distanceToPlayer >= aggroRadius, or not moving for other reasons)
-      if (spiderWalkAnimation && spiderWalkAnimation.isPlaying) {
-        spiderWalkAnimation.stop();
-      }
-      if (spiderAttackAnimation && spiderAttackAnimation.isPlaying) {
-        // If player moved out of range while attack animation was playing (e.g. very long anim)
-        spiderAttackAnimation.stop(); // This will prevent onAnimationEndObservable from firing for damage
-      }
-      if (spiderIdleAnimation && !spiderIdleAnimation.isPlaying) {
-        spiderIdleAnimation.start(
-          true,
-          1.0,
-          spiderIdleAnimation.from,
-          spiderIdleAnimation.to,
-          false
-        );
-      }
-      // timeSinceLastSpiderAttack continues to increment. No reset here.
-    }
-  } else if (spiderColliderMesh && playerIsDead) {
-    // Spider behavior after player death (e.g., return to idle)
-    const isAttacking =
-      spiderAttackAnimation && spiderAttackAnimation.isPlaying;
-    const isWalking = spiderWalkAnimation && spiderWalkAnimation.isPlaying;
-
-    if (isAttacking && spiderAttackAnimation) spiderAttackAnimation.stop();
-    if (isWalking && spiderWalkAnimation) spiderWalkAnimation.stop();
-
-    if (!isAttacking && !isWalking) {
-      if (spiderIdleAnimation && !spiderIdleAnimation.isPlaying) {
-        spiderIdleAnimation.start(
-          true,
-          1.0,
-          spiderIdleAnimation.from,
-          spiderIdleAnimation.to,
-          false
-        );
-      }
-    }
+    });
   }
 
   // Update fight music based on aggro state
@@ -1031,68 +794,6 @@ engine.runRenderLoop(() => {
     }
   }
 
-  // Stamina logic
-  if (!playerIsDead) {
-    // Only process stamina if player is alive
-    if (isSprinting) {
-      if (currentStamina > 0) {
-        currentStamina -= staminaDepletionRate * deltaTime;
-        if (currentStamina < 0) {
-          currentStamina = 0;
-        }
-      }
-      if (currentStamina === 0) {
-        isSprinting = false;
-        if (isCrouching) {
-          camera.speed = defaultSpeed * crouchSpeedMultiplier;
-        } else {
-          camera.speed = defaultSpeed;
-        }
-      }
-    } else {
-      // If shift is not pressed and not sprinting (e.g. ran out of stamina but still holding shift)
-      // ensure speed is normal/crouch speed.
-      if (isCrouching) {
-        if (
-          camera.speed !== defaultSpeed * crouchSpeedMultiplier &&
-          !isShiftPressed
-        ) {
-          camera.speed = defaultSpeed * crouchSpeedMultiplier;
-        }
-      } else {
-        if (camera.speed !== defaultSpeed && !isShiftPressed) {
-          camera.speed = defaultSpeed;
-        }
-      }
-
-      if (currentStamina < maxStamina) {
-        let currentRegenRate = staminaRegenerationRate;
-        const isMoving =
-          isMovingForward || isMovingBackward || isMovingLeft || isMovingRight;
-        if (isMoving) {
-          currentRegenRate = 0;
-        }
-
-        if (currentRegenRate > 0) {
-          currentStamina += currentRegenRate * deltaTime;
-          if (currentStamina > maxStamina) {
-            currentStamina = maxStamina;
-          }
-        }
-      }
-    }
-  }
-
-  // Keep sprinting if shift is held and stamina is available
-  if (!playerIsDead && isShiftPressed && !isSprinting && currentStamina > 0) {
-    isSprinting = true;
-    if (isCrouching) {
-      camera.speed = defaultSpeed; // Sprinting while crouching
-    } else {
-      camera.speed = defaultSpeed * runSpeedMultiplier;
-    }
-  }
-
   // Raycasting for enemy info
   if (
     enemyInfoContainer &&
@@ -1107,7 +808,7 @@ engine.runRenderLoop(() => {
     const pickInfo = scene.pickWithRay(
       ray,
       (mesh) =>
-        mesh === spiderColliderMesh ||
+        (mesh.metadata && mesh.metadata.enemyType === "spider") ||
         (mesh.metadata && mesh.metadata.interactableType)
     );
 
@@ -1118,20 +819,30 @@ engine.runRenderLoop(() => {
       const pickedMesh = pickInfo.pickedMesh;
 
       // Check if it's the spider
-      if (pickedMesh === spiderColliderMesh) {
+      if (pickedMesh.metadata && pickedMesh.metadata.enemyType === "spider") {
         lookingAtEnemy = true;
         enemyInfoContainer.style.display = "block";
         crosshairElement.classList.add("crosshair-enemy-focus");
         if (crosshairElement) crosshairElement.textContent = "💢"; // Fight mode crosshair
 
-        enemyNameText.textContent = "Spider";
-        enemyLevelText.textContent = "| Lvl 1";
-        const placeholderMaxHealth = 100;
-        const placeholderCurrentHealth = 100;
-        enemyHealthText.textContent = `${placeholderCurrentHealth}/${placeholderMaxHealth}`;
-        enemyHealthBarFill.style.width = `${
-          (placeholderCurrentHealth / placeholderMaxHealth) * 100
-        }%`;
+        // +++ Get spider instance from metadata to display its info +++
+        const spiderInstance = pickedMesh.metadata.instance as Spider;
+        if (spiderInstance) {
+          enemyNameText.textContent = spiderInstance.name;
+          enemyLevelText.textContent = `| Lvl ${spiderInstance.level}`;
+          enemyHealthText.textContent = `${spiderInstance.currentHealth.toFixed(
+            0
+          )}/${spiderInstance.maxHealth}`;
+          enemyHealthBarFill.style.width = `${
+            (spiderInstance.currentHealth / spiderInstance.maxHealth) * 100
+          }%`;
+        } else {
+          // Fallback or hide if instance not found (should not happen)
+          enemyNameText.textContent = "Spider";
+          enemyLevelText.textContent = "| Lvl ?";
+          enemyHealthText.textContent = "-/- ";
+          enemyHealthBarFill.style.width = "100%";
+        }
       }
       // +++ Check if it's an interactable Chest +++
       else if (

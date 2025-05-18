@@ -357,6 +357,25 @@ SceneLoader.ImportMeshAsync(
   spiderColliderMesh.checkCollisions = true;
   spiderColliderMesh.isVisible = false; // Set to true to debug collider position/size
 
+  // Define ellipsoid for collision with moveWithCollisions
+  if (
+    spiderDimensions.x > 0 &&
+    spiderDimensions.y > 0 &&
+    spiderDimensions.z > 0
+  ) {
+    spiderColliderMesh.ellipsoid = new Vector3(
+      spiderDimensions.x / 2,
+      spiderDimensions.y / 2,
+      spiderDimensions.z / 2
+    );
+  } else {
+    // Fallback ellipsoid if dimensions are zero
+    spiderColliderMesh.ellipsoid = new Vector3(0.05, 0.05, 0.05); // A small default
+    console.warn(
+      "Spider dimensions for ellipsoid were zero or negative, using fallback ellipsoid."
+    );
+  }
+
   // Parent the visual spider to the collider box
   visualSpider.parent = spiderColliderMesh;
   visualSpider.position = initialVisualSpiderWorldPos.subtract(
@@ -604,9 +623,8 @@ engine.runRenderLoop(() => {
     let isSpiderMoving = false;
     if (distanceToPlayer < aggroRadius && distanceToPlayer > stoppingDistance) {
       directionToPlayerXZ.normalize();
-      spiderColliderMesh.position.addInPlace(
-        directionToPlayerXZ.scale(spiderSpeed * deltaTime)
-      );
+      const moveVector = directionToPlayerXZ.scale(spiderSpeed * deltaTime);
+      spiderColliderMesh.moveWithCollisions(moveVector);
       isSpiderMoving = true;
       isAnyEnemyAggro = true; // Spider is aggro if following
     }

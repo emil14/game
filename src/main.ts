@@ -4,6 +4,8 @@ import { Vector3, Vector2 } from "@babylonjs/core/Maths/math.vector";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { FreeCamera } from "@babylonjs/core/Cameras/freeCamera";
 import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
+import { DirectionalLight } from "@babylonjs/core/Lights/directionalLight";
+import { PointLight } from "@babylonjs/core/Lights/pointLight";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { SkyMaterial } from "@babylonjs/materials/sky";
@@ -147,6 +149,27 @@ window.addEventListener("keyup", (event) => {
 const light = new HemisphericLight("light1", new Vector3(0, 1, 0), scene);
 light.intensity = 0.7;
 
+// Add a DirectionalLight for the sun
+const sunLight = new DirectionalLight("sunLight", new Vector3(0, -1, 0), scene);
+sunLight.intensity = 1.0; // Sun intensity
+sunLight.diffuse = new Color3(1, 0.9, 0.7); // Warm sun color
+sunLight.specular = new Color3(1, 1, 0.8);
+
+// Add a PointLight parented to the camera
+const playerLight = new PointLight(
+  "playerLight",
+  new Vector3(0, 0.5, 0),
+  scene
+);
+playerLight.intensity = 0.3; // Adjust intensity as needed
+playerLight.range = 10; // Adjust range as needed
+playerLight.diffuse = new Color3(1, 0.9, 0.7); // Warm light color
+playerLight.parent = camera;
+
+// Day/Night Cycle parameters
+const CYCLE_DURATION_SECONDS = 1440; // 24 minutes
+let currentCycleTime = 0; // In seconds, progresses from 0 to CYCLE_DURATION_SECONDS
+
 const sphere = MeshBuilder.CreateSphere(
   "sphere1",
   { diameter: 2, segments: 16 },
@@ -168,13 +191,11 @@ ground.material = groundMaterial;
 const skybox = MeshBuilder.CreateBox("skyBox", { size: 1000.0 }, scene);
 const skyMaterial = new SkyMaterial("skyMaterial", scene);
 skyMaterial.backFaceCulling = false;
-skyMaterial.turbidity = 5;
-skyMaterial.luminance = 0.8;
-skyMaterial.inclination = 0.1;
-skyMaterial.azimuth = 0.15;
-skyMaterial.mieDirectionalG = 0.95;
-skyMaterial.mieCoefficient = 0.005;
-skyMaterial.rayleigh = 2.0;
+// Initial sky material properties (will be updated by day/night cycle)
+skyMaterial.turbidity = 10; // Default turbidity
+skyMaterial.luminance = 1.0; // Default luminance
+skyMaterial.mieDirectionalG = 0.8;
+skyMaterial.useSunPosition = true; // Important for linking to DirectionalLight
 
 skybox.material = skyMaterial;
 skybox.infiniteDistance = true;
@@ -313,6 +334,115 @@ SceneLoader.ImportMeshAsync("", "assets/enemies/", "spider.glb", scene).then(
 
 engine.runRenderLoop(() => {
   const deltaTime = engine.getDeltaTime() / 1000; // Delta time in seconds
+  currentCycleTime = (currentCycleTime + deltaTime) % CYCLE_DURATION_SECONDS;
+  const cycleProgress = currentCycleTime / CYCLE_DURATION_SECONDS; // 0 (midnight) to 1 (next midnight)
+
+  // Animate Sky: inclination goes from 0 (sunrise) to 0.5 (midday) and back to 0 (sunset)
+  // then night. We'll map progress to inclination:
+  // 0.0 (midnight) -> inclination just below horizon
+  // 0.25 (sunrise) -> inclination 0
+  // 0.5 (midday) -> inclination 0.5 (zenith)
+  // 0.75 (sunset) -> inclination 0
+  // 1.0 (midnight) -> inclination just below horizon
+
+  let currentInclination;
+  const dayNightTransition = 0.05; // Small portion of the cycle for sunrise/sunset blending
+
+  if (cycleProgress >= 0 && cycleProgress < 0.25 - dayNightTransition) {
+    // Deep night
+    currentInclination = -0.2; // Sun further below horizon
+    skyMaterial.luminance = 0.005; // Very dark
+    skyMaterial.turbidity = 20; // Higher turbidity can make night sky darker, less star definition
+    skyMaterial.rayleigh = 0.5; // Lower rayleigh for less blue scattering, allowing dark blue
+    light.intensity = 0.05; // Very dim ambient
+    sunLight.intensity = 0; // Sun off
+  } else if (cycleProgress < 0.25 + dayNightTransition) {
+    // Sunrise transition
+    const sunriseProgress =
+      (cycleProgress - (0.25 - dayNightTransition)) / (dayNightTransition * 2);
+    currentInclination = -0.2 + sunriseProgress * 0.2; // from -0.2 to 0
+    skyMaterial.luminance = Color3.Lerp(
+      new Color3(0.005, 0, 0),
+      new Color3(1.0, 0, 0),
+      sunriseProgress
+    ).r; // LERP luminance
+    skyMaterial.turbidity = 20 - sunriseProgress * 15; // Turbidity from 20 down to 5
+    skyMaterial.rayleigh = 0.5 + sunriseProgress * 1.5; // Rayleigh from 0.5 up to 2.0
+    light.intensity = 0.05 + sunriseProgress * 0.65;
+    sunLight.intensity = sunriseProgress * 1.0;
+  } else if (cycleProgress < 0.5 - dayNightTransition) {
+    // Daytime
+    const dayProgress =
+      (cycleProgress - (0.25 + dayNightTransition)) /
+      (0.5 - dayNightTransition - (0.25 + dayNightTransition));
+    currentInclination = dayProgress * 0.5; // 0 to 0.5
+    skyMaterial.luminance = 1.0;
+    skyMaterial.turbidity = 5;
+    skyMaterial.rayleigh = 2.0;
+    light.intensity = 0.7;
+    sunLight.intensity = 1.0;
+  } else if (cycleProgress < 0.5 + dayNightTransition) {
+    // Midday peak (smooth transition for inclination)
+    const middayProgress =
+      (cycleProgress - (0.5 - dayNightTransition)) / (dayNightTransition * 2);
+    currentInclination = 0.5 - middayProgress * 0.0; // Stays around 0.5
+    skyMaterial.luminance = 1.0;
+    skyMaterial.turbidity = 5;
+    skyMaterial.rayleigh = 2.0;
+    light.intensity = 0.7;
+    sunLight.intensity = 1.0;
+  } else if (cycleProgress < 0.75 - dayNightTransition) {
+    // Afternoon
+    const afternoonProgress =
+      (cycleProgress - (0.5 + dayNightTransition)) /
+      (0.75 - dayNightTransition - (0.5 + dayNightTransition));
+    currentInclination = 0.5 - afternoonProgress * 0.5; // 0.5 to 0
+    skyMaterial.luminance = 1.0;
+    skyMaterial.turbidity = 5;
+    skyMaterial.rayleigh = 2.0;
+    light.intensity = 0.7;
+    sunLight.intensity = 1.0;
+  } else if (cycleProgress < 0.75 + dayNightTransition) {
+    // Sunset transition
+    const sunsetProgress =
+      (cycleProgress - (0.75 - dayNightTransition)) / (dayNightTransition * 2);
+    currentInclination = (1 - sunsetProgress) * 0.2 - 0.2; // 0 to -0.2
+    skyMaterial.luminance = Color3.Lerp(
+      new Color3(1.0, 0, 0),
+      new Color3(0.005, 0, 0),
+      sunsetProgress
+    ).r; // LERP luminance
+    skyMaterial.turbidity = 5 + sunsetProgress * 15; // Turbidity from 5 up to 20
+    skyMaterial.rayleigh = 2.0 - sunsetProgress * 1.5; // Rayleigh from 2.0 down to 0.5
+    light.intensity = 0.7 - sunsetProgress * 0.65;
+    sunLight.intensity = 1.0 - sunsetProgress * 1.0;
+  } else {
+    // Night
+    currentInclination = -0.2; // Sun further below horizon
+    skyMaterial.luminance = 0.005; // Very dark
+    skyMaterial.turbidity = 20;
+    skyMaterial.rayleigh = 0.5;
+    light.intensity = 0.05; // Very dim ambient
+    sunLight.intensity = 0; // Sun off
+  }
+
+  skyMaterial.inclination = currentInclination;
+  skyMaterial.azimuth = 0.25; // Fixed azimuth for now, could also be animated
+
+  // Update sun position for SkyMaterial (Babylon uses a convention where Y is up)
+  // A common way to get sun position from inclination (angle from horizon) and azimuth (rotation around Y)
+  // inclination = 0 is horizon, 0.5 * PI is zenith. SkyMaterial inclination is 0 to 0.5.
+  const phi = skyMaterial.inclination * Math.PI; // Convert to radians for spherical coords, 0 to PI/2
+  const theta = skyMaterial.azimuth * 2 * Math.PI; // Convert to radians, 0 to 2PI
+
+  skyMaterial.sunPosition.x = Math.cos(phi) * Math.sin(theta);
+  skyMaterial.sunPosition.y = Math.sin(phi);
+  skyMaterial.sunPosition.z = Math.cos(phi) * Math.cos(theta);
+
+  // Update DirectionalLight direction
+  // DirectionalLight direction is where the light is pointing TO.
+  // If sunPosition is (0,1,0) (zenith), light direction should be (0,-1,0) (straight down).
+  sunLight.direction = skyMaterial.sunPosition.scale(-1);
 
   // Spider movement and rotation logic
   if (spiderColliderMesh && !playerIsDead) {

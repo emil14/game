@@ -51,13 +51,12 @@
         color: white;
         z-index: 1;
         position: relative;
-        text-shadow: 1px 1px 2px black;
       }
       /* Basic styling for the health bar */
       .health-bar-container {
         width: 200px;
         height: 25px;
-        margin-top: 5px;
+        /* margin-top: 5px; */
         display: flex;
         align-items: center;
         justify-content: flex-start;
@@ -77,7 +76,6 @@
         color: white;
         z-index: 1;
         position: relative;
-        text-shadow: 1px 1px 2px black;
       }
       /* Styling for the blood screen effect */
       .blood-screen-effect {
@@ -96,7 +94,6 @@
       .bar-emoji {
         font-size: 1.2em;
         color: white;
-        text-shadow: 1px 1px 2px black;
         margin-right: 8px;
       }
 
@@ -121,7 +118,7 @@
         justify-content: flex-start;
         width: 200px;
         height: 25px;
-        margin-top: 5px;
+        /* margin-top: 5px; */
       }
 
       /* Styling for the experience bar */
@@ -140,7 +137,64 @@
         color: white;
         z-index: 1;
         position: relative;
-        text-shadow: 1px 1px 2px black;
+      }
+
+      /* Enemy HUD Styles */
+      .enemy-info-container {
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        text-align: center;
+        display: none; /* Managed by JS */
+        color: white;
+        font-size: 18px;
+        /* text-shadow: 1px 1px 2px black; */ /* Text shadow removed */
+        background-color: rgba(0, 0, 0, 0.5); /* Similar to player HUD */
+        padding: 8px; /* Similar to player HUD */
+        border-radius: 5px; /* Similar to player HUD */
+      }
+
+      .enemy-title-line {
+        font-size: 1em;
+        margin-bottom: 5px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .enemy-name-text {
+        margin-right: 5px;
+      }
+
+      .enemy-health-bar-container {
+        width: 200px;
+        height: 20px;
+        background-color: #555;
+        border-radius: 5px;
+        overflow: hidden;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .enemy-health-bar-fill {
+        width: 100%;
+        height: 100%;
+        background-color: #ff0000;
+        border-radius: 5px;
+        position: absolute;
+        top: 0;
+        left: 0;
+      }
+
+      .enemy-health-text {
+        font-size: 14px;
+        color: white;
+        z-index: 1;
+        position: relative;
+        text-shadow: none !important;
       }
     </style>
   </head>
@@ -160,97 +214,23 @@
           </div>
         </div>
         <div class="stamina-bar-container">
-          <span class="bar-emoji">👟</span>
+          <span class="bar-emoji">⚡️</span>
           <div class="bar-content-wrapper">
             <div id="staminaBarFill" class="stamina-bar-fill"></div>
             <span id="staminaText" class="stamina-text">100/100</span>
           </div>
         </div>
-        <div
-          style="
-            display: flex;
-            align-items: center;
-            margin-top: 5px;
-            text-align: left;
-          "
-        >
-          <div
-            id="gameTimeContainer"
-            style="display: flex; align-items: center"
-          >
-            <span class="bar-emoji">🕒</span>
-            <span id="gameTimeDisplay">00:00</span>
-          </div>
-          <div
-            id="moneyContainer"
-            style="display: flex; align-items: center; margin-left: 15px"
-          >
-            <span class="bar-emoji">🪙</span>
-            <span id="moneyDisplay">0</span>
-          </div>
-        </div>
-        <div class="experience-bar-container">
-          <span class="bar-emoji">⭐</span>
-          <div class="bar-content-wrapper">
-            <div id="experienceBarFill" class="experience-bar-fill"></div>
-            <span id="experienceText" class="experience-text">0/1000</span>
-          </div>
-        </div>
       </div>
     </div>
     <div id="fpsDisplay" class="fps-display">FPS: 0</div>
-    <div
-      id="enemyInfoContainer"
-      style="
-        position: absolute;
-        top: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        text-align: center;
-        display: none;
-        color: white;
-        font-size: 18px;
-        text-shadow: 1px 1px 2px black;
-      "
-    >
-      <div id="enemyName"></div>
-      <div
-        id="enemyHealthBarContainer"
-        style="
-          width: 200px;
-          height: 20px;
-          background-color: #555;
-          border-radius: 5px;
-          margin-top: 5px;
-          overflow: hidden;
-          position: relative;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        "
-      >
-        <div
-          id="enemyHealthBarFill"
-          style="
-            width: 100%;
-            height: 100%;
-            background-color: #ff0000;
-            border-radius: 5px;
-            position: absolute;
-            top: 0;
-            left: 0;
-          "
-        ></div>
-        <div
-          id="enemyHealthText"
-          style="
-            font-size: 14px;
-            color: white;
-            z-index: 1;
-            position: relative;
-            text-shadow: 1px 1px 2px black;
-          "
-        ></div>
+    <div id="enemyInfoContainer" class="enemy-info-container">
+      <div id="enemyTitleLine" class="enemy-title-line">
+        <span id="enemyNameText" class="enemy-name-text"></span>
+        <span id="enemyLevelText" class="enemy-level-text"></span>
+      </div>
+      <div id="enemyHealthBarContainer" class="enemy-health-bar-container">
+        <div id="enemyHealthBarFill" class="enemy-health-bar-fill"></div>
+        <div id="enemyHealthText" class="enemy-health-text"></div>
       </div>
     </div>
     <!-- <audio
@@ -258,6 +238,48 @@
       loop
       src="assets/music/musorgsky_night_on_bald_mountain.mp3"
     ></audio> -->
+    <div id="tab-menu" class="hidden">
+      <div id="tab-menu-content">
+        <div id="tab-navigation">
+          <button class="tab-button active" data-tab="player-stats-tab">
+            ⚡️ Stats
+          </button>
+          <button class="tab-button" data-tab="inventory-tab">
+            🎒 Inventory
+          </button>
+          <button class="tab-button" data-tab="journal-tab">📜 Journal</button>
+          <button class="tab-button" data-tab="map-tab">🗺️ Map</button>
+        </div>
+
+        <div class="tab-pane active" id="player-stats-tab">
+          <h2>Player Stats</h2>
+          <p>Level: <span id="player-level">1</span></p>
+          <p>Health: <span id="player-health">100 / 100</span></p>
+          <p>Stamina: <span id="player-stamina">100 / 100</span></p>
+          <p>Experience: <span id="player-experience">0 / 1000</span></p>
+          <div id="experience-bar-container-tab">
+            <div id="experience-bar-fill-tab"></div>
+          </div>
+          <p>Time: <span id="ingame-time-tab">12:00 PM</span></p>
+        </div>
+
+        <div class="tab-pane" id="inventory-tab">
+          <h2>Inventory</h2>
+          <div class="placeholder-ui">Inventory UI Placeholder</div>
+        </div>
+
+        <div class="tab-pane" id="journal-tab">
+          <h2>Journal</h2>
+          <div class="placeholder-ui">Journal / Quests UI Placeholder</div>
+        </div>
+
+        <div class="tab-pane" id="map-tab">
+          <h2>Map</h2>
+          <div class="placeholder-ui">Map UI Placeholder</div>
+        </div>
+      </div>
+    </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

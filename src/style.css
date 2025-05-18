@@ -32,4 +32,163 @@ body {
 /* Rule to ensure no text shadow on the crosshair */
 .crosshair, .crosshair.crosshair-enemy-focus {
   text-shadow: none;
+}
+
+/* Tab Menu Styles */
+#tab-menu {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: transparent;
+  color: #ccc; /* Light grey text for readability on dark backgrounds */
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: Arial, Helvetica, sans-serif; /* Standard sans-serif font */
+  pointer-events: none;
+}
+
+#tab-menu.hidden {
+  display: none;
+}
+
+#tab-menu-content {
+  background-color: rgba(40, 40, 40, 0.9); /* Simple semi-transparent dark grey */
+  padding: 15px;
+  border-radius: 4px;
+  width: 80%;
+  max-width: 900px;
+  height: 75%;
+  max-height: 600px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid #666; /* Simple grey border */
+  box-shadow: none; /* No shadow */
+  pointer-events: auto;
+}
+
+#tab-navigation {
+  display: flex;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #666;
+}
+
+.tab-button {
+  background-color: #333; /* Dark grey button background */
+  color: #ccc; /* Light grey text */
+  border: 1px solid #555;
+  border-bottom: none;
+  padding: 8px 15px;
+  cursor: pointer;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.95em;
+  margin-right: 3px;
+  border-radius: 3px 3px 0 0;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.tab-button:hover {
+  background-color: #444;
+  color: #fff;
+}
+
+.tab-button.active {
+  background-color: #505050; /* Slightly lighter grey for active tab */
+  color: #ffffff;
+  border-bottom: 1px solid #505050; /* Match background to blend */
+  position: relative;
+  /* top: 1px; */ /* Removed lift effect */
+}
+
+.tab-pane {
+  display: none;
+  background-color: transparent; /* Pane background transparent, main content bg shows through */
+  padding: 15px;
+  border-radius: 0 0 4px 4px;
+  flex-grow: 1;
+  overflow-y: auto;
+  border: none; /* No separate border for the pane itself */
+}
+
+.tab-pane.active {
+  display: block;
+}
+
+.tab-pane h2 {
+  color: #ddd; /* Light grey header text */
+  border-bottom: 1px solid #555; /* Simple separator */
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 1.2em;
+  margin-top: 0;
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+}
+
+#player-stats-tab p {
+  margin: 6px 0;
+  font-size: 0.9em;
+  color: #bbb;
+}
+
+#experience-bar-container-tab { /* Assuming this is the ID in your HTML for the tab menu's exp bar container */
+  width: 100%;
+  background-color: #222; /* Darker background for the bar */
+  border-radius: 3px;
+  height: 18px;
+  margin-top: 5px;
+  overflow: hidden;
+}
+
+#experience-bar-fill-tab { /* Assuming this is the ID for the fill element */
+  width: 0%;
+  height: 100%;
+  background-color: #007bff; /* Simple blue, or another neutral color like #666 */
+  border-radius: 3px 0 0 3px;
+  transition: width 0.3s ease-in-out;
+}
+
+.placeholder-ui {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 150px;
+  background-color: rgba(0, 0, 0, 0.1);
+  border: 1px dashed #555;
+  border-radius: 3px;
+  color: #888;
+  font-style: italic;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Style for the normal game HUD (example) */
+/* We will target .ui-container and other specific HUD elements directly in JS */
+/* So, #game-hud styles might be redundant or need adjustment if #game-hud div is kept */
+
+.ui-container.hidden,
+#fpsDisplay.hidden,
+#enemyInfoContainer.hidden,
+#crosshair.hidden /* Add if crosshair should also be hidden */
+{
+  display: none !important; /* Use important to ensure override if needed */
+}
+
+/* Style for the normal game HUD (example) */
+#game-hud {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  background-color: rgba(0,0,0,0.5);
+  color: white;
+  padding: 10px;
+  border-radius: 5px;
+  z-index: 900; /* Below tab menu */
+}
+
+#game-hud.hidden {
+  display: none;
 } 

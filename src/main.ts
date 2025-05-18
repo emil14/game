@@ -32,16 +32,14 @@ const bloodScreenEffect = document.getElementById(
 const enemyInfoContainer = document.getElementById(
   "enemyInfoContainer"
 ) as HTMLElement;
-const enemyName = document.getElementById("enemyName") as HTMLElement;
 const enemyHealthText = document.getElementById(
   "enemyHealthText"
 ) as HTMLElement;
 const enemyHealthBarFill = document.getElementById(
   "enemyHealthBarFill"
 ) as HTMLElement;
-const gameTimeDisplay = document.getElementById(
-  "gameTimeDisplay"
-) as HTMLElement;
+const enemyNameText = document.getElementById("enemyNameText") as HTMLElement;
+const enemyLevelText = document.getElementById("enemyLevelText") as HTMLElement;
 const crosshairElement = document.getElementById("crosshair") as HTMLElement;
 const fightMusic = document.getElementById("fightMusic") as HTMLAudioElement;
 
@@ -477,31 +475,38 @@ engine.runRenderLoop(() => {
     skyMaterial.rayleigh = 2.0;
     light.intensity = 0.7;
     sunLight.intensity = 1.0;
-  } else if (cycleProgress < 0.75 - dayNightTransition) {
-    // Afternoon
+  } else if (cycleProgress < 0.75) {
+    // MODIFIED: Afternoon, leading to sunset at 0.75 (18:00)
+    const afternoonStart = 0.5 + dayNightTransition; // Starts after midday peak
+    const afternoonEnd = 0.75;
+    const afternoonDuration = afternoonEnd - afternoonStart;
     const afternoonProgress =
-      (cycleProgress - (0.5 + dayNightTransition)) /
-      (0.75 - dayNightTransition - (0.5 + dayNightTransition));
-    currentInclination = 0.5 - afternoonProgress * 0.5; // 0.5 to 0
-    skyMaterial.luminance = 1.0;
+      (cycleProgress - afternoonStart) / afternoonDuration;
+
+    currentInclination = 0.5 - afternoonProgress * 0.5; // From 0.5 down to 0
+    skyMaterial.luminance = 1.0; // Still full day brightness
     skyMaterial.turbidity = 5;
     skyMaterial.rayleigh = 2.0;
     light.intensity = 0.7;
     sunLight.intensity = 1.0;
   } else if (cycleProgress < 0.75 + dayNightTransition) {
-    // Sunset transition
-    const sunsetProgress =
-      (cycleProgress - (0.75 - dayNightTransition)) / (dayNightTransition * 2);
-    currentInclination = (1 - sunsetProgress) * 0.2 - 0.2; // 0 to -0.2
+    // MODIFIED: Dusk, sun goes from horizon to below
+    const duskStart = 0.75;
+    const duskEnd = 0.75 + dayNightTransition;
+    const duskDuration = duskEnd - duskStart; // This is equal to dayNightTransition
+    const duskProgress = (cycleProgress - duskStart) / duskDuration; // Progress from 0 to 1
+
+    currentInclination = 0.0 - duskProgress * 0.2; // From 0 down to -0.2
+    // Light and sky properties transition from day to night
     skyMaterial.luminance = Color3.Lerp(
-      new Color3(1.0, 0, 0),
+      new Color3(1.0, 0, 0), // Start with full luminance (adjusted for sunset color if desired)
       new Color3(0.005, 0, 0),
-      sunsetProgress
-    ).r; // LERP luminance
-    skyMaterial.turbidity = 5 + sunsetProgress * 15; // Turbidity from 5 up to 20
-    skyMaterial.rayleigh = 2.0 - sunsetProgress * 1.5; // Rayleigh from 2.0 down to 0.5
-    light.intensity = 0.7 - sunsetProgress * 0.65;
-    sunLight.intensity = 1.0 - sunsetProgress * 1.0;
+      duskProgress
+    ).r;
+    skyMaterial.turbidity = 5 + duskProgress * 15; // Turbidity from 5 up to 20
+    skyMaterial.rayleigh = 2.0 - duskProgress * 1.5; // Rayleigh from 2.0 down to 0.5
+    light.intensity = 0.7 - duskProgress * 0.65; // Ambient light from 0.7 down to 0.05
+    sunLight.intensity = 1.0 - duskProgress * 1.0; // Sun light from 1.0 down to 0.0
   } else {
     // Night
     currentInclination = -0.2; // Sun further below horizon
@@ -794,9 +799,10 @@ engine.runRenderLoop(() => {
   // Raycasting for enemy info
   if (
     enemyInfoContainer &&
-    enemyName &&
     enemyHealthText &&
     enemyHealthBarFill &&
+    enemyNameText &&
+    enemyLevelText &&
     crosshairElement
   ) {
     const ray = camera.getForwardRay(crosshairMaxDistance);
@@ -813,7 +819,10 @@ engine.runRenderLoop(() => {
       enemyInfoContainer.style.display = "block";
       crosshairElement.classList.add("crosshair-enemy-focus");
       if (crosshairElement) crosshairElement.textContent = "💢"; // Fight mode crosshair
-      enemyName.textContent = "Spider"; // Placeholder name
+
+      // Update new combined title line
+      enemyNameText.textContent = "Spider"; // Placeholder name
+      enemyLevelText.textContent = "| Lvl 1"; // Placeholder level
 
       // Placeholder health as requested
       const placeholderMaxHealth = 100;
@@ -841,22 +850,208 @@ engine.runRenderLoop(() => {
     healthText.textContent = currentHealth.toFixed(0) + "/" + maxHealth;
     healthBarFill.style.width = (currentHealth / maxHealth) * 100 + "%";
   }
-
-  // Update Game Time Display
-  if (gameTimeDisplay) {
-    const totalGameSecondsInDay = 24 * 60 * 60; // Total seconds in a 24-hour game day
-    const currentTotalGameSeconds = cycleProgress * totalGameSecondsInDay;
-
-    const gameHours = Math.floor(currentTotalGameSeconds / 3600) % 24;
-    const gameMinutes = Math.floor((currentTotalGameSeconds % 3600) / 60);
-
-    const formattedHours = gameHours.toString().padStart(2, "0");
-    const formattedMinutes = gameMinutes.toString().padStart(2, "0");
-
-    gameTimeDisplay.textContent = `${formattedHours}:${formattedMinutes}`;
-  }
 });
 
 window.addEventListener("resize", () => {
   engine.resize();
+});
+
+// Tab Menu Functionality
+document.addEventListener("DOMContentLoaded", () => {
+  const tabMenu = document.getElementById("tab-menu") as HTMLElement | null;
+  const mainUiContainer = document.querySelector(
+    ".ui-container"
+  ) as HTMLElement | null;
+  const fpsDisplayElement = document.getElementById(
+    "fpsDisplay"
+  ) as HTMLElement | null;
+  const enemyInfoContainerElement = document.getElementById(
+    "enemyInfoContainer"
+  ) as HTMLElement | null;
+  const crosshair = document.getElementById("crosshair") as HTMLElement | null;
+
+  const tabNavigation = document.getElementById(
+    "tab-navigation"
+  ) as HTMLElement | null;
+  const tabButtons = tabNavigation
+    ? (Array.from(
+        tabNavigation.querySelectorAll(".tab-button")
+      ) as HTMLButtonElement[])
+    : [];
+  const tabPanes = document.querySelectorAll(
+    "#tab-menu-content .tab-pane"
+  ) as NodeListOf<HTMLElement>;
+
+  // Stats display elements in Tab Menu (Player Stats Tab)
+  const playerLevelDisplay = document.getElementById(
+    "player-level"
+  ) as HTMLElement | null;
+  const playerHealthDisplay = document.getElementById(
+    "player-health"
+  ) as HTMLElement | null;
+  const playerStaminaDisplay = document.getElementById(
+    "player-stamina"
+  ) as HTMLElement | null;
+  const playerExperienceDisplay = document.getElementById(
+    "player-experience"
+  ) as HTMLElement | null;
+  const experienceBarFillTab = document.getElementById(
+    "experience-bar-fill-tab"
+  ) as HTMLElement | null;
+  const ingameTimeDisplayTab = document.getElementById(
+    "ingame-time-tab"
+  ) as HTMLElement | null;
+
+  let isTabMenuOpen = false;
+  let currentActiveTab = "player-stats-tab"; // Default tab
+
+  const tabPlayerData = {
+    level: 1,
+    experienceToNextLevel: 1000,
+  };
+
+  function updateStatsTabData() {
+    if (
+      !tabMenu ||
+      tabMenu.classList.contains("hidden") ||
+      currentActiveTab !== "player-stats-tab"
+    )
+      return;
+
+    const currentHealthGame =
+      typeof currentHealth !== "undefined" ? currentHealth : 100;
+    const maxHealthGame = typeof maxHealth !== "undefined" ? maxHealth : 100;
+    const currentStaminaGame =
+      typeof currentStamina !== "undefined" ? currentStamina : 100;
+    const maxStaminaGame = typeof maxStamina !== "undefined" ? maxStamina : 100;
+    const placeholderCurrentExp = 250; // Replace with actual game variable for current experience
+
+    if (playerLevelDisplay)
+      playerLevelDisplay.textContent = tabPlayerData.level.toString();
+    if (playerHealthDisplay)
+      playerHealthDisplay.textContent = `${currentHealthGame.toFixed(
+        0
+      )} / ${maxHealthGame.toFixed(0)}`;
+    if (playerStaminaDisplay)
+      playerStaminaDisplay.textContent = `${currentStaminaGame.toFixed(
+        0
+      )} / ${maxStaminaGame.toFixed(0)}`;
+    if (playerExperienceDisplay)
+      playerExperienceDisplay.textContent = `${placeholderCurrentExp} / ${tabPlayerData.experienceToNextLevel}`;
+
+    // Calculate and display game time directly for the tab menu
+    if (ingameTimeDisplayTab) {
+      const cycleProgressForTab = currentCycleTime / CYCLE_DURATION_SECONDS;
+      const totalGameSecondsInDay = 24 * 60 * 60;
+      const currentTotalGameSeconds =
+        cycleProgressForTab * totalGameSecondsInDay;
+      const gameHours = Math.floor(currentTotalGameSeconds / 3600) % 24;
+      const gameMinutes = Math.floor((currentTotalGameSeconds % 3600) / 60);
+      const formattedHours = gameHours.toString().padStart(2, "0");
+      const formattedMinutes = gameMinutes.toString().padStart(2, "0");
+      ingameTimeDisplayTab.textContent = `${formattedHours}:${formattedMinutes}`;
+    }
+
+    if (experienceBarFillTab) {
+      const experiencePercentage =
+        (placeholderCurrentExp / tabPlayerData.experienceToNextLevel) * 100;
+      experienceBarFillTab.style.width = `${experiencePercentage}%`;
+    }
+  }
+
+  function setActiveTab(tabId: string) {
+    currentActiveTab = tabId;
+    tabButtons.forEach((button) => {
+      if (button.dataset.tab === tabId) {
+        button.classList.add("active");
+      } else {
+        button.classList.remove("active");
+      }
+    });
+    tabPanes.forEach((pane) => {
+      if (pane.id === tabId) {
+        pane.classList.add("active");
+      } else {
+        pane.classList.remove("active");
+      }
+    });
+    if (tabId === "player-stats-tab") {
+      updateStatsTabData(); // Update stats if stats tab is activated
+    }
+    // Add similar update functions for other tabs if their content is dynamic
+  }
+
+  function openTabMenu(tabIdToShow?: string) {
+    if (!tabMenu) return;
+    isTabMenuOpen = true;
+    tabMenu.classList.remove("hidden");
+    [
+      mainUiContainer,
+      fpsDisplayElement,
+      enemyInfoContainerElement,
+      crosshair,
+    ].forEach((el) => el?.classList.add("hidden"));
+
+    const targetTab = tabIdToShow || currentActiveTab || "player-stats-tab";
+    setActiveTab(targetTab);
+  }
+
+  function closeTabMenu() {
+    if (!tabMenu) return;
+    isTabMenuOpen = false;
+    tabMenu.classList.add("hidden");
+    [
+      mainUiContainer,
+      fpsDisplayElement,
+      enemyInfoContainerElement,
+      crosshair,
+    ].forEach((el) => el?.classList.remove("hidden"));
+  }
+
+  function toggleTabMenu(tabIdToShow?: string) {
+    if (isTabMenuOpen && (!tabIdToShow || tabIdToShow === currentActiveTab)) {
+      closeTabMenu();
+    } else {
+      openTabMenu(tabIdToShow);
+    }
+  }
+
+  // Event listener for tab navigation buttons
+  tabButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const tabId = button.dataset.tab;
+      if (tabId) {
+        setActiveTab(tabId);
+      }
+    });
+  });
+
+  // Event listener for keyboard shortcuts
+  document.addEventListener("keydown", (event) => {
+    if (event.key.toLowerCase() === "tab") {
+      event.preventDefault();
+      toggleTabMenu(); // Opens to last active or default, or closes
+    }
+    if (!event.metaKey && !event.ctrlKey && !event.altKey) {
+      // Avoid conflicts with browser shortcuts
+      switch (event.key.toLowerCase()) {
+        case "i":
+          event.preventDefault();
+          toggleTabMenu("inventory-tab");
+          break;
+        case "j":
+          event.preventDefault();
+          toggleTabMenu("journal-tab");
+          break;
+        case "m":
+          event.preventDefault();
+          toggleTabMenu("map-tab");
+          break;
+      }
+    }
+  });
+
+  // Initial setup
+  if (tabMenu) tabMenu.classList.add("hidden");
+  setActiveTab(currentActiveTab); // Set initial active tab even if menu is hidden
 });

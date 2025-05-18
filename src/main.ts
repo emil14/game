@@ -39,6 +39,9 @@ const enemyHealthText = document.getElementById(
 const enemyHealthBarFill = document.getElementById(
   "enemyHealthBarFill"
 ) as HTMLElement;
+const gameTimeDisplay = document.getElementById(
+  "gameTimeDisplay"
+) as HTMLElement;
 
 const engine = new Engine(canvas, false, {
   preserveDrawingBuffer: true,
@@ -181,7 +184,7 @@ playerLight.parent = camera;
 
 // Day/Night Cycle parameters
 const CYCLE_DURATION_SECONDS = 1440; // 24 minutes
-let currentCycleTime = 0; // In seconds, progresses from 0 to CYCLE_DURATION_SECONDS
+let currentCycleTime = CYCLE_DURATION_SECONDS / 2; // In seconds, progresses from 0 to CYCLE_DURATION_SECONDS
 
 const sphere = MeshBuilder.CreateSphere(
   "sphere1",
@@ -683,6 +686,20 @@ engine.runRenderLoop(() => {
   if (healthText && healthBarFill) {
     healthText.textContent = currentHealth.toFixed(0) + "/" + maxHealth;
     healthBarFill.style.width = (currentHealth / maxHealth) * 100 + "%";
+  }
+
+  // Update Game Time Display
+  if (gameTimeDisplay) {
+    const totalGameSecondsInDay = 24 * 60 * 60; // Total seconds in a 24-hour game day
+    const currentTotalGameSeconds = cycleProgress * totalGameSecondsInDay;
+
+    const gameHours = Math.floor(currentTotalGameSeconds / 3600) % 24;
+    const gameMinutes = Math.floor((currentTotalGameSeconds % 3600) / 60);
+
+    const formattedHours = gameHours.toString().padStart(2, "0");
+    const formattedMinutes = gameMinutes.toString().padStart(2, "0");
+
+    gameTimeDisplay.textContent = `${formattedHours}:${formattedMinutes}`;
   }
 });
 

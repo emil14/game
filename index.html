@@ -114,10 +114,33 @@
 
       /* Update existing bar containers */
       .health-bar-container,
-      .stamina-bar-container {
+      .stamina-bar-container,
+      .experience-bar-container {
         display: flex;
         align-items: center;
         justify-content: flex-start;
+        width: 200px;
+        height: 25px;
+        margin-top: 5px;
+      }
+
+      /* Styling for the experience bar */
+      .experience-bar-fill {
+        height: 100%;
+        background-color: #9b59b6;
+        width: 0%;
+        border-radius: 5px;
+        transition: width 0.1s linear;
+        position: absolute;
+        top: 0;
+        left: 0;
+      }
+      .experience-text {
+        font-size: 0.9em;
+        color: white;
+        z-index: 1;
+        position: relative;
+        text-shadow: 1px 1px 2px black;
       }
     </style>
   </head>
@@ -143,9 +166,35 @@
             <span id="staminaText" class="stamina-text">100/100</span>
           </div>
         </div>
-        <div id="gameTimeContainer" style="margin-top: 5px; text-align: left">
-          <span class="bar-emoji">⏱️</span>
-          <span id="gameTimeDisplay">00:00</span>
+        <div
+          style="
+            display: flex;
+            align-items: center;
+            margin-top: 5px;
+            text-align: left;
+          "
+        >
+          <div
+            id="gameTimeContainer"
+            style="display: flex; align-items: center"
+          >
+            <span class="bar-emoji">🕒</span>
+            <span id="gameTimeDisplay">00:00</span>
+          </div>
+          <div
+            id="moneyContainer"
+            style="display: flex; align-items: center; margin-left: 15px"
+          >
+            <span class="bar-emoji">🪙</span>
+            <span id="moneyDisplay">0</span>
+          </div>
+        </div>
+        <div class="experience-bar-container">
+          <span class="bar-emoji">⭐</span>
+          <div class="bar-content-wrapper">
+            <div id="experienceBarFill" class="experience-bar-fill"></div>
+            <span id="experienceText" class="experience-text">0/1000</span>
+          </div>
         </div>
       </div>
     </div>

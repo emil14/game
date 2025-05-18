@@ -19,6 +19,7 @@ import "@babylonjs/core/Meshes/Builders/boxBuilder";
 import "@babylonjs/core/Collisions/collisionCoordinator";
 import "@babylonjs/inspector";
 import { Animation } from "@babylonjs/core/Animations/animation";
+import { CubeTexture } from "@babylonjs/core/Materials/Textures/cubeTexture";
 
 // +++ Import Chest and registration logic +++
 import { Chest, registerChest } from "./interactables"; // playerHasKey is used by Chest internally, playerAcquiresKey for testing
@@ -232,39 +233,65 @@ const groundMaterial = new StandardMaterial("groundMaterial", scene);
 groundMaterial.diffuseColor = new Color3(0.9, 0.8, 0.6);
 ground.material = groundMaterial;
 
-const skybox = MeshBuilder.CreateBox("skyBox", { size: 1000.0 }, scene);
-const skyMaterial = new SkyMaterial("skyMaterial", scene);
-skyMaterial.backFaceCulling = false;
-// Initial sky material properties (will be updated by day/night cycle)
-skyMaterial.turbidity = 10; // Default turbidity
-skyMaterial.luminance = 1.0; // Default luminance
-skyMaterial.mieDirectionalG = 0.8;
-skyMaterial.useSunPosition = true; // Important for linking to DirectionalLight
-
-skybox.material = skyMaterial;
-skybox.infiniteDistance = true;
-
-const waterMesh = MeshBuilder.CreateGround(
-  "waterMesh",
-  { width: 100, height: 100, subdivisions: 32 },
+const skybox = MeshBuilder.CreateBox(
+  "skyBox",
+  {
+    size: 1000,
+  },
   scene
 );
-waterMesh.position.y = -0.5;
+skybox.infiniteDistance = true;
 
-const waterMaterial = new WaterMaterial(
-  "waterMaterial",
+// --- Procedural skybox (commented out for night skybox) ---
+// const skyboxMaterial = new SkyMaterial("skyBox", scene);
+// skyboxMaterial.backFaceCulling = false;
+// skyboxMaterial.turbidity = 10;
+// skyboxMaterial.luminance = 1.0;
+// skyboxMaterial.mieDirectionalG = 0.8;
+// skyboxMaterial.useSunPosition = true;
+// skybox.material = skyboxMaterial;
+// skybox.infiniteDistance = true;
+
+// --- Night skybox using CubeTexture ---
+const nightSkyboxMaterial = new StandardMaterial("nightSkyboxMaterial", scene);
+nightSkyboxMaterial.backFaceCulling = false;
+nightSkyboxMaterial.reflectionTexture = new CubeTexture(
+  "assets/skybox/night/bkg1",
   scene,
-  new Vector2(1024, 1024)
+  [
+    "_right.png", // +X
+    "_top.png", // +Y
+    "_front.png", // +Z
+    "_left.png", // -X
+    "_bot.png", // -Y
+    "_back.png", // -Z
+  ]
 );
-waterMaterial.backFaceCulling = true;
-waterMaterial.windForce = -5;
-waterMaterial.waveHeight = 0.1;
-waterMaterial.waterColor = new Color3(0.1, 0.1, 0.6);
-waterMaterial.colorBlendFactor = 0.2;
+nightSkyboxMaterial.reflectionTexture.coordinatesMode = 5; // SKYBOX_MODE
+nightSkyboxMaterial.disableLighting = true;
+skybox.material = nightSkyboxMaterial;
 
-waterMaterial.addToRenderList(skybox);
+// const waterMesh = MeshBuilder.CreateGround(
+//   "waterMesh",
+//   { width: 100, height: 100, subdivisions: 32 },
+//   scene
+// );
+// waterMesh.position.y = -0.5;
 
-waterMesh.material = waterMaterial;
+// const waterMaterial = new WaterMaterial(
+//   "waterMaterial",
+//   scene,
+//   new Vector2(1024, 1024)
+// );
+// waterMaterial.backFaceCulling = true;
+// waterMaterial.windForce = -5;
+// waterMaterial.waveHeight = 0.1;
+// waterMaterial.waterColor = new Color3(0.1, 0.1, 0.6);
+// waterMaterial.colorBlendFactor = 0.2;
+
+// waterMaterial.addToRenderList(skybox);
+
+// waterMesh.material = waterMaterial;
 
 const wallHeight = 100;
 const wallThickness = 0.1;
@@ -693,9 +720,9 @@ engine.runRenderLoop(() => {
   if (cycleProgress >= 0 && cycleProgress < 0.25 - dayNightTransition) {
     // Deep night
     currentInclination = -0.2; // Sun further below horizon
-    skyMaterial.luminance = 0.005; // Very dark
-    skyMaterial.turbidity = 20; // Higher turbidity can make night sky darker, less star definition
-    skyMaterial.rayleigh = 0.5; // Lower rayleigh for less blue scattering, allowing dark blue
+    // skyboxMaterial.luminance = 0.005; // Very dark
+    // skyboxMaterial.turbidity = 20; // Higher turbidity can make night sky darker, less star definition
+    // skyboxMaterial.rayleigh = 0.5; // Lower rayleigh for less blue scattering, allowing dark blue
     light.intensity = 0.05; // Very dim ambient
     sunLight.intensity = 0; // Sun off
   } else if (cycleProgress < 0.25 + dayNightTransition) {
@@ -703,13 +730,13 @@ engine.runRenderLoop(() => {
     const sunriseProgress =
       (cycleProgress - (0.25 - dayNightTransition)) / (dayNightTransition * 2);
     currentInclination = -0.2 + sunriseProgress * 0.2; // from -0.2 to 0
-    skyMaterial.luminance = Color3.Lerp(
-      new Color3(0.005, 0, 0),
-      new Color3(1.0, 0, 0),
-      sunriseProgress
-    ).r; // LERP luminance
-    skyMaterial.turbidity = 20 - sunriseProgress * 15; // Turbidity from 20 down to 5
-    skyMaterial.rayleigh = 0.5 + sunriseProgress * 1.5; // Rayleigh from 0.5 up to 2.0
+    // skyboxMaterial.luminance = Color3.Lerp(
+    //   new Color3(0.005, 0, 0),
+    //   new Color3(1.0, 0, 0),
+    //   sunriseProgress
+    // ).r; // LERP luminance
+    // skyboxMaterial.turbidity = 20 - sunriseProgress * 15; // Turbidity from 20 down to 5
+    // skyboxMaterial.rayleigh = 0.5 + sunriseProgress * 1.5; // Rayleigh from 0.5 up to 2.0
     light.intensity = 0.05 + sunriseProgress * 0.65;
     sunLight.intensity = sunriseProgress * 1.0;
   } else if (cycleProgress < 0.5 - dayNightTransition) {
@@ -718,9 +745,9 @@ engine.runRenderLoop(() => {
       (cycleProgress - (0.25 + dayNightTransition)) /
       (0.5 - dayNightTransition - (0.25 + dayNightTransition));
     currentInclination = dayProgress * 0.5; // 0 to 0.5
-    skyMaterial.luminance = 1.0;
-    skyMaterial.turbidity = 5;
-    skyMaterial.rayleigh = 2.0;
+    // skyboxMaterial.luminance = 1.0;
+    // skyboxMaterial.turbidity = 5;
+    // skyboxMaterial.rayleigh = 2.0;
     light.intensity = 0.7;
     sunLight.intensity = 1.0;
   } else if (cycleProgress < 0.5 + dayNightTransition) {
@@ -728,9 +755,9 @@ engine.runRenderLoop(() => {
     const middayProgress =
       (cycleProgress - (0.5 - dayNightTransition)) / (dayNightTransition * 2);
     currentInclination = 0.5 - middayProgress * 0.0; // Stays around 0.5
-    skyMaterial.luminance = 1.0;
-    skyMaterial.turbidity = 5;
-    skyMaterial.rayleigh = 2.0;
+    // skyboxMaterial.luminance = 1.0;
+    // skyboxMaterial.turbidity = 5;
+    // skyboxMaterial.rayleigh = 2.0;
     light.intensity = 0.7;
     sunLight.intensity = 1.0;
   } else if (cycleProgress < 0.75) {
@@ -742,9 +769,9 @@ engine.runRenderLoop(() => {
       (cycleProgress - afternoonStart) / afternoonDuration;
 
     currentInclination = 0.5 - afternoonProgress * 0.5; // From 0.5 down to 0
-    skyMaterial.luminance = 1.0; // Still full day brightness
-    skyMaterial.turbidity = 5;
-    skyMaterial.rayleigh = 2.0;
+    // skyboxMaterial.luminance = 1.0; // Still full day brightness
+    // skyboxMaterial.turbidity = 5;
+    // skyboxMaterial.rayleigh = 2.0;
     light.intensity = 0.7;
     sunLight.intensity = 1.0;
   } else if (cycleProgress < 0.75 + dayNightTransition) {
@@ -756,42 +783,42 @@ engine.runRenderLoop(() => {
 
     currentInclination = 0.0 - duskProgress * 0.2; // From 0 down to -0.2
     // Light and sky properties transition from day to night
-    skyMaterial.luminance = Color3.Lerp(
-      new Color3(1.0, 0, 0), // Start with full luminance (adjusted for sunset color if desired)
-      new Color3(0.005, 0, 0),
-      duskProgress
-    ).r;
-    skyMaterial.turbidity = 5 + duskProgress * 15; // Turbidity from 5 up to 20
-    skyMaterial.rayleigh = 2.0 - duskProgress * 1.5; // Rayleigh from 2.0 down to 0.5
+    // skyboxMaterial.luminance = Color3.Lerp(
+    //   new Color3(1.0, 0, 0), // Start with full luminance (adjusted for sunset color if desired)
+    //   new Color3(0.005, 0, 0),
+    //   duskProgress
+    // ).r;
+    // skyboxMaterial.turbidity = 5 + duskProgress * 15; // Turbidity from 5 up to 20
+    // skyboxMaterial.rayleigh = 2.0 - duskProgress * 1.5; // Rayleigh from 2.0 down to 0.5
     light.intensity = 0.7 - duskProgress * 0.65; // Ambient light from 0.7 down to 0.05
     sunLight.intensity = 1.0 - duskProgress * 1.0; // Sun light from 1.0 down to 0.0
   } else {
     // Night
     currentInclination = -0.2; // Sun further below horizon
-    skyMaterial.luminance = 0.005; // Very dark
-    skyMaterial.turbidity = 20;
-    skyMaterial.rayleigh = 0.5;
+    // skyboxMaterial.luminance = 0.005; // Very dark
+    // skyboxMaterial.turbidity = 20;
+    // skyboxMaterial.rayleigh = 0.5;
     light.intensity = 0.05; // Very dim ambient
     sunLight.intensity = 0; // Sun off
   }
 
-  skyMaterial.inclination = currentInclination;
-  skyMaterial.azimuth = 0.25; // Fixed azimuth for now, could also be animated
+  // skyboxMaterial.inclination = currentInclination;
+  // skyboxMaterial.azimuth = 0.25; // Fixed azimuth for now, could also be animated
 
   // Update sun position for SkyMaterial (Babylon uses a convention where Y is up)
   // A common way to get sun position from inclination (angle from horizon) and azimuth (rotation around Y)
   // inclination = 0 is horizon, 0.5 * PI is zenith. SkyMaterial inclination is 0 to 0.5.
-  const phi = skyMaterial.inclination * Math.PI; // Convert to radians for spherical coords, 0 to PI/2
-  const theta = skyMaterial.azimuth * 2 * Math.PI; // Convert to radians, 0 to 2PI
+  // const phi = skyboxMaterial.inclination * Math.PI; // Convert to radians for spherical coords, 0 to PI/2
+  // const theta = skyboxMaterial.azimuth * 2 * Math.PI; // Convert to radians, 0 to 2PI
 
-  skyMaterial.sunPosition.x = Math.cos(phi) * Math.sin(theta);
-  skyMaterial.sunPosition.y = Math.sin(phi);
-  skyMaterial.sunPosition.z = Math.cos(phi) * Math.cos(theta);
+  // skyboxMaterial.sunPosition.x = Math.cos(phi) * Math.sin(theta);
+  // skyboxMaterial.sunPosition.y = Math.sin(phi);
+  // skyboxMaterial.sunPosition.z = Math.cos(phi) * Math.cos(theta);
 
   // Update DirectionalLight direction
   // DirectionalLight direction is where the light is pointing TO.
   // If sunPosition is (0,1,0) (zenith), light direction should be (0,-1,0) (straight down).
-  sunLight.direction = skyMaterial.sunPosition.scale(-1);
+  // sunLight.direction = skyboxMaterial.sunPosition.scale(-1);
 
   let isAnyEnemyAggro = false; // Reset per frame
 

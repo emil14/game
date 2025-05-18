@@ -14,30 +14,22 @@ body {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 20px;
-  height: 20px;
   transform: translate(-50%, -50%);
+  font-size: 20px; /* Adjust as needed for emoji size */
+  color: white;
+  text-align: center;
+  line-height: 1; /* Ensure emoji is centered vertically if it has weird line height */
+  opacity: 1; /* Ensure full opacity */
+  /* Removed width, height, and rotate */
 }
 
-.crosshair::before,
-.crosshair::after {
-  content: "";
-  position: absolute;
-  background-color: white; /* Adjust color as needed */
-}
+/* The ::before and ::after pseudo-element rules below were removed */
+/* as they are no longer needed for the emoji-based crosshair. */
+/* This includes .crosshair::before, .crosshair::after, */
+/* .crosshair.crosshair-enemy-focus::before, and */
+/* .crosshair.crosshair-enemy-focus::after */
 
-.crosshair::before {
-  left: 50%;
-  top: 0;
-  width: 2px;
-  height: 100%;
-  transform: translateX(-50%);
-}
-
-.crosshair::after {
-  left: 0;
-  top: 50%;
-  width: 100%;
-  height: 2px;
-  transform: translateY(-50%);
+/* Rule to ensure no text shadow on the crosshair */
+.crosshair, .crosshair.crosshair-enemy-focus {
+  text-shadow: none;
 } 

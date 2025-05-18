@@ -42,6 +42,11 @@ const enemyHealthBarFill = document.getElementById(
 const gameTimeDisplay = document.getElementById(
   "gameTimeDisplay"
 ) as HTMLElement;
+const crosshairElement = document.getElementById("crosshair") as HTMLElement;
+
+if (crosshairElement) {
+  crosshairElement.textContent = "•"; // Set default crosshair to bullet
+}
 
 const engine = new Engine(canvas, false, {
   preserveDrawingBuffer: true,
@@ -647,7 +652,8 @@ engine.runRenderLoop(() => {
     enemyInfoContainer &&
     enemyName &&
     enemyHealthText &&
-    enemyHealthBarFill
+    enemyHealthBarFill &&
+    crosshairElement
   ) {
     const ray = camera.getForwardRay(crosshairMaxDistance);
     const pickInfo = scene.pickWithRay(
@@ -661,6 +667,8 @@ engine.runRenderLoop(() => {
       pickInfo.pickedMesh === spiderColliderMesh
     ) {
       enemyInfoContainer.style.display = "block";
+      crosshairElement.classList.add("crosshair-enemy-focus");
+      if (crosshairElement) crosshairElement.textContent = "💢"; // Fight mode crosshair
       enemyName.textContent = "Spider"; // Placeholder name
 
       // Placeholder health as requested
@@ -672,6 +680,8 @@ engine.runRenderLoop(() => {
       }%`;
     } else {
       enemyInfoContainer.style.display = "none";
+      crosshairElement.classList.remove("crosshair-enemy-focus");
+      if (crosshairElement) crosshairElement.textContent = "•"; // Normal crosshair (bullet)
     }
   }
 

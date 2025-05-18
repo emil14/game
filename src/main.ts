@@ -216,13 +216,6 @@ playerLight.parent = camera;
 const CYCLE_DURATION_SECONDS = 1440; // 24 minutes
 let currentCycleTime = CYCLE_DURATION_SECONDS / 2; // In seconds, progresses from 0 to CYCLE_DURATION_SECONDS
 
-const sphere = MeshBuilder.CreateSphere(
-  "sphere1",
-  { diameter: 2, segments: 16 },
-  scene
-);
-sphere.position = new Vector3(0, 1, 0);
-
 const ground = MeshBuilder.CreateGround(
   "ground1",
   { width: 50, height: 50, subdivisions: 2 },
@@ -265,7 +258,6 @@ waterMaterial.waterColor = new Color3(0.1, 0.1, 0.6);
 waterMaterial.colorBlendFactor = 0.2;
 
 waterMaterial.addToRenderList(skybox);
-waterMaterial.addToRenderList(sphere);
 
 waterMesh.material = waterMaterial;
 
@@ -433,7 +425,7 @@ SceneLoader.ImportMeshAsync(
   scene
 ).then((result) => {
   const palmTreeVisual = result.meshes[0] as AbstractMesh;
-  palmTreeVisual.name = "palmTreeVisual";
+  palmTreeVisual.name = "palmTreeVisual1";
 
   // Set initial desired world position and scaling for the visual model first
   const initialPalmTreeWorldPos = new Vector3(10, 0, 10);
@@ -457,7 +449,7 @@ SceneLoader.ImportMeshAsync(
 
   // Create an invisible collider box based on the visual model's dimensions
   const palmTreeCollider = MeshBuilder.CreateBox(
-    "palmTreeCollider",
+    "palmTreeCollider1",
     {
       width: palmTreeDimensions.x > 0 ? palmTreeDimensions.x : 0.1,
       height: palmTreeDimensions.y > 0 ? palmTreeDimensions.y : 0.1,
@@ -483,6 +475,127 @@ SceneLoader.ImportMeshAsync(
   palmTreeVisual.position = initialPalmTreeWorldPos.subtract(
     palmTreeCollider.position
   );
+});
+
+SceneLoader.ImportMeshAsync(
+  "",
+  "assets/models/pirate_kit/",
+  "palm_tree2.glb",
+  scene
+).then((result) => {
+  const palmTreeVisual = result.meshes[0] as AbstractMesh;
+  palmTreeVisual.name = "palmTreeVisual2";
+  const initialPalmTreeWorldPos = new Vector3(5, 0, 15);
+  palmTreeVisual.position = initialPalmTreeWorldPos.clone();
+  palmTreeVisual.scaling = new Vector3(1.8, 1.8, 1.8);
+  palmTreeVisual.checkCollisions = false;
+  palmTreeVisual
+    .getChildMeshes(false, (node): node is Mesh => node instanceof Mesh)
+    .forEach((childMesh) => {
+      childMesh.checkCollisions = false;
+    });
+  palmTreeVisual.computeWorldMatrix(true);
+  const boundingInfo = palmTreeVisual.getHierarchyBoundingVectors(true);
+  const palmTreeDimensions = boundingInfo.max.subtract(boundingInfo.min);
+  const palmTreeCollider = MeshBuilder.CreateBox(
+    "palmTreeCollider2",
+    {
+      width: palmTreeDimensions.x > 0 ? palmTreeDimensions.x : 0.1,
+      height: palmTreeDimensions.y > 0 ? palmTreeDimensions.y : 0.1,
+      depth: palmTreeDimensions.z > 0 ? palmTreeDimensions.z : 0.1,
+    },
+    scene
+  );
+  palmTreeCollider.position = boundingInfo.min.add(
+    palmTreeDimensions.scale(0.5)
+  );
+  palmTreeCollider.checkCollisions = true;
+  palmTreeCollider.isVisible = false;
+  palmTreeVisual.parent = palmTreeCollider;
+  palmTreeVisual.position = initialPalmTreeWorldPos.subtract(
+    palmTreeCollider.position
+  );
+});
+
+SceneLoader.ImportMeshAsync(
+  "",
+  "assets/models/pirate_kit/",
+  "palm_tree3.glb",
+  scene
+).then((result) => {
+  const palmTreeVisual = result.meshes[0] as AbstractMesh;
+  palmTreeVisual.name = "palmTreeVisual3";
+  const initialPalmTreeWorldPos = new Vector3(-5, 0, 15);
+  palmTreeVisual.position = initialPalmTreeWorldPos.clone();
+  palmTreeVisual.scaling = new Vector3(2.2, 2.2, 2.2);
+  palmTreeVisual.checkCollisions = false;
+  palmTreeVisual
+    .getChildMeshes(false, (node): node is Mesh => node instanceof Mesh)
+    .forEach((childMesh) => {
+      childMesh.checkCollisions = false;
+    });
+  palmTreeVisual.computeWorldMatrix(true);
+  const boundingInfo = palmTreeVisual.getHierarchyBoundingVectors(true);
+  const palmTreeDimensions = boundingInfo.max.subtract(boundingInfo.min);
+  const palmTreeCollider = MeshBuilder.CreateBox(
+    "palmTreeCollider3",
+    {
+      width: palmTreeDimensions.x > 0 ? palmTreeDimensions.x : 0.1,
+      height: palmTreeDimensions.y > 0 ? palmTreeDimensions.y : 0.1,
+      depth: palmTreeDimensions.z > 0 ? palmTreeDimensions.z : 0.1,
+    },
+    scene
+  );
+  palmTreeCollider.position = boundingInfo.min.add(
+    palmTreeDimensions.scale(0.5)
+  );
+  palmTreeCollider.checkCollisions = true;
+  palmTreeCollider.isVisible = false;
+  palmTreeVisual.parent = palmTreeCollider;
+  palmTreeVisual.position = initialPalmTreeWorldPos.subtract(
+    palmTreeCollider.position
+  );
+});
+
+SceneLoader.ImportMeshAsync(
+  "",
+  "assets/models/pirate_kit/",
+  "chest_closed.glb",
+  scene
+).then((result) => {
+  const chestVisual = result.meshes[0] as AbstractMesh;
+  chestVisual.name = "chestClosedVisual";
+  const initialChestWorldPos = new Vector3(18, 0, 18); // Near the spider at (20,0,20)
+  chestVisual.position = initialChestWorldPos.clone();
+  chestVisual.scaling = new Vector3(1, 1, 1);
+  chestVisual.checkCollisions = false;
+  chestVisual
+    .getChildMeshes(false, (node): node is Mesh => node instanceof Mesh)
+    .forEach((childMesh) => {
+      childMesh.checkCollisions = false;
+    });
+  chestVisual.computeWorldMatrix(true);
+  const boundingInfo = chestVisual.getHierarchyBoundingVectors(true);
+  const chestDimensions = boundingInfo.max.subtract(boundingInfo.min);
+  const chestCollider = MeshBuilder.CreateBox(
+    "chestClosedCollider",
+    {
+      width: chestDimensions.x > 0 ? chestDimensions.x : 0.1,
+      height: chestDimensions.y > 0 ? chestDimensions.y : 0.1,
+      depth: chestDimensions.z > 0 ? chestDimensions.z : 0.1,
+    },
+    scene
+  );
+  chestCollider.position = boundingInfo.min.add(chestDimensions.scale(0.5));
+  chestCollider.checkCollisions = true;
+  chestCollider.isVisible = false;
+  chestVisual.parent = chestCollider;
+  chestVisual.position = initialChestWorldPos.subtract(chestCollider.position);
+  // Make the chest part of the water material's reflection/refraction
+  // if (waterMaterial && waterMesh) {
+  // waterMaterial.addToRenderList(chestVisual); // Add visual mesh if it should reflect/refract
+  // waterMaterial.addToRenderList(chestCollider); // Or collider if that's more appropriate and visible
+  // }
 });
 
 engine.runRenderLoop(() => {

@@ -20,6 +20,9 @@ import "@babylonjs/core/Meshes/Builders/boxBuilder";
 import "@babylonjs/core/Collisions/collisionCoordinator";
 import "@babylonjs/inspector";
 
+// +++ Import Chest and registration logic +++
+import { Chest, registerChest } from "./interactables"; // playerHasKey is used by Chest internally, playerAcquiresKey for testing
+
 const canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
 const fpsDisplay = document.getElementById("fpsDisplay") as HTMLElement;
 const staminaText = document.getElementById("staminaText") as HTMLElement;
@@ -591,6 +594,30 @@ SceneLoader.ImportMeshAsync(
   chestCollider.isVisible = false;
   chestVisual.parent = chestCollider;
   chestVisual.position = initialChestWorldPos.subtract(chestCollider.position);
+
+  // +++ Create and register the Chest instance +++
+  const gameChest = new Chest(chestCollider, true, "key_old_chest", () => {
+    console.log("The old chest was opened!");
+    // Potentially change model to an open chest, give loot, etc.
+    // For now, we can even remove the interactable nature or change its icon
+    if (chestCollider.metadata && chestCollider.metadata.chestInstance) {
+      // Update icon on crosshair if player is still looking at it
+      const ray = camera.getForwardRay(crosshairMaxDistance);
+      const pickInfo = scene.pickWithRay(ray, (mesh) => mesh === chestCollider);
+      if (pickInfo && pickInfo.hit && crosshairElement) {
+        crosshairElement.textContent =
+          chestCollider.metadata.chestInstance.getDisplayIcon();
+      }
+    }
+  });
+  registerChest(gameChest);
+
+  // Simulate player finding the key after 5 seconds for testing
+  // setTimeout(() => {
+  //   playerAcquiresKey("key_old_chest");
+  //   // If player is looking at the chest, icon should update on next raycast
+  // }, 5000);
+
   // Make the chest part of the water material's reflection/refraction
   // if (waterMaterial && waterMesh) {
   // waterMaterial.addToRenderList(chestVisual); // Add visual mesh if it should reflect/refract
@@ -987,35 +1014,59 @@ engine.runRenderLoop(() => {
     crosshairElement
   ) {
     const ray = camera.getForwardRay(crosshairMaxDistance);
+    // Allow picking spider OR any mesh that has 'interactableType' in its metadata
     const pickInfo = scene.pickWithRay(
       ray,
-      (mesh) => mesh === spiderColliderMesh
+      (mesh) =>
+        mesh === spiderColliderMesh ||
+        (mesh.metadata && mesh.metadata.interactableType)
     );
 
-    if (
-      pickInfo &&
-      pickInfo.hit &&
-      pickInfo.pickedMesh === spiderColliderMesh
-    ) {
-      enemyInfoContainer.style.display = "block";
-      crosshairElement.classList.add("crosshair-enemy-focus");
-      if (crosshairElement) crosshairElement.textContent = "💢"; // Fight mode crosshair
+    let lookingAtEnemy = false;
+    let lookingAtInteractable = false;
 
-      // Update new combined title line
-      enemyNameText.textContent = "Spider"; // Placeholder name
-      enemyLevelText.textContent = "| Lvl 1"; // Placeholder level
+    if (pickInfo && pickInfo.hit && pickInfo.pickedMesh) {
+      const pickedMesh = pickInfo.pickedMesh;
 
-      // Placeholder health as requested
-      const placeholderMaxHealth = 100;
-      const placeholderCurrentHealth = 100;
-      enemyHealthText.textContent = `${placeholderCurrentHealth}/${placeholderMaxHealth}`;
-      enemyHealthBarFill.style.width = `${
-        (placeholderCurrentHealth / placeholderMaxHealth) * 100
-      }%`;
-    } else {
+      // Check if it's the spider
+      if (pickedMesh === spiderColliderMesh) {
+        lookingAtEnemy = true;
+        enemyInfoContainer.style.display = "block";
+        crosshairElement.classList.add("crosshair-enemy-focus");
+        if (crosshairElement) crosshairElement.textContent = "💢"; // Fight mode crosshair
+
+        enemyNameText.textContent = "Spider";
+        enemyLevelText.textContent = "| Lvl 1";
+        const placeholderMaxHealth = 100;
+        const placeholderCurrentHealth = 100;
+        enemyHealthText.textContent = `${placeholderCurrentHealth}/${placeholderMaxHealth}`;
+        enemyHealthBarFill.style.width = `${
+          (placeholderCurrentHealth / placeholderMaxHealth) * 100
+        }%`;
+      }
+      // +++ Check if it's an interactable Chest +++
+      else if (
+        pickedMesh.metadata &&
+        pickedMesh.metadata.interactableType === "chest"
+      ) {
+        lookingAtInteractable = true;
+        const chestInstance = pickedMesh.metadata.chestInstance as Chest;
+        if (crosshairElement) {
+          crosshairElement.textContent = chestInstance.getDisplayIcon();
+          crosshairElement.classList.remove("crosshair-enemy-focus"); // Ensure enemy focus style is removed
+          // Optional: add a specific class for interactable focus
+          // crosshairElement.classList.add("crosshair-interactable-focus");
+        }
+        // Hide enemy info if we are looking at a chest
+        enemyInfoContainer.style.display = "none";
+      }
+    }
+
+    if (!lookingAtEnemy && !lookingAtInteractable) {
       enemyInfoContainer.style.display = "none";
       crosshairElement.classList.remove("crosshair-enemy-focus");
-      if (crosshairElement) crosshairElement.textContent = "•"; // Normal crosshair (bullet)
+      // crosshairElement.classList.remove("crosshair-interactable-focus");
+      if (crosshairElement) crosshairElement.textContent = "•"; // Normal crosshair
     }
   }
 

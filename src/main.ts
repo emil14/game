@@ -501,7 +501,7 @@ engine.runRenderLoop(() => {
   // Spider movement and rotation logic
   if (spiderColliderMesh && !playerIsDead) {
     // Spider acts only if player is alive
-    const spiderSpeed = defaultSpeed; // Slightly faster than player's default walk speed
+    const spiderSpeed = defaultSpeed; // Spider's speed is equal to player's default walk speed
     const aggroRadius = 20.0; // Spider starts following if player is within this distance
     const stoppingDistance = 2.5; // Spider stops this close to the player (collider center to camera center)
 
@@ -592,8 +592,9 @@ engine.runRenderLoop(() => {
 
               if (currentHealth === 0 && !playerIsDead) {
                 playerIsDead = true;
-                alert("Player is dead");
-                // camera.detachControl(canvas);
+                // camera.detachControl(canvas); // Keep camera control for now
+                alert("You are dead! The page will now reload.");
+                window.location.reload();
               }
             }
           }, damageDelayMilliseconds);

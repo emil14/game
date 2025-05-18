@@ -79,6 +79,12 @@ const runSpeedMultiplier = 2.0;
 camera.angularSensibility = 2000;
 camera.inertia = 0;
 
+// Crouching variables
+let isCrouching = false;
+const crouchSpeedMultiplier = 0.5;
+const crouchCameraPositionY = 1.0; // Adjusted camera height when crouching
+const standCameraPositionY = 1.6; // Normal camera height
+
 // Stamina variables
 let maxStamina = 100;
 let currentStamina = maxStamina;
@@ -131,7 +137,11 @@ window.addEventListener("keydown", (event) => {
     isShiftPressed = true;
     if (currentStamina > 0 && !isSprinting) {
       isSprinting = true;
-      camera.speed = defaultSpeed * runSpeedMultiplier;
+      if (isCrouching) {
+        camera.speed = defaultSpeed; // Sprinting while crouching is normal speed
+      } else {
+        camera.speed = defaultSpeed * runSpeedMultiplier;
+      }
     }
   } else if (keyCode === 87) {
     // W
@@ -145,6 +155,26 @@ window.addEventListener("keydown", (event) => {
   } else if (keyCode === 68) {
     // D
     isMovingRight = true;
+  } else if (keyCode === 67) {
+    // C key for crouch
+    isCrouching = !isCrouching;
+    if (isCrouching) {
+      camera.position.y = crouchCameraPositionY;
+      camera.ellipsoid = new Vector3(0.5, 0.5, 0.5); // Smaller ellipsoid when crouching
+      if (isSprinting) {
+        camera.speed = defaultSpeed; // Sprinting while crouching
+      } else {
+        camera.speed = defaultSpeed * crouchSpeedMultiplier;
+      }
+    } else {
+      camera.position.y = standCameraPositionY;
+      camera.ellipsoid = new Vector3(0.5, 0.8, 0.5); // Restore normal ellipsoid
+      if (isSprinting) {
+        camera.speed = defaultSpeed * runSpeedMultiplier;
+      } else {
+        camera.speed = defaultSpeed;
+      }
+    }
   }
 });
 
@@ -155,7 +185,11 @@ window.addEventListener("keyup", (event) => {
     isShiftPressed = false;
     if (isSprinting) {
       isSprinting = false;
-      camera.speed = defaultSpeed;
+      if (isCrouching) {
+        camera.speed = defaultSpeed * crouchSpeedMultiplier; // Return to crouch speed
+      } else {
+        camera.speed = defaultSpeed; // Return to normal speed
+      }
     }
   } else if (keyCode === 87) {
     // W
@@ -707,13 +741,26 @@ engine.runRenderLoop(() => {
       }
       if (currentStamina === 0) {
         isSprinting = false;
-        camera.speed = defaultSpeed;
+        if (isCrouching) {
+          camera.speed = defaultSpeed * crouchSpeedMultiplier;
+        } else {
+          camera.speed = defaultSpeed;
+        }
       }
     } else {
       // If shift is not pressed and not sprinting (e.g. ran out of stamina but still holding shift)
-      // ensure speed is normal.
-      if (camera.speed !== defaultSpeed && !isShiftPressed) {
-        camera.speed = defaultSpeed;
+      // ensure speed is normal/crouch speed.
+      if (isCrouching) {
+        if (
+          camera.speed !== defaultSpeed * crouchSpeedMultiplier &&
+          !isShiftPressed
+        ) {
+          camera.speed = defaultSpeed * crouchSpeedMultiplier;
+        }
+      } else {
+        if (camera.speed !== defaultSpeed && !isShiftPressed) {
+          camera.speed = defaultSpeed;
+        }
       }
 
       if (currentStamina < maxStamina) {
@@ -737,7 +784,11 @@ engine.runRenderLoop(() => {
   // Keep sprinting if shift is held and stamina is available
   if (!playerIsDead && isShiftPressed && !isSprinting && currentStamina > 0) {
     isSprinting = true;
-    camera.speed = defaultSpeed * runSpeedMultiplier;
+    if (isCrouching) {
+      camera.speed = defaultSpeed; // Sprinting while crouching
+    } else {
+      camera.speed = defaultSpeed * runSpeedMultiplier;
+    }
   }
 
   // Raycasting for enemy info

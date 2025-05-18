@@ -168,10 +168,13 @@ ground.material = groundMaterial;
 const skybox = MeshBuilder.CreateBox("skyBox", { size: 1000.0 }, scene);
 const skyMaterial = new SkyMaterial("skyMaterial", scene);
 skyMaterial.backFaceCulling = false;
-skyMaterial.turbidity = 10;
-skyMaterial.luminance = 1;
-skyMaterial.inclination = 0.2;
-skyMaterial.azimuth = 0.25;
+skyMaterial.turbidity = 5;
+skyMaterial.luminance = 0.8;
+skyMaterial.inclination = 0.1;
+skyMaterial.azimuth = 0.15;
+skyMaterial.mieDirectionalG = 0.95;
+skyMaterial.mieCoefficient = 0.005;
+skyMaterial.rayleigh = 2.0;
 
 skybox.material = skyMaterial;
 skybox.infiniteDistance = true;

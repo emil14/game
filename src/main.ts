@@ -1,6 +1,6 @@
 import { Engine } from "@babylonjs/core/Engines/engine";
 import { Scene } from "@babylonjs/core/scene";
-import { Vector3, Vector2 } from "@babylonjs/core/Maths/math.vector";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { FreeCamera } from "@babylonjs/core/Cameras/freeCamera";
 import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
@@ -50,9 +50,7 @@ const crosshairElement = document.getElementById("crosshair") as HTMLElement;
 const fightMusic = document.getElementById("fightMusic") as HTMLAudioElement;
 const deathScreen = document.getElementById("deathScreen") as HTMLElement;
 
-if (crosshairElement) {
-  crosshairElement.textContent = "•";
-}
+crosshairElement.textContent = "•";
 
 const engine = new Engine(canvas, false, {
   preserveDrawingBuffer: true,
@@ -67,19 +65,7 @@ let playerSword: AbstractMesh | null = null;
 let isSwinging = false;
 
 const camera = new FreeCamera("camera1", new Vector3(0, 1.6, -5), scene);
-console.log(
-  "Camera minZ (initial):",
-  camera.minZ,
-  "Camera maxZ (initial):",
-  camera.maxZ
-);
 camera.maxZ = 10000;
-console.log(
-  "Camera minZ (updated):",
-  camera.minZ,
-  "Camera maxZ (updated):",
-  camera.maxZ
-);
 camera.setTarget(Vector3.Zero());
 camera.attachControl(canvas, true);
 
@@ -283,7 +269,10 @@ async function loadAssetWithCollider(
   position: Vector3,
   scaling: Vector3,
   isDynamicCollider = false,
-  onLoaded?: (collider: AbstractMesh, visual: AbstractMesh) => void
+  onLoaded?: (collider: AbstractMesh, visual: AbstractMesh) => void,
+  colliderWidthOverride?: number,
+  colliderHeightOverride?: number,
+  colliderDepthOverride?: number
 ) {
   try {
     const result = await SceneLoader.ImportMeshAsync(
@@ -305,9 +294,24 @@ async function loadAssetWithCollider(
     const boundingInfo = visualMesh.getHierarchyBoundingVectors(true);
     const dimensions = boundingInfo.max.subtract(boundingInfo.min);
 
-    const colliderWidth = dimensions.x > 0 ? dimensions.x : 0.1;
-    const colliderHeight = dimensions.y > 0 ? dimensions.y : 0.1;
-    const colliderDepth = dimensions.z > 0 ? dimensions.z : 0.1;
+    const colliderWidth =
+      colliderWidthOverride !== undefined
+        ? colliderWidthOverride
+        : dimensions.x > 0
+        ? dimensions.x
+        : 0.1;
+    const colliderHeight =
+      colliderHeightOverride !== undefined
+        ? colliderHeightOverride
+        : dimensions.y > 0
+        ? dimensions.y
+        : 0.1;
+    const colliderDepth =
+      colliderDepthOverride !== undefined
+        ? colliderDepthOverride
+        : dimensions.z > 0
+        ? dimensions.z
+        : 0.1;
 
     const collider = MeshBuilder.CreateBox(
       `${name}Collider`,
@@ -346,7 +350,12 @@ loadAssetWithCollider(
   "palm_tree1.glb",
   scene,
   new Vector3(10, 0, 10),
-  new Vector3(2, 2, 2)
+  new Vector3(2, 2, 2),
+  false,
+  undefined,
+  1.0,
+  undefined,
+  1.0
 );
 loadAssetWithCollider(
   "palmTree2",
@@ -354,7 +363,12 @@ loadAssetWithCollider(
   "palm_tree2.glb",
   scene,
   new Vector3(5, 0, 15),
-  new Vector3(1.8, 1.8, 1.8)
+  new Vector3(1.8, 1.8, 1.8),
+  false,
+  undefined,
+  0.9,
+  undefined,
+  0.9
 );
 loadAssetWithCollider(
   "palmTree3",
@@ -362,7 +376,12 @@ loadAssetWithCollider(
   "palm_tree3.glb",
   scene,
   new Vector3(-5, 0, 15),
-  new Vector3(2.2, 2.2, 2.2)
+  new Vector3(2.2, 2.2, 2.2),
+  false,
+  undefined,
+  1.1,
+  undefined,
+  1.1
 );
 
 loadAssetWithCollider(
@@ -509,25 +528,11 @@ function updateHealthBar(current: number, max: number) {
 }
 
 function showDeathScreen() {
-  if (deathScreen) {
-    deathScreen.classList.remove("hidden");
-  }
-}
-
-function hideDeathScreen() {
-  if (deathScreen) {
-    deathScreen.classList.add("hidden");
-  }
+  deathScreen.classList.remove("hidden");
 }
 
 function respawnPlayer() {
-  playerIsDead = false;
-  currentHealth = maxHealth;
-  currentStamina = maxStamina;
-  hideDeathScreen();
-  camera.attachControl(canvas, true);
-  camera.position = new Vector3(0, 1.6, -5);
-  console.log("Player respawned.");
+  window.location.reload();
 }
 
 engine.runRenderLoop(() => {
@@ -766,46 +771,44 @@ window.addEventListener("resize", () => {
 });
 
 document.addEventListener("DOMContentLoaded", () => {
-  const tabMenu = document.getElementById("tab-menu") as HTMLElement | null;
+  const tabMenu = document.getElementById("tab-menu") as HTMLElement;
   const mainUiContainer = document.querySelector(
     ".ui-container"
-  ) as HTMLElement | null;
-  const fpsDisp = document.getElementById("fpsDisplay") as HTMLElement | null;
+  ) as HTMLElement;
+  const fpsDisp = document.getElementById("fpsDisplay") as HTMLElement;
   const enemyInfoCont = document.getElementById(
     "enemyInfoContainer"
-  ) as HTMLElement | null;
-  const crosshair = document.getElementById("crosshair") as HTMLElement | null;
+  ) as HTMLElement;
+  const crosshair = document.getElementById("crosshair") as HTMLElement;
 
   const tabNavigation = document.getElementById(
     "tab-navigation"
-  ) as HTMLElement | null;
-  const tabButtons = tabNavigation
-    ? (Array.from(
-        tabNavigation.querySelectorAll(".tab-button")
-      ) as HTMLButtonElement[])
-    : [];
+  ) as HTMLElement;
+  const tabButtons = Array.from(
+    tabNavigation.querySelectorAll(".tab-button")
+  ) as HTMLButtonElement[];
   const tabPanes = document.querySelectorAll(
     "#tab-menu-content .tab-pane"
   ) as NodeListOf<HTMLElement>;
 
   const playerLevelDisplay = document.getElementById(
     "player-level"
-  ) as HTMLElement | null;
+  ) as HTMLElement;
   const playerHealthDisplay = document.getElementById(
     "player-health"
-  ) as HTMLElement | null;
+  ) as HTMLElement;
   const playerStaminaDisplay = document.getElementById(
     "player-stamina"
-  ) as HTMLElement | null;
+  ) as HTMLElement;
   const playerExperienceDisplay = document.getElementById(
     "player-experience"
-  ) as HTMLElement | null;
+  ) as HTMLElement;
   const experienceBarFillTab = document.getElementById(
     "experience-bar-fill-tab"
-  ) as HTMLElement | null;
+  ) as HTMLElement;
   const ingameTimeDisplayTab = document.getElementById(
     "ingame-time-tab"
-  ) as HTMLElement | null;
+  ) as HTMLElement;
 
   let isTabMenuOpen = false;
   let currentActiveTab = "player-stats-tab";
@@ -876,22 +879,20 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function openTabMenu(tabIdToShow?: string) {
-    if (!tabMenu) return;
     isTabMenuOpen = true;
     tabMenu.classList.remove("hidden");
     [mainUiContainer, fpsDisp, enemyInfoCont, crosshair].forEach((el) =>
-      el?.classList.add("hidden")
+      el.classList.add("hidden")
     );
     if (engine.isPointerLock) engine.exitPointerlock();
     setActiveTab(tabIdToShow || currentActiveTab || "player-stats-tab");
   }
 
   function closeTabMenu() {
-    if (!tabMenu) return;
     isTabMenuOpen = false;
     tabMenu.classList.add("hidden");
     [mainUiContainer, fpsDisp, enemyInfoCont, crosshair].forEach((el) =>
-      el?.classList.remove("hidden")
+      el.classList.remove("hidden")
     );
   }
 
@@ -937,9 +938,13 @@ document.addEventListener("DOMContentLoaded", () => {
   setActiveTab(currentActiveTab);
 });
 
-function handleConsoleCommand(command: string | null): void {
-  if (!command) return;
+function handleConsoleCommand(command: string): void {
+  if (!command) {
+    return;
+  }
+
   const lowerCommand = command.toLowerCase();
+
   if (lowerCommand.startsWith("set_time ")) {
     const timeString = command.substring("set_time ".length);
     const timeParts = timeString.split(":");
@@ -1065,9 +1070,10 @@ function handleConsoleCommand(command: string | null): void {
           "Invalid time format or value for set_time. Use HH:MM (00:00 - 23:59)."
         );
       }
-    } else {
-      console.error("Invalid time format for set_time. Use HH:MM.");
     }
+  } else if (lowerCommand === "enable_debug") {
+    scene.debugLayer.show();
+    console.log("Debug layer enabled.");
   } else {
     console.log(`Unknown command: ${command}`);
   }
@@ -1077,12 +1083,10 @@ window.addEventListener("keydown", (event) => {
   if (event.key === "/" || event.key === "~") {
     event.preventDefault();
     const input = window.prompt("Enter command:");
-    handleConsoleCommand(input);
+    if (input) {
+      handleConsoleCommand(input);
+    }
   }
 });
 
-if (deathScreen) {
-  deathScreen.classList.add("hidden");
-}
-
-console.log("Game initialized. Watch for player death and skybox transitions.");
+deathScreen.classList.add("hidden");

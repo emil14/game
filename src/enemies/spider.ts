@@ -124,7 +124,6 @@ export class Spider {
             "Spider template: 'SpiderArmature|Spider_Attack' animation group not found. Using default attack duration."
           );
         }
-        console.log("Spider template assets loaded and cached.");
       } catch (error) {
         console.error("Failed to load spider template assets:", error);
         this.assetsLoadingPromise = null; // Allow retry on next Create

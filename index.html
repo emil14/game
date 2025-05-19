@@ -196,6 +196,49 @@
         position: relative;
         text-shadow: none !important;
       }
+
+      /* Styling for the death screen */
+      .death-screen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: rgba(0, 0, 0, 0.85);
+        color: white;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-family: sans-serif;
+        z-index: 2000; /* Ensure it's on top of other UI */
+        text-align: center;
+      }
+      .death-screen h1 {
+        font-size: 3em;
+        color: #dc3545; /* Bootstrap danger red */
+        margin-bottom: 20px;
+      }
+      .death-screen p {
+        font-size: 1.2em;
+        margin-bottom: 30px;
+      }
+      .death-screen button {
+        padding: 10px 20px;
+        font-size: 1em;
+        color: white;
+        background-color: #007bff; /* Bootstrap primary blue */
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+      }
+      .death-screen button:hover {
+        background-color: #0056b3;
+      }
+      .hidden {
+        display: none !important;
+      }
     </style>
   </head>
   <body>
@@ -238,6 +281,12 @@
       loop
       src="assets/music/musorgsky_night_on_bald_mountain.mp3"
     ></audio> -->
+    <div id="deathScreen" class="death-screen hidden">
+      <h1>You Died</h1>
+      <p>Press 'R' to respawn.</p>
+      <!-- Optional: Add a button for respawn if preferred over key press only -->
+      <!-- <button id="respawnButton">Respawn</button> -->
+    </div>
     <div id="tab-menu" class="hidden">
       <div id="tab-menu-content">
         <div id="tab-navigation">

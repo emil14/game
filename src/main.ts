@@ -17,14 +17,11 @@ import "@babylonjs/core/Meshes/Builders/groundBuilder";
 import "@babylonjs/core/Meshes/Builders/boxBuilder";
 import "@babylonjs/core/Collisions/collisionCoordinator";
 import "@babylonjs/inspector";
-import { Animation } from "@babylonjs/core/Animations/animation";
 import { CubeTexture } from "@babylonjs/core/Materials/Textures/cubeTexture";
 
-// +++ Import Chest and registration logic +++
-import { Chest, registerChest } from "./interactables";
-
-// +++ Import Spider class +++
+import { Chest } from "./interactables";
 import { Spider } from "./enemies/spider";
+import { Sword } from "./weapons/sword";
 
 const canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
 const fpsDisplay = document.getElementById("fpsDisplay") as HTMLElement;
@@ -61,8 +58,7 @@ const engine = new Engine(canvas, false, {
 const scene = new Scene(engine);
 
 let spiders: Spider[] = [];
-let playerSword: AbstractMesh | null = null;
-let isSwinging = false;
+let playerSwordInstance: Sword | null = null;
 
 const camera = new FreeCamera("camera1", new Vector3(0, 1.6, -5), scene);
 camera.maxZ = 10000;
@@ -89,14 +85,11 @@ let maxStamina = 100;
 let currentStamina = maxStamina;
 const staminaDepletionRate = 10;
 const staminaRegenerationRate = 5;
-let isShiftPressed = false;
 
 let maxHealth = 100;
 let currentHealth = maxHealth;
 let playerIsDead = false;
 let keyRPressed = false;
-
-const playerAttackDamage = 15;
 
 let isMovingForward = false;
 let isMovingBackward = false;
@@ -116,7 +109,6 @@ window.addEventListener("keydown", (event) => {
   const keyCode = event.keyCode;
 
   if (keyCode === 16) {
-    isShiftPressed = true;
     if (currentStamina > 0 && !isSprinting && !playerIsDead) {
       isSprinting = true;
       camera.speed = isCrouching
@@ -152,7 +144,6 @@ window.addEventListener("keydown", (event) => {
 window.addEventListener("keyup", (event) => {
   const keyCode = event.keyCode;
   if (keyCode === 16) {
-    isShiftPressed = false;
     if (isSprinting) {
       isSprinting = false;
       camera.speed = isCrouching
@@ -392,9 +383,8 @@ loadAssetWithCollider(
   new Vector3(18, 0, 18),
   new Vector3(1, 1, 1),
   false,
-  (collider, visual) => {
-    const gameChest = new Chest(collider as Mesh, true, "key_old_chest", () => {
-      console.log("The old chest was opened!");
+  (collider) => {
+    new Chest(collider as Mesh, true, "key_old_chest", () => {
       if (collider.metadata && collider.metadata.chestInstance) {
         const ray = camera.getForwardRay(crosshairMaxDistance);
         const pickInfo = scene.pickWithRay(ray, (mesh) => mesh === collider);
@@ -404,84 +394,31 @@ loadAssetWithCollider(
         }
       }
     });
-    registerChest(gameChest);
   },
   2.25,
   2.25,
   2.25
 );
 
-SceneLoader.ImportMeshAsync(
-  "",
-  "assets/models/pirate_kit/",
-  "sword.glb",
-  scene
-).then((result) => {
-  const swordMesh = result.meshes[0];
-  if (swordMesh) {
-    playerSword = swordMesh;
-    playerSword.name = "playerSword";
-    playerSword.parent = camera;
-    playerSword.position = new Vector3(0.35, -0.35, 1.2);
-    playerSword.rotationQuaternion = null;
-    playerSword.rotation = new Vector3(0, Math.PI / 12 + Math.PI / 2, 0);
-    playerSword.scaling = new Vector3(0.7, 0.7, 0.7);
-    playerSword.receiveShadows = false;
-    playerSword.renderingGroupId = 1;
-    playerSword.getChildMeshes().forEach((mesh) => {
-      mesh.receiveShadows = false;
-      mesh.checkCollisions = false;
-      mesh.renderingGroupId = 1;
-    });
-    swordMesh.checkCollisions = false;
-    swordMesh.renderingGroupId = 1;
-  }
-});
-
-const swingAnimation = new Animation(
-  "swordSwing",
-  "rotation.z",
-  30,
-  Animation.ANIMATIONTYPE_FLOAT,
-  Animation.ANIMATIONLOOPMODE_CONSTANT
-);
-
 scene.onPointerDown = (evt) => {
-  if (evt.button === 0 && playerSword && !isSwinging && !playerIsDead) {
-    isSwinging = true;
-    const initialRotationZ = playerSword.rotation.z;
-    const swingAngle = Math.PI / 3;
-    const swingKeysDynamic = [
-      { frame: 0, value: initialRotationZ },
-      { frame: 5, value: initialRotationZ + swingAngle },
-      { frame: 15, value: initialRotationZ },
-    ];
-    swingAnimation.setKeys(swingKeysDynamic);
-
-    setTimeout(() => {
-      if (!playerSword || playerIsDead) return;
-      const ray = camera.getForwardRay(crosshairMaxDistance);
-      const pickInfo = scene.pickWithRay(
-        ray,
-        (mesh) => mesh.metadata && mesh.metadata.enemyType === "spider"
-      );
-      if (pickInfo && pickInfo.hit && pickInfo.pickedMesh) {
-        const spiderInstance = pickInfo.pickedMesh.metadata.instance as Spider;
-        if (spiderInstance && spiderInstance.currentHealth > 0) {
-          spiderInstance.takeDamage(playerAttackDamage);
+  if (
+    evt.button === 0 &&
+    playerSwordInstance &&
+    !playerIsDead &&
+    !playerSwordInstance.getIsSwinging()
+  ) {
+    playerSwordInstance.swing(
+      crosshairMaxDistance,
+      (mesh) => mesh.metadata && mesh.metadata.enemyType === "spider",
+      (_targetMesh, instance) => {
+        const spiderInstance = instance as Spider;
+        if (
+          spiderInstance &&
+          spiderInstance.currentHealth > 0 &&
+          playerSwordInstance
+        ) {
+          spiderInstance.takeDamage(playerSwordInstance.attackDamage);
         }
-      }
-    }, 150);
-
-    scene.beginDirectAnimation(
-      playerSword,
-      [swingAnimation],
-      0,
-      15,
-      false,
-      1,
-      () => {
-        isSwinging = false;
       }
     );
   }
@@ -510,10 +447,13 @@ async function initializeGameAssets() {
   } catch (error) {
     console.error("Failed to create spider:", error);
   }
+
+  // Initialize Sword here
+  playerSwordInstance = await Sword.Create(scene, camera, 15);
 }
 
 (async () => {
-  await initializeGameAssets();
+  await initializeGameAssets(); // Ensure assets, including sword, are loaded before game loop starts
 })();
 
 function updateStaminaBar(current: number, max: number) {

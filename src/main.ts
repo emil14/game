@@ -405,7 +405,10 @@ loadAssetWithCollider(
       }
     });
     registerChest(gameChest);
-  }
+  },
+  2.25,
+  2.25,
+  2.25
 );
 
 SceneLoader.ImportMeshAsync(

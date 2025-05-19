@@ -1,3 +1,6 @@
+- implement jump (and then double jump)
+- implement jerks
+- fixme: stamina decreases when shift is pressed even without actual running
 - death screen - existing index.html lacks it, add it and simplify code where possible by assuming that death screen always exist (as DOM element), also do that with everything else (I mean, assume HTML is valid, we control it and we better fix it if it's broken, otherwise we just won't know)
 - replace sword with gun, but perhaps move sword to a class before removing
     - add sound to a gunshot

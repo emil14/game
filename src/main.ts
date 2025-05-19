@@ -353,9 +353,9 @@ loadAssetWithCollider(
   new Vector3(2, 2, 2),
   false,
   undefined,
-  1.0,
+  3.0,
   undefined,
-  1.0
+  3.0
 );
 loadAssetWithCollider(
   "palmTree2",
@@ -366,9 +366,9 @@ loadAssetWithCollider(
   new Vector3(1.8, 1.8, 1.8),
   false,
   undefined,
-  0.9,
+  2.7,
   undefined,
-  0.9
+  2.7
 );
 loadAssetWithCollider(
   "palmTree3",
@@ -379,9 +379,9 @@ loadAssetWithCollider(
   new Vector3(2.2, 2.2, 2.2),
   false,
   undefined,
-  1.1,
+  3.3,
   undefined,
-  1.1
+  3.3
 );
 
 loadAssetWithCollider(
@@ -1073,7 +1073,6 @@ function handleConsoleCommand(command: string): void {
     }
   } else if (lowerCommand === "enable_debug") {
     scene.debugLayer.show();
-    console.log("Debug layer enabled.");
   } else {
     console.log(`Unknown command: ${command}`);
   }

@@ -43,7 +43,7 @@ body {
   height: 100%;
   background-color: transparent;
   color: #ccc; /* Light grey text for readability on dark backgrounds */
-  z-index: 1000;
+  /* z-index: 1000; */
   display: flex;
   justify-content: center;
   align-items: center;
@@ -186,9 +186,14 @@ body {
   color: white;
   padding: 10px;
   border-radius: 5px;
-  z-index: 900; /* Below tab menu */
+  /* z-index: 900; /* Below tab menu */
 }
 
 #game-hud.hidden {
   display: none;
 } 
+
+/* Babylon.js Inspector */
+.scene-explorer-host {
+  z-index: 10;
+}

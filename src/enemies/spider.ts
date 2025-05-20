@@ -7,9 +7,14 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
 import { FreeCamera } from "@babylonjs/core/Cameras/freeCamera";
 
+import { PhysicsAggregate, PhysicsShapeType } from "@babylonjs/core/Physics";
+import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
+
 export class Spider {
-  /** The main physics collider for the spider. */
-  public collider!: Mesh;
+  /** The mesh used as the physics body's transform node and for raycast targeting. */
+  public colliderMesh!: Mesh;
+  /** The physics aggregate for the spider. */
+  public physicsAggregate!: PhysicsAggregate;
   /** The visual representation (3D model) of the spider. */
   public visualMesh!: AbstractMesh;
   private scene: Scene;
@@ -266,7 +271,8 @@ export class Spider {
     const boundingInfo = this.visualMesh.getHierarchyBoundingVectors(true);
     const spiderDimensions = boundingInfo.max.subtract(boundingInfo.min);
 
-    this.collider = MeshBuilder.CreateBox(
+    // This mesh will be the transformNode for the PhysicsAggregate
+    this.colliderMesh = MeshBuilder.CreateBox(
       "spiderCollider_" + this.name + "_" + uniqueId,
       {
         width: Math.max(0.1, spiderDimensions.x),
@@ -276,30 +282,50 @@ export class Spider {
       this.scene
     );
 
-    this.collider.checkCollisions = true;
-    this.collider.isVisible = false;
-    this.collider.metadata = { enemyType: "spider", instance: this };
-    this.collider.position = boundingInfo.min.add(spiderDimensions.scale(0.5));
+    // this.collider.checkCollisions = true; // Replaced by PhysicsAggregate
+    this.colliderMesh.isVisible = true; // Temporarily true for debugging
+    this.colliderMesh.metadata = { enemyType: "spider", instance: this };
+    this.colliderMesh.position = boundingInfo.min.add(
+      spiderDimensions.scale(0.5)
+    );
 
-    if (
-      spiderDimensions.x > 0 &&
-      spiderDimensions.y > 0 &&
-      spiderDimensions.z > 0
-    ) {
-      this.collider.ellipsoid = new Vector3(
-        spiderDimensions.x / 2,
-        spiderDimensions.y / 2,
-        spiderDimensions.z / 2
-      );
+    // Create the PhysicsAggregate for the colliderMesh
+    this.physicsAggregate = new PhysicsAggregate(
+      this.colliderMesh,
+      PhysicsShapeType.BOX, // Or a more fitting shape like CAPSULE if desired later
+      {
+        mass: 1, // Spiders are dynamic
+        friction: 0.5,
+        restitution: 0.2,
+        // extents: spiderDimensions // Box shape can take extents if not derived from mesh
+      },
+      this.scene
+    );
+    if (this.physicsAggregate.body) {
+      this.physicsAggregate.body.setMassProperties({
+        inertia: new Vector3(0, 0, 0),
+      }); // Prevent tipping
     } else {
-      this.collider.ellipsoid = new Vector3(0.05, 0.05, 0.05);
+      console.error(`Failed to create physics body for spider ${this.name}`);
     }
 
-    this.visualMesh.parent = this.collider;
-    // Adjust local position of visualMesh relative to its new parent (collider)
-    // to maintain its intended initialWorldPosition.
+    // if (
+    //   spiderDimensions.x > 0 &&
+    //   spiderDimensions.y > 0 &&
+    //   spiderDimensions.z > 0
+    // ) {
+    //   // this.collider.ellipsoid = new Vector3( // Not used with PhysicsAggregate directly on box
+    //   //   spiderDimensions.x / 2,
+    //   //   spiderDimensions.y / 2,
+    //   //   spiderDimensions.z / 2
+    //   // );
+    // } else {
+    //   // this.collider.ellipsoid = new Vector3(0.05, 0.05, 0.05);
+    // }
+
+    this.visualMesh.parent = this.colliderMesh; // Parent visual to the physics-controlled mesh
     this.visualMesh.position = initialWorldPosition.subtract(
-      this.collider.getAbsolutePosition()
+      this.colliderMesh.getAbsolutePosition()
     );
 
     this.attackAnimationDurationSeconds = Spider.templateAttackAnimDuration;
@@ -323,19 +349,43 @@ export class Spider {
     if (
       this.currentHealth <= 0 ||
       this.isDying ||
-      !this.collider ||
-      !this.collider.isEnabled() ||
+      !this.physicsAggregate ||
+      !this.physicsAggregate.transformNode ||
+      !this.physicsAggregate.transformNode.isEnabled() ||
       !this.visualMesh
     ) {
       return;
     }
 
-    const playerPosition = playerCamera.globalPosition;
-    const myPosition = this.collider.position;
+    const playerBodyNode = playerCamera.parent as TransformNode; // Player's physics body is camera's parent
+    if (!playerBodyNode) return; // Should not happen if player is set up correctly
+    const playerPosition = playerBodyNode.absolutePosition.clone();
+    const myPosition = (
+      this.physicsAggregate.transformNode as Mesh
+    ).absolutePosition.clone();
+
+    console.log(
+      `[Spider ${this.name}] MyPos: ${myPosition.x.toFixed(
+        2
+      )}, ${myPosition.y.toFixed(2)}, ${myPosition.z.toFixed(2)}`
+    );
+    console.log(
+      `[Spider ${this.name}] PlayerPos: ${playerPosition.x.toFixed(
+        2
+      )}, ${playerPosition.y.toFixed(2)}, ${playerPosition.z.toFixed(2)}`
+    );
 
     const directionToPlayerXZ = playerPosition.subtract(myPosition);
     directionToPlayerXZ.y = 0;
     const distanceToPlayer = directionToPlayerXZ.length();
+
+    console.log(
+      `[Spider ${this.name}] DistToPlayer: ${distanceToPlayer.toFixed(
+        2
+      )}, DirToPlayerXZ: ${directionToPlayerXZ.x.toFixed(
+        2
+      )}, ${directionToPlayerXZ.z.toFixed(2)}`
+    );
 
     this.isCurrentlyAggro = false;
 
@@ -345,19 +395,41 @@ export class Spider {
       distanceToPlayer > this.stoppingDistance
     ) {
       directionToPlayerXZ.normalize();
-      const moveVector = directionToPlayerXZ.scale(this.speed * deltaTime);
-      this.collider.moveWithCollisions(moveVector);
+      // const moveVector = directionToPlayerXZ.scale(this.speed * deltaTime);
+      // this.collider.moveWithCollisions(moveVector); // Old movement
+      const targetVelocity = directionToPlayerXZ.scale(this.speed);
+      this.physicsAggregate.body.setLinearVelocity(
+        new Vector3(
+          targetVelocity.x,
+          this.physicsAggregate.body.getLinearVelocity().y,
+          targetVelocity.z
+        )
+      );
       isMovingThisFrame = true;
       this.isCurrentlyAggro = true;
     }
 
     if (distanceToPlayer < this.aggroRadius) {
+      // Ensure no other physics-based rotation is happening
+      if (this.physicsAggregate.body) {
+        this.physicsAggregate.body.setAngularVelocity(Vector3.Zero());
+      }
+
       const lookAtTarget = new Vector3(
         playerPosition.x,
-        myPosition.y,
+        myPosition.y, // Look at player's XZ, but maintain spider's Y
         playerPosition.z
       );
-      this.collider.lookAt(lookAtTarget, Math.PI); // Model might need Y-axis rotation offset
+      console.log(
+        `[Spider ${this.name}] LookAtTarget: ${lookAtTarget.x.toFixed(
+          2
+        )}, ${lookAtTarget.y.toFixed(2)}, ${lookAtTarget.z.toFixed(2)}`
+      );
+      // this.collider.lookAt(lookAtTarget, Math.PI); // Model might need Y-axis rotation offset
+      (this.physicsAggregate.transformNode as Mesh).lookAt(
+        lookAtTarget
+        // Math.PI // Temporarily removed for testing
+      );
       this.isCurrentlyAggro = true;
     }
 
@@ -384,7 +456,8 @@ export class Spider {
           if (
             this.currentHealth <= 0 ||
             this.isDying ||
-            !this.collider.isEnabled() ||
+            !this.physicsAggregate.transformNode ||
+            !this.physicsAggregate.transformNode.isEnabled() ||
             !this.visualMesh
           ) {
             this.isCurrentlyAttacking = false; // Ensure flag is reset
@@ -392,9 +465,16 @@ export class Spider {
           }
           // Damage applied only if spider is still trying to attack and player is in range
           // The isCurrentlyAttacking flag is more about initiating the animation and cooldown
-          const finalDistance = playerCamera.globalPosition
-            .subtract(this.collider.position)
+          const finalPlayerPosition = (
+            playerCamera.parent as TransformNode
+          ).absolutePosition.clone();
+          const finalMyPosition = (
+            this.physicsAggregate.transformNode as Mesh
+          ).absolutePosition.clone();
+          const finalDistance = finalPlayerPosition
+            .subtract(finalMyPosition)
             .length();
+
           if (finalDistance <= this.stoppingDistance + 0.75) {
             this.onPlayerDamagedCallback(this.attackDamage);
           }
@@ -458,9 +538,10 @@ export class Spider {
     this.idleAnimation?.stop();
     this.attackAnimation?.stop();
 
-    if (this.collider) {
-      this.collider.checkCollisions = false;
-    }
+    // if (this.collider) {
+    //   this.collider.checkCollisions = false;
+    // }
+    this.physicsAggregate?.dispose(); // Dispose of the physics body from the simulation
 
     if (this.deathAnimation) {
       this.deathAnimation.play(false); // Play once
@@ -485,7 +566,10 @@ export class Spider {
   private disposeMeshes(): void {
     // Dispose visual mesh and its children. Do not dispose shared materials.
     this.visualMesh?.dispose(false, false);
-    this.collider?.dispose();
+    // this.collider?.dispose(); // The collider mesh (transformNode) should be disposed if physicsAggregate.dispose() doesn't
+    // It's often safer to dispose the mesh explicitly after the aggregate if it wasn't created by the aggregate itself.
+    // However, PhysicsAggregate dispose typically does not dispose the TransformNode.
+    (this.physicsAggregate?.transformNode as Mesh)?.dispose();
 
     // Dispose cloned animation groups for this instance
     this.walkAnimation?.dispose();
@@ -496,7 +580,10 @@ export class Spider {
     // @ts-ignore
     this.visualMesh = null;
     // @ts-ignore
-    this.collider = null;
+    // this.collider = null;
+    this.colliderMesh = null; // Clear the reference
+    // @ts-ignore
+    this.physicsAggregate = null; // Clear the reference
   }
 
   /**

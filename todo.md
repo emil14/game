@@ -1,11 +1,22 @@
-- implement jump (and then double jump)
-- implement jerks
-- fixme: stamina decreases when shift is pressed even without actual running
-- death screen - existing index.html lacks it, add it and simplify code where possible by assuming that death screen always exist (as DOM element), also do that with everything else (I mean, assume HTML is valid, we control it and we better fix it if it's broken, otherwise we just won't know)
-- replace sword with gun, but perhaps move sword to a class before removing
-    - add sound to a gunshot
-    - implement ammo?
-- add day skybox
-- implement keys and inventory - after spider is dead, user got a key
-- implement experience, after spider is dead user get some
-- spider has jump animation, it would be nice to use it
+# FIXME
+
+- crouch was accidentially removed after we added physics
+- spider's HUD is not visible and it's no longer possible to attach the spider
+- stamina decreases when shift is pressed even without actual running
+
+# Refactor
+
+- Simplify code whenever possible - a lot of places in the code assume that it's ok if asset is failed to load (we just log warnings), because of that we have to deal with `T | null` or `T | undefined`, have more `if`s and `?` that we actually need. The actual logic is this - all assets MUST be successfully loaded OR the game MUST CRASH. Also update the .cursorrules coding section with this
+
+# Optimize
+
+- Destroy day skybox (not just hide) during the night and vice versa
+
+# TODO
+
+- do not destroy spider's body after his dead, instead apply ragdoll to it
+- jump and double jump
+- jerks
+- gun
+- day skybox
+- use spider's jump animaion

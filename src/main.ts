@@ -19,6 +19,11 @@ import "@babylonjs/core/Collisions/collisionCoordinator";
 import "@babylonjs/inspector";
 import { CubeTexture } from "@babylonjs/core/Materials/Textures/cubeTexture";
 
+import { HavokPlugin } from "@babylonjs/core/Physics";
+import HavokPhysics from "@babylonjs/havok";
+import { PhysicsAggregate, PhysicsShapeType } from "@babylonjs/core/Physics";
+import { PhysicsBody } from "@babylonjs/core/Physics";
+
 import { ClosedChest } from "./interactables";
 import { Spider } from "./enemies/spider";
 import { Sword } from "./weapons/sword";
@@ -57,6 +62,9 @@ const engine = new Engine(canvas, false, {
 
 const scene = new Scene(engine);
 
+let havokInstance: any;
+let playerBodyAggregate: PhysicsAggregate;
+let playerBodyMesh: Mesh;
 let spiders: Spider[] = [];
 let playerSwordInstance: Sword | null = null;
 
@@ -64,14 +72,11 @@ const camera = new FreeCamera("camera1", new Vector3(0, 1.6, -5), scene);
 camera.maxZ = 10000;
 camera.setTarget(Vector3.Zero());
 camera.attachControl(canvas, true);
+camera.inputs.remove(camera.inputs.attached.keyboard);
 
 const crosshairMaxDistance = 30;
 
-camera.ellipsoid = new Vector3(0.5, 0.8, 0.5);
-camera.checkCollisions = true;
-camera.applyGravity = true;
-camera.speed = 2.0;
-const defaultSpeed = camera.speed;
+const defaultSpeed = 2.0;
 const runSpeedMultiplier = 2.0;
 camera.angularSensibility = 2000;
 camera.inertia = 0;
@@ -98,11 +103,6 @@ let isMovingRight = false;
 
 let isInFightMode = false;
 
-camera.keysUp.push(87);
-camera.keysDown.push(83);
-camera.keysLeft.push(65);
-camera.keysRight.push(68);
-
 let isSprinting = false;
 
 window.addEventListener("keydown", (event) => {
@@ -111,9 +111,6 @@ window.addEventListener("keydown", (event) => {
   if (keyCode === 16) {
     if (currentStamina > 0 && !isSprinting && !playerIsDead) {
       isSprinting = true;
-      camera.speed = isCrouching
-        ? defaultSpeed
-        : defaultSpeed * runSpeedMultiplier;
     }
   } else if (keyCode === 87) isMovingForward = true;
   else if (keyCode === 83) isMovingBackward = true;
@@ -121,21 +118,6 @@ window.addEventListener("keydown", (event) => {
   else if (keyCode === 68) isMovingRight = true;
   else if (keyCode === 67 && !playerIsDead) {
     isCrouching = !isCrouching;
-    camera.position.y = isCrouching
-      ? crouchCameraPositionY
-      : standCameraPositionY;
-    camera.ellipsoid = isCrouching
-      ? new Vector3(0.5, 0.5, 0.5)
-      : new Vector3(0.5, 0.8, 0.5);
-    if (isSprinting) {
-      camera.speed = isCrouching
-        ? defaultSpeed
-        : defaultSpeed * runSpeedMultiplier;
-    } else {
-      camera.speed = isCrouching
-        ? defaultSpeed * crouchSpeedMultiplier
-        : defaultSpeed;
-    }
   } else if (keyCode === 82) {
     keyRPressed = true;
   }
@@ -146,9 +128,6 @@ window.addEventListener("keyup", (event) => {
   if (keyCode === 16) {
     if (isSprinting) {
       isSprinting = false;
-      camera.speed = isCrouching
-        ? defaultSpeed * crouchSpeedMultiplier
-        : defaultSpeed;
     }
   } else if (keyCode === 87) isMovingForward = false;
   else if (keyCode === 83) isMovingBackward = false;
@@ -199,7 +178,6 @@ const ground = MeshBuilder.CreateGround(
   { width: 50, height: 50, subdivisions: 2 },
   scene
 );
-ground.checkCollisions = true;
 const groundMaterial = new StandardMaterial("groundMaterial", scene);
 groundMaterial.diffuseColor = new Color3(0.9, 0.8, 0.6);
 ground.material = groundMaterial;
@@ -236,21 +214,12 @@ nightSkybox.infiniteDistance = true;
 const wallHeight = 100;
 const wallThickness = 0.1;
 const groundSize = 50;
-[
+const wallPositions = [
   [0, groundSize / 2, groundSize, wallThickness],
   [0, -groundSize / 2, groundSize, wallThickness],
   [-groundSize / 2, 0, wallThickness, groundSize],
   [groundSize / 2, 0, wallThickness, groundSize],
-].forEach((props, i) => {
-  const wall = MeshBuilder.CreateBox(
-    `wall${i + 1}`,
-    { width: props[2], height: wallHeight, depth: props[3] },
-    scene
-  );
-  wall.position = new Vector3(props[0], wallHeight / 2, props[1]);
-  wall.checkCollisions = true;
-  wall.isVisible = false;
-});
+];
 
 async function loadAssetWithCollider(
   name: string,
@@ -314,18 +283,29 @@ async function loadAssetWithCollider(
       scene
     );
 
-    collider.position = boundingInfo.min.add(dimensions.scale(0.5));
-    collider.checkCollisions = true;
     collider.isVisible = false;
 
     if (isDynamicCollider) {
       visualMesh.parent = collider;
-      visualMesh.position = position.subtract(collider.position);
+      visualMesh.position = Vector3.Zero();
+      collider.position = position;
     } else {
       visualMesh.parent = collider;
       visualMesh.position = Vector3.Zero();
       collider.position = position;
     }
+
+    // Create PhysicsAggregate for the collider mesh
+    const aggregate = new PhysicsAggregate(
+      collider,
+      PhysicsShapeType.BOX,
+      {
+        mass: isDynamicCollider ? 1 : 0,
+        friction: 0.5,
+        restitution: 0.1,
+      },
+      scene
+    );
 
     if (onLoaded) onLoaded(collider, visualMesh);
     return { collider, visualMesh };
@@ -334,95 +314,6 @@ async function loadAssetWithCollider(
     return null;
   }
 }
-
-loadAssetWithCollider(
-  "palmTree1",
-  "assets/models/pirate_kit/",
-  "palm_tree1.glb",
-  scene,
-  new Vector3(10, 0, 10),
-  new Vector3(2, 2, 2),
-  false,
-  undefined,
-  3.0,
-  undefined,
-  3.0
-);
-loadAssetWithCollider(
-  "palmTree2",
-  "assets/models/pirate_kit/",
-  "palm_tree2.glb",
-  scene,
-  new Vector3(5, 0, 15),
-  new Vector3(1.8, 1.8, 1.8),
-  false,
-  undefined,
-  2.7,
-  undefined,
-  2.7
-);
-loadAssetWithCollider(
-  "palmTree3",
-  "assets/models/pirate_kit/",
-  "palm_tree3.glb",
-  scene,
-  new Vector3(-5, 0, 15),
-  new Vector3(2.2, 2.2, 2.2),
-  false,
-  undefined,
-  3.3,
-  undefined,
-  3.3
-);
-
-loadAssetWithCollider(
-  "chestClosed",
-  "assets/models/pirate_kit/",
-  "chest_closed.glb",
-  scene,
-  new Vector3(18, 0, 18),
-  new Vector3(1, 1, 1),
-  false,
-  (collider) => {
-    new ClosedChest(collider as Mesh, true, "key_old_chest", () => {
-      if (collider.metadata && collider.metadata.chestInstance) {
-        const ray = camera.getForwardRay(crosshairMaxDistance);
-        const pickInfo = scene.pickWithRay(ray, (mesh) => mesh === collider);
-        if (pickInfo && pickInfo.hit && crosshairElement) {
-          crosshairElement.textContent =
-            collider.metadata.chestInstance.getDisplayIcon();
-        }
-      }
-    });
-  },
-  2.25,
-  2.25,
-  2.25
-);
-
-scene.onPointerDown = (evt) => {
-  if (
-    evt.button === 0 &&
-    playerSwordInstance &&
-    !playerIsDead &&
-    !playerSwordInstance.getIsSwinging()
-  ) {
-    playerSwordInstance.swing(
-      crosshairMaxDistance,
-      (mesh) => mesh.metadata && mesh.metadata.enemyType === "spider",
-      (_targetMesh, instance) => {
-        const spiderInstance = instance as Spider;
-        if (
-          spiderInstance &&
-          spiderInstance.currentHealth > 0 &&
-          playerSwordInstance
-        ) {
-          spiderInstance.takeDamage(playerSwordInstance.attackDamage);
-        }
-      }
-    );
-  }
-};
 
 async function initializeGameAssets() {
   try {
@@ -451,10 +342,6 @@ async function initializeGameAssets() {
   // Initialize Sword here
   playerSwordInstance = await Sword.Create(scene, camera, 15);
 }
-
-(async () => {
-  await initializeGameAssets(); // Ensure assets, including sword, are loaded before game loop starts
-})();
 
 function updateStaminaBar(current: number, max: number) {
   if (staminaText && staminaBarFill) {
@@ -603,33 +490,76 @@ engine.runRenderLoop(() => {
     }
   }
 
-  if (!playerIsDead) {
-    if (isSprinting) {
+  if (!playerIsDead && playerBodyAggregate && playerBodyAggregate.body) {
+    // Player Movement with Physics
+    const currentVelocity = playerBodyAggregate.body.getLinearVelocity();
+    let targetVelocityXZ = Vector3.Zero();
+
+    const forward = camera.getDirection(Vector3.Forward());
+    const right = camera.getDirection(Vector3.Right());
+    forward.y = 0; // Movement is horizontal
+    right.y = 0; // Movement is horizontal
+    forward.normalize();
+    right.normalize();
+
+    if (isMovingForward) targetVelocityXZ.addInPlace(forward);
+    if (isMovingBackward) targetVelocityXZ.subtractInPlace(forward);
+    if (isMovingLeft) targetVelocityXZ.subtractInPlace(right);
+    if (isMovingRight) targetVelocityXZ.addInPlace(right);
+
+    let actualSpeed = defaultSpeed;
+    if (isSprinting && !isCrouching && currentStamina > 0) {
+      actualSpeed *= runSpeedMultiplier;
+    } else if (isCrouching) {
+      actualSpeed *= crouchSpeedMultiplier;
+    }
+
+    if (targetVelocityXZ.lengthSquared() > 0.001) {
+      // Check if there's input
+      targetVelocityXZ.normalize().scaleInPlace(actualSpeed);
+    } else {
+      targetVelocityXZ = Vector3.Zero(); // No input, so no XZ movement from input
+    }
+
+    playerBodyAggregate.body.setLinearVelocity(
+      new Vector3(targetVelocityXZ.x, currentVelocity.y, targetVelocityXZ.z)
+    );
+
+    // Stamina handling
+    if (isSprinting && targetVelocityXZ.lengthSquared() > 0.001) {
+      // Sprinting and moving
       if (currentStamina > 0)
         currentStamina -= staminaDepletionRate * deltaTime;
       if (currentStamina <= 0) {
         currentStamina = 0;
         isSprinting = false;
-        camera.speed = isCrouching
-          ? defaultSpeed * crouchSpeedMultiplier
-          : defaultSpeed;
+        // Speed will naturally reduce in next frame's calculation
       }
     } else {
+      // Not sprinting or not moving
       if (currentStamina < maxStamina) {
         let currentRegenRate = staminaRegenerationRate;
+        // Stamina regenerates only if not moving (or moving very slowly)
         if (
           isMovingForward ||
           isMovingBackward ||
           isMovingLeft ||
           isMovingRight
-        )
-          currentRegenRate = 0;
-        if (currentRegenRate > 0)
+        ) {
+          currentRegenRate = 0; // No regen while actively pressing movement keys
+        }
+
+        if (currentRegenRate > 0) {
           currentStamina += currentRegenRate * deltaTime;
+        }
         if (currentStamina > maxStamina) currentStamina = maxStamina;
       }
     }
+  } else if (playerIsDead && playerBodyAggregate && playerBodyAggregate.body) {
+    // If player is dead, stop all movement
+    playerBodyAggregate.body.setLinearVelocity(Vector3.Zero());
   }
+
   updateStaminaBar(currentStamina, maxStamina);
   updateHealthBar(currentHealth, maxHealth);
 
@@ -1032,3 +962,214 @@ window.addEventListener("keydown", (event) => {
 });
 
 deathScreen.classList.add("hidden");
+
+async function setupGameAndPhysics() {
+  console.log("Attempting to initialize Havok Physics...");
+  // 1. Initialize Havok Physics Engine
+  try {
+    havokInstance = await HavokPhysics({
+      locateFile: (file) => {
+        // Attempt to load directly from a conventionally served node_modules path
+        if (file.endsWith(".wasm")) {
+          const wasmPath =
+            "/node_modules/@babylonjs/havok/lib/esm/HavokPhysics.wasm";
+          console.log(
+            `Havok locateFile: attempting to load WASM from ${wasmPath}`
+          );
+          return wasmPath;
+        }
+        return file;
+      },
+    });
+  } catch (e) {
+    console.error(
+      "Havok physics engine failed to load or an error occurred during init:",
+      e
+    );
+    // Optionally, fall back to a different physics engine or show an error message.
+    // For now, we'll just log and potentially not enable physics.
+    // To prevent further errors, we can return early or set a flag.
+    return;
+  }
+
+  if (!havokInstance) {
+    console.error(
+      "Havok physics engine could not be initialized (HavokPhysics() returned null/undefined)."
+    );
+    return;
+  }
+
+  const havokPlugin = new HavokPlugin(true, havokInstance);
+  scene.enablePhysics(new Vector3(0, -9.81, 0), havokPlugin);
+
+  // 2. Setup Ground with Physics (ground mesh is already created globally)
+  const groundAggregate = new PhysicsAggregate(
+    ground,
+    PhysicsShapeType.BOX,
+    { mass: 0, friction: 0.5, restitution: 0.1 },
+    scene
+  );
+
+  // 3. Setup Walls with Physics
+  wallPositions.forEach((props, i) => {
+    const wall = MeshBuilder.CreateBox(
+      `wall${i + 1}`,
+      { width: props[2], height: wallHeight, depth: props[3] },
+      scene
+    );
+    wall.position = new Vector3(props[0], wallHeight / 2, props[1]);
+    wall.isVisible = false; // Keep them invisible
+    const wallAggregate = new PhysicsAggregate(
+      wall,
+      PhysicsShapeType.BOX,
+      { mass: 0, friction: 0.5, restitution: 0.1 },
+      scene
+    );
+  });
+
+  // 4. Setup Player (Camera) Physics
+  const playerStartPos = new Vector3(0, 1.0, -5); // Base of the capsule on the ground
+  const playerHeight = 1.6; // Total height of the player capsule
+  const playerRadius = 0.4;
+  const playerEyeHeightOffset = 0.6;
+
+  playerBodyMesh = MeshBuilder.CreateCapsule(
+    "playerBody",
+    { radius: playerRadius, height: playerHeight, tessellation: 20 },
+    scene
+  );
+  playerBodyMesh.position = playerStartPos.clone();
+  playerBodyMesh.position.y = playerStartPos.y + playerHeight / 2;
+  playerBodyMesh.isVisible = false; // The physics body is invisible
+
+  playerBodyAggregate = new PhysicsAggregate(
+    playerBodyMesh,
+    PhysicsShapeType.CAPSULE,
+    {
+      mass: 1,
+      friction: 0.7,
+      restitution: 0.1,
+      // Define capsule explicitly with pointA, pointB, and radius for PhysicsAggregate
+      pointA: new Vector3(0, -(playerHeight / 2 - playerRadius), 0), // Bottom sphere center
+      pointB: new Vector3(0, playerHeight / 2 - playerRadius, 0), // Top sphere center
+      radius: playerRadius,
+    },
+    scene
+  );
+
+  if (playerBodyAggregate.body) {
+    playerBodyAggregate.body.setMassProperties({
+      inertia: new Vector3(0, 0, 0),
+    }); // Prevent capsule from falling over
+  } else {
+    console.error("Failed to create physics body for player.");
+  }
+
+  // Parent the camera to the playerBodyMesh
+  camera.parent = playerBodyMesh;
+  camera.position = new Vector3(0, playerEyeHeightOffset, 0); // Eye position relative to playerBodyMesh center
+  // If playerBodyMesh center is at playerHeight/2,
+  // and eye is at ~0.9 * playerHeight from base, then relative offset is
+  // (0.9 * H) - H/2 = 0.4 * H. For H=1.6, this is 0.64.
+  // Let's use a simpler fixed offset for now.
+
+  // 5. Load Static Assets with Colliders (PhysicsAggregate)
+  // These calls are now made after physics is initialized
+  await loadAssetWithCollider(
+    "palmTree1",
+    "assets/models/pirate_kit/",
+    "palm_tree1.glb",
+    scene,
+    new Vector3(10, 0, 10),
+    new Vector3(2, 2, 2),
+    false, // isDynamic
+    undefined,
+    3.0,
+    undefined,
+    3.0
+  );
+  await loadAssetWithCollider(
+    "palmTree2",
+    "assets/models/pirate_kit/",
+    "palm_tree2.glb",
+    scene,
+    new Vector3(5, 0, 15),
+    new Vector3(1.8, 1.8, 1.8),
+    false, // isDynamic
+    undefined,
+    2.7,
+    undefined,
+    2.7
+  );
+  await loadAssetWithCollider(
+    "palmTree3",
+    "assets/models/pirate_kit/",
+    "palm_tree3.glb",
+    scene,
+    new Vector3(-5, 0, 15),
+    new Vector3(2.2, 2.2, 2.2),
+    false, //isDynamic
+    undefined,
+    3.3,
+    undefined,
+    3.3
+  );
+
+  await loadAssetWithCollider(
+    "chestClosed",
+    "assets/models/pirate_kit/",
+    "chest_closed.glb",
+    scene,
+    new Vector3(18, 0, 18),
+    new Vector3(1, 1, 1),
+    false, // isDynamicCollider = false for a static chest
+    (collider) => {
+      new ClosedChest(collider as Mesh, true, "key_old_chest", () => {
+        if (collider.metadata && collider.metadata.chestInstance) {
+          const ray = camera.getForwardRay(crosshairMaxDistance);
+          const pickInfo = scene.pickWithRay(ray, (mesh) => mesh === collider);
+          if (pickInfo && pickInfo.hit && crosshairElement) {
+            crosshairElement.textContent =
+              collider.metadata.chestInstance.getDisplayIcon();
+          }
+        }
+      });
+    },
+    2.25,
+    2.25,
+    2.25
+  );
+
+  // 6. Initialize Dynamic Game Assets (Spiders, Sword)
+  await initializeGameAssets(); // This function will need to be aware of physics for spiders
+  // Sword is parented to camera, likely no physics body for sword itself for now.
+
+  scene.onPointerDown = (evt) => {
+    if (
+      evt.button === 0 &&
+      playerSwordInstance &&
+      !playerIsDead &&
+      !playerSwordInstance.getIsSwinging()
+    ) {
+      playerSwordInstance.swing(
+        crosshairMaxDistance,
+        (mesh) => mesh.metadata && mesh.metadata.enemyType === "spider",
+        (_targetMesh, instance) => {
+          const spiderInstance = instance as Spider;
+          if (
+            spiderInstance &&
+            spiderInstance.currentHealth > 0 &&
+            playerSwordInstance
+          ) {
+            spiderInstance.takeDamage(playerSwordInstance.attackDamage);
+          }
+        }
+      );
+    }
+  };
+}
+
+// Call the main setup function
+setupGameAndPhysics().catch((error) => {
+  console.error("Error during game and physics setup:", error);
+});

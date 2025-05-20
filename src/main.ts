@@ -367,6 +367,16 @@ function respawnPlayer() {
 
 engine.runRenderLoop(() => {
   const deltaTime = engine.getDeltaTime() / 1000;
+
+  /* === PLAYER CROUCH CAMERA ADJUSTMENT === */
+  const targetCameraY = isCrouching
+    ? crouchCameraPositionY
+    : standCameraPositionY;
+  const crouchLerpSpeed = 10; // How quickly the camera moves towards the target height (units per second)
+  camera.position.y +=
+    (targetCameraY - camera.position.y) *
+    Math.min(1, crouchLerpSpeed * deltaTime);
+
   currentCycleTime = (currentCycleTime + deltaTime) % CYCLE_DURATION_SECONDS;
   const cycleProgress = currentCycleTime / CYCLE_DURATION_SECONDS;
 
@@ -508,9 +518,10 @@ engine.runRenderLoop(() => {
     if (isMovingRight) targetVelocityXZ.addInPlace(right);
 
     let actualSpeed = defaultSpeed;
-    if (isSprinting && !isCrouching && currentStamina > 0) {
+    if (isSprinting && currentStamina > 0) {
       actualSpeed *= runSpeedMultiplier;
-    } else if (isCrouching) {
+    }
+    if (isCrouching) {
       actualSpeed *= crouchSpeedMultiplier;
     }
 

@@ -364,28 +364,9 @@ export class Spider {
       this.physicsAggregate.transformNode as Mesh
     ).absolutePosition.clone();
 
-    console.log(
-      `[Spider ${this.name}] MyPos: ${myPosition.x.toFixed(
-        2
-      )}, ${myPosition.y.toFixed(2)}, ${myPosition.z.toFixed(2)}`
-    );
-    console.log(
-      `[Spider ${this.name}] PlayerPos: ${playerPosition.x.toFixed(
-        2
-      )}, ${playerPosition.y.toFixed(2)}, ${playerPosition.z.toFixed(2)}`
-    );
-
     const directionToPlayerXZ = playerPosition.subtract(myPosition);
     directionToPlayerXZ.y = 0;
     const distanceToPlayer = directionToPlayerXZ.length();
-
-    console.log(
-      `[Spider ${this.name}] DistToPlayer: ${distanceToPlayer.toFixed(
-        2
-      )}, DirToPlayerXZ: ${directionToPlayerXZ.x.toFixed(
-        2
-      )}, ${directionToPlayerXZ.z.toFixed(2)}`
-    );
 
     this.isCurrentlyAggro = false;
 
@@ -420,11 +401,7 @@ export class Spider {
         myPosition.y, // Look at player's XZ, but maintain spider's Y
         playerPosition.z
       );
-      console.log(
-        `[Spider ${this.name}] LookAtTarget: ${lookAtTarget.x.toFixed(
-          2
-        )}, ${lookAtTarget.y.toFixed(2)}, ${lookAtTarget.z.toFixed(2)}`
-      );
+
       // this.collider.lookAt(lookAtTarget, Math.PI); // Model might need Y-axis rotation offset
       (this.physicsAggregate.transformNode as Mesh).lookAt(
         lookAtTarget

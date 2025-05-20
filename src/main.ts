@@ -18,6 +18,7 @@ import "@babylonjs/core/Meshes/Builders/boxBuilder";
 import "@babylonjs/core/Collisions/collisionCoordinator";
 import "@babylonjs/inspector";
 import { CubeTexture } from "@babylonjs/core/Materials/Textures/cubeTexture";
+import { Ray } from "@babylonjs/core/Culling/ray";
 
 import { HavokPlugin } from "@babylonjs/core/Physics";
 import HavokPhysics from "@babylonjs/havok";
@@ -86,6 +87,15 @@ const crouchSpeedMultiplier = 0.5;
 const crouchCameraPositionY = 1.0;
 const standCameraPositionY = 1.6;
 
+// Jump parameters
+const jumpForce = 5; // The upward force applied for a jump
+const jumpStaminaCost = 15; // Stamina consumed per jump
+const groundCheckDistance = 0.2; // How far below the player to check for ground
+
+// Player capsule dimensions (should match setupGameAndPhysics)
+const playerHeight = 1.6; // Must match playerHeight in setupGameAndPhysics
+const playerRadius = 0.4; // Must match playerRadius in setupGameAndPhysics
+
 let maxStamina = 100;
 let currentStamina = maxStamina;
 const staminaDepletionRate = 10;
@@ -118,6 +128,28 @@ window.addEventListener("keydown", (event) => {
   else if (keyCode === 68) isMovingRight = true;
   else if (keyCode === 67 && !playerIsDead) {
     isCrouching = !isCrouching;
+  } else if (keyCode === 32 && !playerIsDead) {
+    const isOnGround = isPlayerOnGroundCheck(
+      playerBodyMesh,
+      scene,
+      groundCheckDistance,
+      playerHeight,
+      playerRadius
+    );
+
+    if (
+      playerBodyAggregate &&
+      playerBodyAggregate.body &&
+      currentStamina >= jumpStaminaCost &&
+      isOnGround
+    ) {
+      const currentVelocity = playerBodyAggregate.body.getLinearVelocity();
+      playerBodyAggregate.body.setLinearVelocity(
+        new Vector3(currentVelocity.x, jumpForce, currentVelocity.z)
+      );
+      currentStamina -= jumpStaminaCost;
+      updateStaminaBar(currentStamina, maxStamina); // Update UI immediately
+    }
   } else if (keyCode === 82) {
     keyRPressed = true;
   }
@@ -137,6 +169,51 @@ window.addEventListener("keyup", (event) => {
     keyRPressed = false;
   }
 });
+
+// Helper function to check if the player is on the ground
+function isPlayerOnGroundCheck(
+  playerMesh: Mesh,
+  sceneRef: Scene,
+  checkDistance: number,
+  pHeight: number,
+  _pRadius: number
+): boolean {
+  if (!playerMesh || !playerBodyAggregate || !playerBodyAggregate.body) {
+    console.log("isPlayerOnGroundCheck: Missing playerMesh or physics body");
+    return false;
+  }
+
+  const rayOrigin = playerMesh.getAbsolutePosition().clone(); // Start from the center of the capsule
+
+  // Calculate ray length to reach checkDistance below the feet
+  // (pHeight / 2) is distance from center to feet
+  const rayLength = pHeight / 2 + checkDistance;
+
+  const ray = new Ray(rayOrigin, Vector3.Down(), rayLength);
+
+  // Optional: Visualize the ray for debugging
+  // import { RayHelper } from "@babylonjs/core/Debug/rayHelper";
+  // import { Color3 } from "@babylonjs/core/Maths/math.color";
+  // const rayHelper = RayHelper.CreateAndShow(ray, sceneRef, new Color3(1, 1, 0));
+  // setTimeout(() => { if (rayHelper) rayHelper.dispose(); }, 500); // Dispose after a short time
+
+  const pickInfo = sceneRef.pickWithRay(
+    ray,
+    (mesh) =>
+      mesh !== playerMesh && // Don't pick the player itself
+      mesh.isPickable && // Mesh must be pickable
+      mesh.isEnabled() && // Mesh must be enabled
+      !mesh.name.toLowerCase().includes("spider") && // Explicitly ignore spiders
+      mesh.getTotalVertices() > 0 // Ensure it's actual geometry
+  );
+
+  if (pickInfo && pickInfo.hit) {
+    // console.log("Ground check hit:", pickInfo.pickedMesh?.name);
+    return true;
+  }
+  // console.log("Ground check miss. Origin:", rayOrigin, "Length:", rayLength);
+  return false;
+}
 
 const light = new HemisphericLight("light1", new Vector3(0, 1, 0), scene);
 light.intensity = 0.7;
@@ -1040,8 +1117,6 @@ async function setupGameAndPhysics() {
 
   // 4. Setup Player (Camera) Physics
   const playerStartPos = new Vector3(0, 1.0, -5); // Base of the capsule on the ground
-  const playerHeight = 1.6; // Total height of the player capsule
-  const playerRadius = 0.4;
   const playerEyeHeightOffset = 0.6;
 
   playerBodyMesh = MeshBuilder.CreateCapsule(

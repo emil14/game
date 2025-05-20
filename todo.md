@@ -1,7 +1,9 @@
 # FIXME
 
-- crouch was accidentially removed after we added physics
-- spider's HUD is not visible and it's no longer possible to attach the spider
+- spider is no longer facing the player when he is aggro state and is following the player
+- crouch mode was accidentially removed after we added physics. it was working as a toggle on "C" button. In crouch mode the speed was decreased in a way that sprint+crouch felt like normal walking (running without sprint)
+- spider's HUD is not visible and it's no longer possible to attack the spider (or it's not obvious how to do it), also cross is not turning into red (enemy) mode
+- same problem with closed chess, crosshair is not changing when we look at it, probably something with raycast
 - stamina decreases when shift is pressed even without actual running
 
 # Refactor
@@ -20,3 +22,5 @@
 - gun
 - day skybox
 - use spider's jump animaion
+- add glowing to chest/spider
+- add steps sound

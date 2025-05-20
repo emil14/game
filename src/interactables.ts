@@ -19,7 +19,7 @@ export function playerHasKey(keyId: string): boolean {
   return playerInventory.keys.has(keyId);
 }
 
-export class Chest {
+export class ClosedChest {
   public mesh: Mesh;
   public isLocked: boolean;
   public requiredKeyId: string | null; // null if no key is required (e.g., already unlocked or opens freely)

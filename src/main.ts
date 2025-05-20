@@ -19,7 +19,7 @@ import "@babylonjs/core/Collisions/collisionCoordinator";
 import "@babylonjs/inspector";
 import { CubeTexture } from "@babylonjs/core/Materials/Textures/cubeTexture";
 
-import { Chest } from "./interactables";
+import { ClosedChest } from "./interactables";
 import { Spider } from "./enemies/spider";
 import { Sword } from "./weapons/sword";
 
@@ -384,7 +384,7 @@ loadAssetWithCollider(
   new Vector3(1, 1, 1),
   false,
   (collider) => {
-    new Chest(collider as Mesh, true, "key_old_chest", () => {
+    new ClosedChest(collider as Mesh, true, "key_old_chest", () => {
       if (collider.metadata && collider.metadata.chestInstance) {
         const ray = camera.getForwardRay(crosshairMaxDistance);
         const pickInfo = scene.pickWithRay(ray, (mesh) => mesh === collider);
@@ -690,7 +690,7 @@ engine.runRenderLoop(() => {
         pickedMesh.metadata.interactableType === "chest"
       ) {
         lookingAtInteractable = true;
-        const chestInstance = pickedMesh.metadata.chestInstance as Chest;
+        const chestInstance = pickedMesh.metadata.chestInstance as ClosedChest;
         if (crosshairElement) {
           crosshairElement.textContent = chestInstance.getDisplayIcon();
           crosshairElement.classList.remove("crosshair-enemy-focus");

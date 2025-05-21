@@ -9,6 +9,7 @@
 # TODO
 
 - when player is sitting, his stamina should regen x1.5 faster
+- stricter ts config and/or linter (with plugins e.g. BabylonJS?)
 - day skybox
 - do not destroy spider's body after his dead, instead apply ragdoll to it
 - make jumps more "real"

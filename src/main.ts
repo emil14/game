@@ -24,7 +24,6 @@ import { RayHelper } from "@babylonjs/core/Debug/rayHelper";
 import { HavokPlugin } from "@babylonjs/core/Physics";
 import HavokPhysics from "@babylonjs/havok";
 import { PhysicsAggregate, PhysicsShapeType } from "@babylonjs/core/Physics";
-// import { PhysicsBody } from "@babylonjs/core/Physics";
 
 import { ClosedChest } from "./interactables";
 import { Spider } from "./enemies/spider";
@@ -41,10 +40,12 @@ import {
   GAME_SETTINGS,
   TAB_MENU_CONFIG,
 } from "./config";
+import { InputManager } from "./input_manager";
 
 const canvas = document.getElementById(
   UI_ELEMENT_IDS.RENDER_CANVAS
 )! as HTMLCanvasElement;
+const inputManager = new InputManager(canvas);
 const fpsDisplay = document.getElementById(
   UI_ELEMENT_IDS.FPS_DISPLAY
 )! as HTMLElement;
@@ -129,14 +130,12 @@ const crouchSpeedMultiplier = PLAYER_CONFIG.CROUCH_SPEED_MULTIPLIER;
 const crouchCameraPositionY = CAMERA_CONFIG.CROUCH_CAMERA_Y;
 const standCameraPositionY = CAMERA_CONFIG.STAND_CAMERA_Y;
 
-// Jump parameters
-const jumpForce = PLAYER_CONFIG.JUMP_FORCE; // The upward force applied for a jump
-const jumpStaminaCost = PLAYER_CONFIG.JUMP_STAMINA_COST; // Stamina consumed per jump
-const groundCheckDistance = PHYSICS_CONFIG.GROUND_CHECK_DISTANCE; // How far below the player to check for ground
+const jumpForce = PLAYER_CONFIG.JUMP_FORCE;
+const jumpStaminaCost = PLAYER_CONFIG.JUMP_STAMINA_COST;
+const groundCheckDistance = PHYSICS_CONFIG.GROUND_CHECK_DISTANCE;
 
-// Player capsule dimensions (should match setupGameAndPhysics)
-const playerHeight = PLAYER_CONFIG.PLAYER_HEIGHT; // Must match playerHeight in setupGameAndPhysics
-const playerRadius = PLAYER_CONFIG.PLAYER_RADIUS; // Must match playerRadius in setupGameAndPhysics
+const playerHeight = PLAYER_CONFIG.PLAYER_HEIGHT;
+const playerRadius = PLAYER_CONFIG.PLAYER_RADIUS;
 
 let maxStamina = PLAYER_CONFIG.MAX_STAMINA;
 let currentStamina = maxStamina;
@@ -146,73 +145,18 @@ const staminaRegenerationRate = PLAYER_CONFIG.STAMINA_REGENERATION_RATE;
 let maxHealth = PLAYER_CONFIG.MAX_HEALTH;
 let currentHealth = maxHealth;
 let playerIsDead = false;
-let keyRPressed = false;
 
 let isMovingForward = false;
 let isMovingBackward = false;
 let isMovingLeft = false;
 let isMovingRight = false;
+let isSprinting = false;
+
+let crouchKeyPressedLastFrame = false;
+let jumpKeyPressedLastFrame = false;
 
 let isInFightMode = false;
 
-let isSprinting = false;
-
-window.addEventListener("keydown", (event) => {
-  const key = event.key.toLowerCase();
-
-  if (event.code === "ShiftLeft" || event.code === "ShiftRight") {
-    if (currentStamina > 0 && !isSprinting && !playerIsDead) {
-      isSprinting = true;
-    }
-  } else if (key === KEY_MAPPINGS.FORWARD) isMovingForward = true;
-  else if (key === KEY_MAPPINGS.BACKWARD) isMovingBackward = true;
-  else if (key === KEY_MAPPINGS.LEFT) isMovingLeft = true;
-  else if (key === KEY_MAPPINGS.RIGHT) isMovingRight = true;
-  else if (key === KEY_MAPPINGS.CROUCH && !playerIsDead) {
-    isCrouching = !isCrouching;
-  } else if (key === KEY_MAPPINGS.JUMP && !playerIsDead) {
-    const isOnGround = isPlayerOnGroundCheck(
-      playerBodyMesh,
-      scene,
-      groundCheckDistance,
-      playerHeight,
-      playerRadius
-    );
-
-    if (
-      playerBodyAggregate &&
-      playerBodyAggregate.body &&
-      currentStamina >= jumpStaminaCost &&
-      isOnGround
-    ) {
-      const currentVelocity = playerBodyAggregate.body.getLinearVelocity();
-      playerBodyAggregate.body.setLinearVelocity(
-        new Vector3(currentVelocity.x, jumpForce, currentVelocity.z)
-      );
-      currentStamina -= jumpStaminaCost;
-      updateStaminaBar(currentStamina, maxStamina); // Update UI immediately
-    }
-  } else if (key === KEY_MAPPINGS.RESPAWN) {
-    keyRPressed = true;
-  }
-});
-
-window.addEventListener("keyup", (event) => {
-  const key = event.key.toLowerCase();
-  if (event.code === "ShiftLeft" || event.code === "ShiftRight") {
-    if (isSprinting) {
-      isSprinting = false;
-    }
-  } else if (key === KEY_MAPPINGS.FORWARD) isMovingForward = false;
-  else if (key === KEY_MAPPINGS.BACKWARD) isMovingBackward = false;
-  else if (key === KEY_MAPPINGS.LEFT) isMovingLeft = false;
-  else if (key === KEY_MAPPINGS.RIGHT) isMovingRight = false;
-  else if (key === KEY_MAPPINGS.RESPAWN) {
-    keyRPressed = false;
-  }
-});
-
-// Helper function to check if the player is on the ground
 function isPlayerOnGroundCheck(
   playerMesh: Mesh,
   sceneRef: Scene,
@@ -221,34 +165,21 @@ function isPlayerOnGroundCheck(
   _pRadius: number
 ): boolean {
   if (!playerMesh || !playerBodyAggregate || !playerBodyAggregate.body) {
-    console.log("isPlayerOnGroundCheck: Missing playerMesh or physics body");
     return false;
   }
-
-  const rayOrigin = playerMesh.getAbsolutePosition().clone(); // Start from the center of the capsule
-
-  // Calculate ray length to reach checkDistance below the feet
-  // (pHeight / 2) is distance from center to feet
+  const rayOrigin = playerMesh.getAbsolutePosition().clone();
   const rayLength = pHeight / 2 + checkDistance;
-
   const ray = new Ray(rayOrigin, Vector3.Down(), rayLength);
-
   const pickInfo = sceneRef.pickWithRay(
     ray,
     (mesh) =>
-      mesh !== playerMesh && // Don't pick the player itself
-      mesh.isPickable && // Mesh must be pickable
-      mesh.isEnabled() && // Mesh must be enabled
-      !mesh.name.toLowerCase().includes("spider") && // Explicitly ignore spiders
-      mesh.getTotalVertices() > 0 // Ensure it's actual geometry
+      mesh !== playerMesh &&
+      mesh.isPickable &&
+      mesh.isEnabled() &&
+      !mesh.name.toLowerCase().includes("spider") &&
+      mesh.getTotalVertices() > 0
   );
-
-  if (pickInfo && pickInfo.hit) {
-    // console.log("Ground check hit:", pickInfo.pickedMesh?.name);
-    return true;
-  }
-  // console.log("Ground check miss. Origin:", rayOrigin, "Length:", rayLength);
-  return false;
+  return pickInfo?.hit || false;
 }
 
 const light = new HemisphericLight("light1", new Vector3(0, 1, 0), scene);
@@ -273,17 +204,13 @@ const CYCLE_DURATION_SECONDS = WORLD_CONFIG.CYCLE_DURATION_SECONDS;
 let currentCycleTime =
   CYCLE_DURATION_SECONDS * WORLD_CONFIG.INITIAL_CYCLE_TIME_PROGRESS;
 
-// New Day/Night Cycle Parameters
 const NEW_SUNRISE_HOUR = WORLD_CONFIG.NEW_SUNRISE_HOUR;
 const NEW_SUNSET_HOUR = WORLD_CONFIG.NEW_SUNSET_HOUR;
-
-const newSunrisePoint = NEW_SUNRISE_HOUR / 24; // Progress point for sunrise center
-const newSunsetPoint = NEW_SUNSET_HOUR / 24; // Progress point for sunset center
-const newMiddayPoint = (newSunrisePoint + newSunsetPoint) / 2; // Sun is highest
-
+const newSunrisePoint = NEW_SUNRISE_HOUR / 24;
+const newSunsetPoint = NEW_SUNSET_HOUR / 24;
+const newMiddayPoint = (newSunrisePoint + newSunsetPoint) / 2;
 const dayNightTransitionWidth =
   WORLD_CONFIG.DAY_NIGHT_TRANSITION_WIDTH_HOURS_PORTION;
-
 const sunAngleNight = WORLD_CONFIG.SUN_ANGLE_NIGHT;
 const sunAngleHorizon = WORLD_CONFIG.SUN_ANGLE_HORIZON;
 const sunAnglePeak = WORLD_CONFIG.SUN_ANGLE_PEAK;
@@ -299,11 +226,10 @@ const ground = MeshBuilder.CreateGround(
 );
 const groundMaterial = new StandardMaterial("groundMaterial", scene);
 groundMaterial.diffuseColor = new Color3(0.9, 0.8, 0.6);
-// Add sand texture
 const sandTexture = new Texture(ASSET_PATHS.SAND_TEXTURE, scene);
 groundMaterial.diffuseTexture = sandTexture;
-(groundMaterial.diffuseTexture as any).uScale = 8; // Tile horizontally
-(groundMaterial.diffuseTexture as any).vScale = 8; // Tile vertically
+(groundMaterial.diffuseTexture as any).uScale = 8;
+(groundMaterial.diffuseTexture as any).vScale = 8;
 ground.material = groundMaterial;
 
 const skyboxMaterial = new SkyMaterial("skyBoxMaterial", scene);
@@ -315,20 +241,18 @@ skyboxMaterial.azimuth = WORLD_CONFIG.SKYBOX_AZIMUTH;
 skyboxMaterial.luminance = WORLD_CONFIG.SKYBOX_LUMINANCE;
 skyboxMaterial.disableDepthWrite = true;
 
-// NIGHT SKYBOX SETUP (now using WebP for better compression and performance)
-// Babylon.js supports WebP in all modern browsers
 const nightSkyboxMaterial = new StandardMaterial("nightSkyboxMaterial", scene);
 nightSkyboxMaterial.backFaceCulling = false;
 nightSkyboxMaterial.reflectionTexture = new CubeTexture(
   ASSET_PATHS.SKYBOX_NIGHT,
   scene,
   [
-    "_right.webp", // right
-    "_top.webp", // top
-    "_front.webp", // front
-    "_left.webp", // left
-    "_bot.webp", // bottom
-    "_back.webp", // back
+    "_right.webp",
+    "_top.webp",
+    "_front.webp",
+    "_left.webp",
+    "_bot.webp",
+    "_back.webp",
   ]
 );
 if (nightSkyboxMaterial.reflectionTexture) {
@@ -364,7 +288,6 @@ const wallPositions = [
   [groundSize / 2, 0, wallThickness, groundSize],
 ];
 
-// === MOON SETUP ===
 const moonTexture = new Texture(ASSET_PATHS.MOON_TEXTURE, scene);
 const moonMaterial = new StandardMaterial("moonMaterial", scene);
 moonMaterial.diffuseTexture = moonTexture;
@@ -377,10 +300,9 @@ moonPlane.material = moonMaterial;
 moonPlane.infiniteDistance = true;
 moonPlane.isPickable = false;
 moonPlane.alwaysSelectAsActiveMesh = false;
-moonPlane.visibility = 0; // Start hidden
+moonPlane.visibility = 0;
 moonPlane.billboardMode = Mesh.BILLBOARDMODE_ALL;
 
-// Moonlight (dim directional light)
 const moonLight = new DirectionalLight(
   "moonLight",
   new Vector3(0, -1, 0),
@@ -464,7 +386,6 @@ async function loadAssetWithCollider(
       collider.position = position;
     }
 
-    // Create PhysicsAggregate for the collider mesh
     const aggregate = new PhysicsAggregate(
       collider,
       PhysicsShapeType.BOX,
@@ -508,7 +429,6 @@ async function initializeGameAssets() {
     console.error("Failed to create spider:", error);
   }
 
-  // Initialize Sword here
   playerSwordInstance = await Sword.Create(scene, camera, 15);
 }
 
@@ -537,28 +457,73 @@ function respawnPlayer() {
 engine.runRenderLoop(() => {
   const deltaTime = engine.getDeltaTime() / 1000;
 
-  /* === PLAYER CROUCH CAMERA ADJUSTMENT === */
+  isMovingForward = inputManager.isKeyPressed(KEY_MAPPINGS.FORWARD);
+  isMovingBackward = inputManager.isKeyPressed(KEY_MAPPINGS.BACKWARD);
+  isMovingLeft = inputManager.isKeyPressed(KEY_MAPPINGS.LEFT);
+  isMovingRight = inputManager.isKeyPressed(KEY_MAPPINGS.RIGHT);
+
+  const shiftPressed = inputManager.isKeyCodePressed("ShiftLeft");
+  if (shiftPressed && currentStamina > 0 && !playerIsDead) {
+    isSprinting = true;
+  } else {
+    isSprinting = false;
+  }
+
+  const crouchKeyCurrentlyPressed = inputManager.isKeyPressed(
+    KEY_MAPPINGS.CROUCH
+  );
+  if (
+    crouchKeyCurrentlyPressed &&
+    !crouchKeyPressedLastFrame &&
+    !playerIsDead
+  ) {
+    isCrouching = !isCrouching;
+  }
+  crouchKeyPressedLastFrame = crouchKeyCurrentlyPressed;
+
+  if (playerIsDead && inputManager.isKeyPressed(KEY_MAPPINGS.RESPAWN)) {
+    respawnPlayer();
+  }
+
+  if (
+    inputManager.isMouseButtonPressed(0) &&
+    playerSwordInstance &&
+    !playerIsDead &&
+    !playerSwordInstance.getIsSwinging()
+  ) {
+    playerSwordInstance.swing(
+      PLAYER_CONFIG.CROSSHAIR_MAX_DISTANCE,
+      (mesh) => mesh.metadata && mesh.metadata.enemyType === "spider",
+      (_targetMesh, instance) => {
+        const spiderInstance = instance as Spider;
+        if (
+          spiderInstance &&
+          spiderInstance.currentHealth > 0 &&
+          playerSwordInstance
+        ) {
+          spiderInstance.takeDamage(playerSwordInstance.attackDamage);
+        }
+      }
+    );
+  }
+
   const targetCameraY = isCrouching
     ? crouchCameraPositionY
     : standCameraPositionY;
-  const crouchLerpSpeed = 10; // How quickly the camera moves towards the target height (units per second)
+  const crouchLerpSpeed = 10;
   camera.position.y +=
     (targetCameraY - camera.position.y) *
     Math.min(1, crouchLerpSpeed * deltaTime);
 
   currentCycleTime = (currentCycleTime + deltaTime) % CYCLE_DURATION_SECONDS;
   const cycleProgress = currentCycleTime / CYCLE_DURATION_SECONDS;
-
   const currentDaySkyMaterial = daySkybox.material as SkyMaterial;
   const currentNightSkyMaterial = nightSkybox.material as StandardMaterial;
-
-  // Target values, to be determined by cycleProgress
   let targetInclination: number;
   let targetHemisphericIntensity: number;
   let targetSunLightIntensity: number;
   let targetDaySkyLuminance: number;
   let targetNightSkyAlpha: number;
-
   const sr_transition_start = newSunrisePoint - dayNightTransitionWidth;
   const sr_transition_end = newSunrisePoint + dayNightTransitionWidth;
   const ss_transition_start = newSunsetPoint - dayNightTransitionWidth;
@@ -568,60 +533,52 @@ engine.runRenderLoop(() => {
     cycleProgress >= sr_transition_start &&
     cycleProgress < sr_transition_end
   ) {
-    // Sunrise Transition
     const transProgress =
       (cycleProgress - sr_transition_start) / (dayNightTransitionWidth * 2);
     targetInclination =
       sunAngleNight + transProgress * (sunAngleHorizon - sunAngleNight);
-    targetHemisphericIntensity = 0.05 + transProgress * 0.65; // Night (0.05) to Day (0.7)
-    targetSunLightIntensity = transProgress * 1.0; // Night (0) to Day (1.0)
-    targetDaySkyLuminance = 0.005 + transProgress * (1.0 - 0.005); // Night (0.005) to Day (1.0)
-    targetNightSkyAlpha = 1.0 - transProgress; // Night (1.0) to Day (0.0)
+    targetHemisphericIntensity = 0.05 + transProgress * 0.65;
+    targetSunLightIntensity = transProgress * 1.0;
+    targetDaySkyLuminance = 0.005 + transProgress * (1.0 - 0.005);
+    targetNightSkyAlpha = 1.0 - transProgress;
   } else if (
     cycleProgress >= ss_transition_start &&
     cycleProgress < ss_transition_end
   ) {
-    // Sunset Transition
     const transProgress =
       (cycleProgress - ss_transition_start) / (dayNightTransitionWidth * 2);
     targetInclination =
-      sunAngleHorizon - transProgress * (sunAngleHorizon - sunAngleNight); // Horizon to Night
-    targetHemisphericIntensity = 0.7 - transProgress * 0.65; // Day (0.7) to Night (0.05)
-    targetSunLightIntensity = 1.0 - transProgress * 1.0; // Day (1.0) to Night (0)
-    targetDaySkyLuminance = 1.0 - transProgress * (1.0 - 0.005); // Day (1.0) to Night (0.005)
-    targetNightSkyAlpha = transProgress; // Day (0.0) to Night (1.0)
+      sunAngleHorizon - transProgress * (sunAngleHorizon - sunAngleNight);
+    targetHemisphericIntensity = 0.7 - transProgress * 0.65;
+    targetSunLightIntensity = 1.0 - transProgress * 1.0;
+    targetDaySkyLuminance = 1.0 - transProgress * (1.0 - 0.005);
+    targetNightSkyAlpha = transProgress;
   } else if (
     cycleProgress >= sr_transition_end &&
     cycleProgress < ss_transition_start
   ) {
-    // Full Day (between sunrise and sunset transitions)
     targetHemisphericIntensity = 0.7;
     targetSunLightIntensity = 1.0;
     targetDaySkyLuminance = 1.0;
     targetNightSkyAlpha = 0.0;
-
     if (cycleProgress < newMiddayPoint) {
-      // Morning: from end of sunrise transition to midday peak
       const morningProgress =
         (cycleProgress - sr_transition_end) /
         (newMiddayPoint - sr_transition_end);
       targetInclination =
         sunAngleHorizon + morningProgress * (sunAnglePeak - sunAngleHorizon);
     } else {
-      // Afternoon: from midday peak to start of sunset transition
       const afternoonProgress =
         (cycleProgress - newMiddayPoint) /
         (ss_transition_start - newMiddayPoint);
       targetInclination =
         sunAnglePeak - afternoonProgress * (sunAnglePeak - sunAngleHorizon);
     }
-    // Clamp inclination during day to avoid going below horizon if logic is imperfect
     targetInclination = Math.max(
       sunAngleHorizon,
       Math.min(sunAnglePeak, targetInclination)
     );
   } else {
-    // Full Night (covers periods: after sunset_end up to 1.0, and from 0.0 up to sunrise_start)
     targetInclination = sunAngleNight;
     targetHemisphericIntensity = 0.05;
     targetSunLightIntensity = 0;
@@ -629,13 +586,11 @@ engine.runRenderLoop(() => {
     targetNightSkyAlpha = 1.0;
   }
 
-  // Apply the calculated values
   currentDaySkyMaterial.inclination = targetInclination;
   light.intensity = targetHemisphericIntensity;
   sunLight.intensity = targetSunLightIntensity;
   currentDaySkyMaterial.luminance = targetDaySkyLuminance;
   currentNightSkyMaterial.alpha = targetNightSkyAlpha;
-
   if (currentDaySkyMaterial.useSunPosition) {
     const phi = currentDaySkyMaterial.inclination * Math.PI;
     const theta = currentDaySkyMaterial.azimuth * 2 * Math.PI;
@@ -670,14 +625,14 @@ engine.runRenderLoop(() => {
   }
 
   if (!playerIsDead && playerBodyAggregate && playerBodyAggregate.body) {
-    // Player Movement with Physics
-    const currentVelocity = playerBodyAggregate.body.getLinearVelocity();
-    let targetVelocityXZ = Vector3.Zero();
+    const currentPhysicsVelocity = playerBodyAggregate.body.getLinearVelocity();
+    let finalVelocity = new Vector3(0, currentPhysicsVelocity.y, 0);
 
+    let targetVelocityXZ = Vector3.Zero();
     const forward = camera.getDirection(Vector3.Forward());
     const right = camera.getDirection(Vector3.Right());
-    forward.y = 0; // Movement is horizontal
-    right.y = 0; // Movement is horizontal
+    forward.y = 0;
+    right.y = 0;
     forward.normalize();
     right.normalize();
 
@@ -687,7 +642,7 @@ engine.runRenderLoop(() => {
     if (isMovingRight) targetVelocityXZ.addInPlace(right);
 
     let actualSpeed = defaultSpeed;
-    if (isSprinting && currentStamina > 0) {
+    if (isSprinting) {
       actualSpeed *= runSpeedMultiplier;
     }
     if (isCrouching) {
@@ -695,40 +650,51 @@ engine.runRenderLoop(() => {
     }
 
     if (targetVelocityXZ.lengthSquared() > 0.001) {
-      // Check if there's input
       targetVelocityXZ.normalize().scaleInPlace(actualSpeed);
+      finalVelocity.x = targetVelocityXZ.x;
+      finalVelocity.z = targetVelocityXZ.z;
     } else {
-      targetVelocityXZ = Vector3.Zero(); // No input, so no XZ movement from input
+      finalVelocity.x = 0;
+      finalVelocity.z = 0;
     }
 
-    playerBodyAggregate.body.setLinearVelocity(
-      new Vector3(targetVelocityXZ.x, currentVelocity.y, targetVelocityXZ.z)
+    const jumpKeyCurrentlyPressed = inputManager.isKeyPressed(
+      KEY_MAPPINGS.JUMP
     );
+    if (jumpKeyCurrentlyPressed && !jumpKeyPressedLastFrame && !playerIsDead) {
+      const isOnGround = isPlayerOnGroundCheck(
+        playerBodyMesh,
+        scene,
+        groundCheckDistance,
+        playerHeight,
+        playerRadius
+      );
+      if (currentStamina >= jumpStaminaCost && isOnGround) {
+        finalVelocity.y = jumpForce;
+        currentStamina -= jumpStaminaCost;
+        updateStaminaBar(currentStamina, maxStamina);
+      }
+    }
+    jumpKeyPressedLastFrame = jumpKeyCurrentlyPressed;
 
-    // Stamina handling
+    playerBodyAggregate.body.setLinearVelocity(finalVelocity);
+
     if (isSprinting && targetVelocityXZ.lengthSquared() > 0.001) {
-      // Sprinting and moving
       if (currentStamina > 0)
         currentStamina -= staminaDepletionRate * deltaTime;
       if (currentStamina <= 0) {
         currentStamina = 0;
         isSprinting = false;
-        // Speed will naturally reduce in next frame's calculation
       }
     } else {
-      // Not sprinting or not moving
       if (currentStamina < maxStamina) {
         let currentRegenRate = staminaRegenerationRate;
-        // Stamina regenerates only if not moving (or moving very slowly)
         if (
-          isMovingForward ||
-          isMovingBackward ||
-          isMovingLeft ||
-          isMovingRight
+          !isSprinting &&
+          (isMovingForward || isMovingBackward || isMovingLeft || isMovingRight)
         ) {
-          currentRegenRate = 0; // No regen while actively pressing movement keys
+          currentRegenRate = 0;
         }
-
         if (currentRegenRate > 0) {
           currentStamina += currentRegenRate * deltaTime;
         }
@@ -736,7 +702,6 @@ engine.runRenderLoop(() => {
       }
     }
   } else if (playerIsDead && playerBodyAggregate && playerBodyAggregate.body) {
-    // If player is dead, stop all movement
     playerBodyAggregate.body.setLinearVelocity(Vector3.Zero());
   }
 
@@ -745,7 +710,6 @@ engine.runRenderLoop(() => {
 
   if (currentHealth <= 0 && !playerIsDead) {
     playerIsDead = true;
-    camera.inputs.clear();
     console.log("Player has died.");
     showDeathScreen();
     if (isInFightMode && fightMusic) {
@@ -755,27 +719,19 @@ engine.runRenderLoop(() => {
     }
   }
 
-  if (playerIsDead && keyRPressed) {
-    respawnPlayer();
-  }
+  camera.computeWorldMatrix();
+  const rayOrigin = camera.globalPosition;
+  const forwardDirection = camera.getDirection(Vector3.Forward());
+  const ray = new Ray(rayOrigin, forwardDirection, crosshairMaxDistance);
 
-  camera.computeWorldMatrix(); // Force update of camera's world matrix
-  const rayOrigin = camera.globalPosition; // Get the camera's absolute position
-  const forwardDirection = camera.getDirection(Vector3.Forward()); // Get the camera's forward direction
-  const ray = new Ray(rayOrigin, forwardDirection, crosshairMaxDistance); // Create the ray
-
-  // RayHelper logic based on isDebugModeEnabled
   if (isDebugModeEnabled) {
     if (!debugRayHelper) {
-      // Only create if it doesn't exist
-      debugRayHelper = RayHelper.CreateAndShow(ray, scene, new Color3(1, 1, 0)); // Yellow color for the ray
+      debugRayHelper = RayHelper.CreateAndShow(ray, scene, new Color3(1, 1, 0));
     } else {
-      // If it already exists, just update its ray
       debugRayHelper.ray = ray;
     }
   } else {
     if (debugRayHelper) {
-      // Only dispose if it exists
       debugRayHelper.dispose();
       debugRayHelper = null;
     }
@@ -787,8 +743,6 @@ engine.runRenderLoop(() => {
       (mesh.metadata && mesh.metadata.enemyType === "spider") ||
       (mesh.metadata && mesh.metadata.interactableType)
   );
-  let lookingAtEnemy = false;
-  let lookingAtInteractable = false;
   let crosshairSetForSpecificTarget = false;
 
   if (pickInfo && pickInfo.hit && pickInfo.pickedMesh) {
@@ -799,15 +753,11 @@ engine.runRenderLoop(() => {
         spiderInstance &&
         (spiderInstance.getIsDying() || spiderInstance.currentHealth <= 0)
       ) {
-        // Spider is dead
         if (crosshairElement) crosshairElement.textContent = "✋";
         crosshairElement.classList.remove("crosshair-enemy-focus");
         enemyInfoContainer.style.display = "none";
-        lookingAtEnemy = false; // Not a live enemy target
         crosshairSetForSpecificTarget = true;
       } else if (spiderInstance) {
-        // Spider is alive
-        lookingAtEnemy = true;
         enemyInfoContainer.style.display = "block";
         crosshairElement.classList.add("crosshair-enemy-focus");
         if (crosshairElement) crosshairElement.textContent = "💢";
@@ -825,7 +775,6 @@ engine.runRenderLoop(() => {
       pickedMesh.metadata &&
       pickedMesh.metadata.interactableType === "chest"
     ) {
-      lookingAtInteractable = true;
       const chestInstance = pickedMesh.metadata.chestInstance as ClosedChest;
       if (crosshairElement) {
         crosshairElement.textContent = chestInstance.getDisplayIcon();
@@ -841,14 +790,11 @@ engine.runRenderLoop(() => {
     if (crosshairElement) crosshairElement.textContent = "•";
   }
 
-  // === MOON POSITION & VISIBILITY ===
-  // Use unclamped inclination for moon's orbit
   const unclampedInclination = (() => {
     if (
       cycleProgress >= sr_transition_start &&
       cycleProgress < sr_transition_end
     ) {
-      // Sunrise Transition
       const transProgress =
         (cycleProgress - sr_transition_start) / (dayNightTransitionWidth * 2);
       return sunAngleNight + transProgress * (sunAngleHorizon - sunAngleNight);
@@ -856,7 +802,6 @@ engine.runRenderLoop(() => {
       cycleProgress >= ss_transition_start &&
       cycleProgress < ss_transition_end
     ) {
-      // Sunset Transition
       const transProgress =
         (cycleProgress - ss_transition_start) / (dayNightTransitionWidth * 2);
       return (
@@ -866,7 +811,6 @@ engine.runRenderLoop(() => {
       cycleProgress >= sr_transition_end &&
       cycleProgress < ss_transition_start
     ) {
-      // Full Day
       if (cycleProgress < newMiddayPoint) {
         const morningProgress =
           (cycleProgress - sr_transition_end) /
@@ -883,11 +827,10 @@ engine.runRenderLoop(() => {
         );
       }
     } else {
-      // Full Night
       return sunAngleNight;
     }
   })();
-  const moonPhi = (unclampedInclination + 1) * Math.PI; // Always full orbit
+  const moonPhi = (unclampedInclination + 1) * Math.PI;
   const moonTheta = (skyboxMaterial.azimuth + 0.5) * 2 * Math.PI;
   const moonDistance = WORLD_CONFIG.MOON_DISTANCE_FROM_CAMERA;
   const moonPos = new Vector3(
@@ -896,12 +839,11 @@ engine.runRenderLoop(() => {
     Math.cos(moonPhi) * Math.cos(moonTheta) * moonDistance
   );
   moonPlane.position = moonPos;
-  // Fade moon in/out at night transitions
   let moonVisibility = 0;
   let moonLightIntensity = 0;
   if (targetNightSkyAlpha > 0.01) {
     moonVisibility = Math.min(1, targetNightSkyAlpha * 1.2);
-    moonLightIntensity = 0.4 * moonVisibility; // Brighter moonlight
+    moonLightIntensity = 0.4 * moonVisibility;
   }
   moonPlane.visibility = moonVisibility;
   moonLight.intensity = moonLightIntensity;
@@ -1075,24 +1017,24 @@ document.addEventListener("DOMContentLoaded", () => {
   );
 
   document.addEventListener("keydown", (event) => {
-    if (event.key.toLowerCase() === "tab") {
-      event.preventDefault();
+    const key = event.key.toLowerCase();
+    if (key === KEY_MAPPINGS.OPEN_TAB_MENU) {
       toggleTabMenu();
     }
-    if (event.key.toLowerCase() === "escape") {
+    if (key === KEY_MAPPINGS.EXIT_POINTER_LOCK) {
       if (engine.isPointerLock) engine.exitPointerlock();
     }
     if (!event.metaKey && !event.ctrlKey && !event.altKey) {
-      switch (event.key.toLowerCase()) {
-        case "i":
+      switch (key) {
+        case KEY_MAPPINGS.OPEN_INVENTORY_TAB:
           event.preventDefault();
           toggleTabMenu(TAB_MENU_CONFIG.INVENTORY_TAB_ID);
           break;
-        case "j":
+        case KEY_MAPPINGS.OPEN_JOURNAL_TAB:
           event.preventDefault();
           toggleTabMenu(TAB_MENU_CONFIG.JOURNAL_TAB_ID);
           break;
-        case "m":
+        case KEY_MAPPINGS.OPEN_MAP_TAB:
           event.preventDefault();
           toggleTabMenu(TAB_MENU_CONFIG.MAP_TAB_ID);
           break;
@@ -1108,9 +1050,7 @@ function handleConsoleCommand(command: string): void {
   if (!command) {
     return;
   }
-
   const lowerCommand = command.toLowerCase();
-
   if (lowerCommand.startsWith("set_time ")) {
     const timeString = command.substring("set_time ".length);
     const timeParts = timeString.split(":");
@@ -1134,28 +1074,22 @@ function handleConsoleCommand(command: string): void {
             minutes
           ).padStart(2, "0")}`
         );
-
-        // Apply the same lighting logic as in runRenderLoop
         const currentDaySkyMaterial = daySkybox.material as SkyMaterial;
         const currentNightSkyMaterial =
           nightSkybox.material as StandardMaterial;
-
         let targetInclinationUpdate: number;
         let targetHemisphericIntensityUpdate: number;
         let targetSunLightIntensityUpdate: number;
         let targetDaySkyLuminanceUpdate: number;
         let targetNightSkyAlphaUpdate: number;
-
         const sr_transition_start = newSunrisePoint - dayNightTransitionWidth;
         const sr_transition_end = newSunrisePoint + dayNightTransitionWidth;
         const ss_transition_start = newSunsetPoint - dayNightTransitionWidth;
         const ss_transition_end = newSunsetPoint + dayNightTransitionWidth;
-
         if (
           targetCycleProgress >= sr_transition_start &&
           targetCycleProgress < sr_transition_end
         ) {
-          // Sunrise Transition
           const transProgress =
             (targetCycleProgress - sr_transition_start) /
             (dayNightTransitionWidth * 2);
@@ -1169,7 +1103,6 @@ function handleConsoleCommand(command: string): void {
           targetCycleProgress >= ss_transition_start &&
           targetCycleProgress < ss_transition_end
         ) {
-          // Sunset Transition
           const transProgress =
             (targetCycleProgress - ss_transition_start) /
             (dayNightTransitionWidth * 2);
@@ -1183,12 +1116,10 @@ function handleConsoleCommand(command: string): void {
           targetCycleProgress >= sr_transition_end &&
           targetCycleProgress < ss_transition_start
         ) {
-          // Full Day
           targetHemisphericIntensityUpdate = 0.7;
           targetSunLightIntensityUpdate = 1.0;
           targetDaySkyLuminanceUpdate = 1.0;
           targetNightSkyAlphaUpdate = 0.0;
-
           if (targetCycleProgress < newMiddayPoint) {
             const morningProgress =
               (targetCycleProgress - sr_transition_end) /
@@ -1209,20 +1140,17 @@ function handleConsoleCommand(command: string): void {
             Math.min(sunAnglePeak, targetInclinationUpdate)
           );
         } else {
-          // Full Night
           targetInclinationUpdate = sunAngleNight;
           targetHemisphericIntensityUpdate = 0.05;
           targetSunLightIntensityUpdate = 0;
           targetDaySkyLuminanceUpdate = 0.005;
           targetNightSkyAlphaUpdate = 1.0;
         }
-
         currentDaySkyMaterial.inclination = targetInclinationUpdate;
         light.intensity = targetHemisphericIntensityUpdate;
         sunLight.intensity = targetSunLightIntensityUpdate;
         currentDaySkyMaterial.luminance = targetDaySkyLuminanceUpdate;
         currentNightSkyMaterial.alpha = targetNightSkyAlphaUpdate;
-
         if (currentDaySkyMaterial.useSunPosition) {
           const phi = currentDaySkyMaterial.inclination * Math.PI;
           const theta = currentDaySkyMaterial.azimuth * 2 * Math.PI;
@@ -1242,24 +1170,17 @@ function handleConsoleCommand(command: string): void {
   } else if (lowerCommand === KEY_MAPPINGS.TOGGLE_DEBUG) {
     isDebugModeEnabled = !isDebugModeEnabled;
     console.log(`Debug mode ${isDebugModeEnabled ? "enabled" : "disabled"}.`);
-
-    // Toggle visibility of playerBodyMesh
     if (playerBodyMesh) {
       playerBodyMesh.isVisible = isDebugModeEnabled;
     }
-
-    // Toggle visibility of wall colliders
     for (let i = 1; i <= 4; i++) {
       const wall = scene.getMeshByName(`wall${i}`);
       if (wall) {
         wall.isVisible = isDebugModeEnabled;
       }
     }
-
-    // Toggle visibility of other colliders (e.g., assets, enemies)
     scene.meshes.forEach((mesh) => {
       let processedAsSpiderColliderParent = false;
-      // If this mesh is a spider's visual part, its parent is likely the collider
       if (
         mesh.metadata &&
         mesh.metadata.enemyType === "spider" &&
@@ -1267,39 +1188,25 @@ function handleConsoleCommand(command: string): void {
         mesh.parent instanceof AbstractMesh
       ) {
         (mesh.parent as AbstractMesh).isVisible = isDebugModeEnabled;
-        processedAsSpiderColliderParent = true; // Mark that the parent (collider) was handled
+        processedAsSpiderColliderParent = true;
       }
-
-      // General rule for meshes named as colliders, unless it was the parent of a spider (already handled)
-      // or if it's the player or a wall (handled separately and explicitly).
-      // Also, don't try to make the spider's visual mesh itself visible via this rule if its name happens to end with "collider".
       if (
-        !processedAsSpiderColliderParent && // Avoid reprocessing if it was a spider parent handled above
+        !processedAsSpiderColliderParent &&
         mesh.name.toLowerCase().endsWith("collider") &&
         mesh !== playerBodyMesh &&
         !mesh.name.startsWith("wall")
       ) {
         mesh.isVisible = isDebugModeEnabled;
       }
-      // If the mesh itself is a spider visual AND its parent was NOT the collider (e.g. no parent, or parent not a mesh)
-      // AND this visual mesh happens to be named like a collider, the above generic rule might make the visual mesh visible.
-      // This is generally not what we want for spider visuals; we only want their physics colliders visible.
-      // However, the current logic focuses on making colliders visible. If a visual part is named "collider", it might become visible.
-      // This scenario is less common.
     });
-
-    // TODO: In the future, implement a more universal abstraction for managing debug visibility
-    // of all colliders in the scene without specific mentions of entity types like 'spider'
-    // or naming conventions like 'endsWith("collider")'. This could involve a component system
-    // or a dedicated registry for physics-related debug meshes.
   } else {
     console.log(`Unknown command: ${command}`);
   }
 }
 
 window.addEventListener("keydown", (event) => {
-  if (event.key === "/" || event.key === "~") {
-    event.preventDefault();
+  const key = event.key.toLowerCase();
+  if (key === KEY_MAPPINGS.TOGGLE_CONSOLE || (event.shiftKey && key === "~")) {
     const input = window.prompt("Enter command:");
     if (input) {
       handleConsoleCommand(input);
@@ -1311,7 +1218,6 @@ deathScreen.classList.add("hidden");
 
 async function setupGameAndPhysics() {
   console.log("Attempting to initialize Havok Physics...");
-  // 1. Initialize Havok Physics Engine
   try {
     havokInstance = await HavokPhysics({
       locateFile: (file: string) => {
@@ -1330,23 +1236,16 @@ async function setupGameAndPhysics() {
       "Havok physics engine failed to load or an error occurred during init:",
       e
     );
-    // Optionally, fall back to a different physics engine or show an error message.
-    // For now, we'll just log and potentially not enable physics.
-    // To prevent further errors, we can return early or set a flag.
     return;
   }
-
   if (!havokInstance) {
     console.error(
       "Havok physics engine could not be initialized (HavokPhysics() returned null/undefined)."
     );
     return;
   }
-
   const havokPlugin = new HavokPlugin(true, havokInstance);
   scene.enablePhysics(new Vector3(0, PHYSICS_CONFIG.GRAVITY_Y, 0), havokPlugin);
-
-  // 2. Setup Ground with Physics (ground mesh is already created globally)
   const groundAggregate = new PhysicsAggregate(
     ground,
     PhysicsShapeType.BOX,
@@ -1357,8 +1256,6 @@ async function setupGameAndPhysics() {
     },
     scene
   );
-
-  // 3. Setup Walls with Physics
   wallPositions.forEach((props, i) => {
     const wall = MeshBuilder.CreateBox(
       `wall${i + 1}`,
@@ -1366,7 +1263,7 @@ async function setupGameAndPhysics() {
       scene
     );
     wall.position = new Vector3(props[0], wallHeight / 2, props[1]);
-    wall.isVisible = false; // Keep them invisible
+    wall.isVisible = false;
     const wallAggregate = new PhysicsAggregate(
       wall,
       PhysicsShapeType.BOX,
@@ -1379,10 +1276,8 @@ async function setupGameAndPhysics() {
     );
   });
 
-  // 4. Setup Player (Camera) Physics
-  const playerStartPos = new Vector3(0, 1.0, -5); // Base of the capsule on the ground
+  const playerStartPos = new Vector3(0, 1.0, -5);
   const playerEyeHeightOffset = PLAYER_CONFIG.PLAYER_EYE_HEIGHT_OFFSET;
-
   playerBodyMesh = MeshBuilder.CreateCapsule(
     "playerBody",
     { radius: playerRadius, height: playerHeight, tessellation: 20 },
@@ -1390,8 +1285,7 @@ async function setupGameAndPhysics() {
   );
   playerBodyMesh.position = playerStartPos.clone();
   playerBodyMesh.position.y = playerStartPos.y + playerHeight / 2;
-  playerBodyMesh.isVisible = false; // The physics body is invisible
-
+  playerBodyMesh.isVisible = false;
   playerBodyAggregate = new PhysicsAggregate(
     playerBodyMesh,
     PhysicsShapeType.CAPSULE,
@@ -1399,32 +1293,22 @@ async function setupGameAndPhysics() {
       mass: PLAYER_CONFIG.PLAYER_MASS,
       friction: PLAYER_CONFIG.PLAYER_FRICTION,
       restitution: PLAYER_CONFIG.PLAYER_RESTITUTION,
-      // Define capsule explicitly with pointA, pointB, and radius for PhysicsAggregate
-      pointA: new Vector3(0, -(playerHeight / 2 - playerRadius), 0), // Bottom sphere center
-      pointB: new Vector3(0, playerHeight / 2 - playerRadius, 0), // Top sphere center
+      pointA: new Vector3(0, -(playerHeight / 2 - playerRadius), 0),
+      pointB: new Vector3(0, playerHeight / 2 - playerRadius, 0),
       radius: playerRadius,
     },
     scene
   );
-
   if (playerBodyAggregate.body) {
     playerBodyAggregate.body.setMassProperties({
       inertia: new Vector3(0, 0, 0),
-    }); // Prevent capsule from falling over
+    });
   } else {
     console.error("Failed to create physics body for player.");
   }
-
-  // Parent the camera to the playerBodyMesh
   camera.parent = playerBodyMesh;
-  camera.position = new Vector3(0, playerEyeHeightOffset, 0); // Eye position relative to playerBodyMesh center
-  // If playerBodyMesh center is at playerHeight/2,
-  // and eye is at ~0.9 * playerHeight from base, then relative offset is
-  // (0.9 * H) - H/2 = 0.4 * H. For H=1.6, this is 0.64.
-  // Let's use a simpler fixed offset for now.
+  camera.position = new Vector3(0, playerEyeHeightOffset, 0);
 
-  // 5. Load Static Assets with Colliders (PhysicsAggregate)
-  // These calls are now made after physics is initialized
   await loadAssetWithCollider(
     "palmTree1",
     "PIRATE_KIT_MODELS",
@@ -1432,7 +1316,7 @@ async function setupGameAndPhysics() {
     scene,
     new Vector3(10, 0, 10),
     new Vector3(2, 2, 2),
-    false, // isDynamic
+    false,
     undefined,
     3.0,
     undefined,
@@ -1445,7 +1329,7 @@ async function setupGameAndPhysics() {
     scene,
     new Vector3(5, 0, 15),
     new Vector3(1.8, 1.8, 1.8),
-    false, // isDynamic
+    false,
     undefined,
     2.7,
     undefined,
@@ -1458,13 +1342,12 @@ async function setupGameAndPhysics() {
     scene,
     new Vector3(-5, 0, 15),
     new Vector3(2.2, 2.2, 2.2),
-    false, //isDynamic
+    false,
     undefined,
     3.3,
     undefined,
     3.3
   );
-
   await loadAssetWithCollider(
     "chestClosed",
     "PIRATE_KIT_MODELS",
@@ -1472,7 +1355,7 @@ async function setupGameAndPhysics() {
     scene,
     new Vector3(18, 0, 18),
     new Vector3(1, 1, 1),
-    false, // isDynamicCollider = false for a static chest
+    false,
     (collider) => {
       new ClosedChest(collider as Mesh, true, "key_old_chest", () => {
         if (collider.metadata && collider.metadata.chestInstance) {
@@ -1491,37 +1374,9 @@ async function setupGameAndPhysics() {
     2.25,
     2.25
   );
-
-  // 6. Initialize Dynamic Game Assets (Spiders, Sword)
-  await initializeGameAssets(); // This function will need to be aware of physics for spiders
-  // Sword is parented to camera, likely no physics body for sword itself for now.
-
-  scene.onPointerDown = (evt) => {
-    if (
-      evt.button === 0 &&
-      playerSwordInstance &&
-      !playerIsDead &&
-      !playerSwordInstance.getIsSwinging()
-    ) {
-      playerSwordInstance.swing(
-        PLAYER_CONFIG.CROSSHAIR_MAX_DISTANCE,
-        (mesh) => mesh.metadata && mesh.metadata.enemyType === "spider",
-        (_targetMesh, instance) => {
-          const spiderInstance = instance as Spider;
-          if (
-            spiderInstance &&
-            spiderInstance.currentHealth > 0 &&
-            playerSwordInstance
-          ) {
-            spiderInstance.takeDamage(playerSwordInstance.attackDamage);
-          }
-        }
-      );
-    }
-  };
+  await initializeGameAssets();
 }
 
-// Call the main setup function
 setupGameAndPhysics().catch((error) => {
   console.error("Error during game and physics setup:", error);
 });

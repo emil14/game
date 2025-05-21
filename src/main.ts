@@ -272,14 +272,25 @@ skyboxMaterial.azimuth = 0.25;
 skyboxMaterial.luminance = 1.0;
 skyboxMaterial.disableDepthWrite = true;
 
+// NIGHT SKYBOX SETUP (now using WebP for better compression and performance)
+// Babylon.js supports WebP in all modern browsers
 const nightSkyboxMaterial = new StandardMaterial("nightSkyboxMaterial", scene);
 nightSkyboxMaterial.backFaceCulling = false;
 nightSkyboxMaterial.reflectionTexture = new CubeTexture(
   "assets/skybox/night/bkg1",
   scene,
-  ["_right.png", "_top.png", "_front.png", "_left.png", "_bot.png", "_back.png"]
+  [
+    "_right.webp", // right
+    "_top.webp", // top
+    "_front.webp", // front
+    "_left.webp", // left
+    "_bot.webp", // bottom
+    "_back.webp", // back
+  ]
 );
-nightSkyboxMaterial.reflectionTexture.coordinatesMode = 5;
+if (nightSkyboxMaterial.reflectionTexture) {
+  nightSkyboxMaterial.reflectionTexture.coordinatesMode = Texture.SKYBOX_MODE;
+}
 nightSkyboxMaterial.disableLighting = true;
 nightSkyboxMaterial.alpha = 0.0;
 nightSkyboxMaterial.disableDepthWrite = true;

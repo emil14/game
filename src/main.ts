@@ -738,16 +738,28 @@ engine.runRenderLoop(() => {
   );
   let lookingAtEnemy = false;
   let lookingAtInteractable = false;
+  let crosshairSetForSpecificTarget = false;
 
   if (pickInfo && pickInfo.hit && pickInfo.pickedMesh) {
     const pickedMesh = pickInfo.pickedMesh;
     if (pickedMesh.metadata && pickedMesh.metadata.enemyType === "spider") {
-      lookingAtEnemy = true;
-      enemyInfoContainer.style.display = "block";
-      crosshairElement.classList.add("crosshair-enemy-focus");
-      if (crosshairElement) crosshairElement.textContent = "💢";
       const spiderInstance = pickedMesh.metadata.instance as Spider;
-      if (spiderInstance) {
+      if (
+        spiderInstance &&
+        (spiderInstance.getIsDying() || spiderInstance.currentHealth <= 0)
+      ) {
+        // Spider is dead
+        if (crosshairElement) crosshairElement.textContent = "✋";
+        crosshairElement.classList.remove("crosshair-enemy-focus");
+        enemyInfoContainer.style.display = "none";
+        lookingAtEnemy = false; // Not a live enemy target
+        crosshairSetForSpecificTarget = true;
+      } else if (spiderInstance) {
+        // Spider is alive
+        lookingAtEnemy = true;
+        enemyInfoContainer.style.display = "block";
+        crosshairElement.classList.add("crosshair-enemy-focus");
+        if (crosshairElement) crosshairElement.textContent = "💢";
         enemyNameText.textContent = spiderInstance.name;
         enemyLevelText.textContent = `| Lvl ${spiderInstance.level}`;
         enemyHealthText.textContent = `${spiderInstance.currentHealth.toFixed(
@@ -756,6 +768,7 @@ engine.runRenderLoop(() => {
         enemyHealthBarFill.style.width = `${
           (spiderInstance.currentHealth / spiderInstance.maxHealth) * 100
         }%`;
+        crosshairSetForSpecificTarget = true;
       }
     } else if (
       pickedMesh.metadata &&
@@ -768,9 +781,10 @@ engine.runRenderLoop(() => {
         crosshairElement.classList.remove("crosshair-enemy-focus");
       }
       enemyInfoContainer.style.display = "none";
+      crosshairSetForSpecificTarget = true;
     }
   }
-  if (!lookingAtEnemy && !lookingAtInteractable) {
+  if (!crosshairSetForSpecificTarget) {
     enemyInfoContainer.style.display = "none";
     crosshairElement.classList.remove("crosshair-enemy-focus");
     if (crosshairElement) crosshairElement.textContent = "•";

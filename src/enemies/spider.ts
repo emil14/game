@@ -515,24 +515,36 @@ export class Spider {
     this.idleAnimation?.stop();
     this.attackAnimation?.stop();
 
-    // if (this.collider) {
-    //   this.collider.checkCollisions = false;
-    // }
     this.physicsAggregate?.dispose(); // Dispose of the physics body from the simulation
+
+    const cleanupInstanceAnimations = () => {
+      this.walkAnimation?.dispose();
+      this.idleAnimation?.dispose();
+      this.attackAnimation?.dispose();
+      this.deathAnimation?.dispose();
+      // @ts-ignore
+      this.walkAnimation = null;
+      // @ts-ignore
+      this.idleAnimation = null;
+      // @ts-ignore
+      this.attackAnimation = null;
+      // @ts-ignore
+      this.deathAnimation = null;
+    };
 
     if (this.deathAnimation) {
       this.deathAnimation.play(false); // Play once
       // Use a local reference for the observable in case 'this' changes context or dispose is called early
       const deathAnimObservable =
         this.deathAnimation.onAnimationEndObservable.addOnce(() => {
-          this.disposeMeshes();
+          cleanupInstanceAnimations();
         });
       if (!deathAnimObservable && this.deathAnimation.isPlaying === false) {
         // Safety for non-looping anim that might not fire if already at end
-        this.disposeMeshes();
+        cleanupInstanceAnimations();
       }
     } else {
-      this.disposeMeshes();
+      cleanupInstanceAnimations();
     }
   }
 
@@ -572,6 +584,14 @@ export class Spider {
   }
 
   /**
+   * Checks if the spider is currently in the process of dying (e.g., death animation playing).
+   * @returns True if the spider is dying, false otherwise.
+   */
+  public getIsDying(): boolean {
+    return this.isDying;
+  }
+
+  /**
    * Public method for explicit cleanup of the spider from the game.
    * Ensures that death processes are triggered if the spider is still alive and not already dying.
    * If already dead but meshes not disposed (e.g. interrupted death anim), disposes meshes.
@@ -579,10 +599,14 @@ export class Spider {
   public dispose(): void {
     if (this.currentHealth > 0 && !this.isDying) {
       this.die();
-    } else if (!this.isDying) {
-      // Already "logically" dead, ensure meshes are cleaned if not already via death anim
+    } else if (this.currentHealth <= 0 && !this.isDying) {
+      // This case handles when the spider is marked as having no health,
+      // but the formal 'die()' process hasn't been initiated.
+      // Here, a full cleanup including meshes is performed.
       this.disposeMeshes();
     }
-    // If isDying, meshes will be (or are being) disposed by the die() method's animation callback.
+    // If isDying is true, it means die() has been called.
+    // The die() method now handles preserving the mesh and cleaning up animations and physics.
+    // So, no further action is needed here for that case.
   }
 }

@@ -292,7 +292,7 @@ const daySkybox = MeshBuilder.CreateBox("daySkyBox", { size: 1000 }, scene);
 daySkybox.material = skyboxMaterial;
 daySkybox.infiniteDistance = true;
 
-const nightSkybox = MeshBuilder.CreateBox("nightSkyBox", { size: 1000 }, scene);
+const nightSkybox = MeshBuilder.CreateBox("nightSkybox", { size: 1000 }, scene);
 nightSkybox.material = nightSkyboxMaterial;
 nightSkybox.infiniteDistance = true;
 
@@ -305,6 +305,32 @@ const wallPositions = [
   [-groundSize / 2, 0, wallThickness, groundSize],
   [groundSize / 2, 0, wallThickness, groundSize],
 ];
+
+// === MOON SETUP ===
+const moonTexture = new Texture("assets/skybox/moon.png", scene);
+const moonMaterial = new StandardMaterial("moonMaterial", scene);
+moonMaterial.diffuseTexture = moonTexture;
+moonMaterial.emissiveTexture = moonTexture;
+moonMaterial.disableLighting = true;
+moonMaterial.backFaceCulling = false;
+moonMaterial.alpha = 1.0;
+const moonPlane = MeshBuilder.CreatePlane("moonPlane", { size: 32 }, scene);
+moonPlane.material = moonMaterial;
+moonPlane.infiniteDistance = true;
+moonPlane.isPickable = false;
+moonPlane.alwaysSelectAsActiveMesh = false;
+moonPlane.visibility = 0; // Start hidden
+moonPlane.billboardMode = Mesh.BILLBOARDMODE_ALL;
+
+// Moonlight (dim directional light)
+const moonLight = new DirectionalLight(
+  "moonLight",
+  new Vector3(0, -1, 0),
+  scene
+);
+moonLight.intensity = 0;
+moonLight.diffuse = new Color3(0.7, 0.8, 1.0);
+moonLight.specular = new Color3(0.8, 0.9, 1.0);
 
 async function loadAssetWithCollider(
   name: string,
@@ -730,6 +756,73 @@ engine.runRenderLoop(() => {
       if (crosshairElement) crosshairElement.textContent = "•";
     }
   }
+
+  // === MOON POSITION & VISIBILITY ===
+  // Use unclamped inclination for moon's orbit
+  const unclampedInclination = (() => {
+    if (
+      cycleProgress >= sr_transition_start &&
+      cycleProgress < sr_transition_end
+    ) {
+      // Sunrise Transition
+      const transProgress =
+        (cycleProgress - sr_transition_start) / (dayNightTransitionWidth * 2);
+      return sunAngleNight + transProgress * (sunAngleHorizon - sunAngleNight);
+    } else if (
+      cycleProgress >= ss_transition_start &&
+      cycleProgress < ss_transition_end
+    ) {
+      // Sunset Transition
+      const transProgress =
+        (cycleProgress - ss_transition_start) / (dayNightTransitionWidth * 2);
+      return (
+        sunAngleHorizon - transProgress * (sunAngleHorizon - sunAngleNight)
+      );
+    } else if (
+      cycleProgress >= sr_transition_end &&
+      cycleProgress < ss_transition_start
+    ) {
+      // Full Day
+      if (cycleProgress < newMiddayPoint) {
+        const morningProgress =
+          (cycleProgress - sr_transition_end) /
+          (newMiddayPoint - sr_transition_end);
+        return (
+          sunAngleHorizon + morningProgress * (sunAnglePeak - sunAngleHorizon)
+        );
+      } else {
+        const afternoonProgress =
+          (cycleProgress - newMiddayPoint) /
+          (ss_transition_start - newMiddayPoint);
+        return (
+          sunAnglePeak - afternoonProgress * (sunAnglePeak - sunAngleHorizon)
+        );
+      }
+    } else {
+      // Full Night
+      return sunAngleNight;
+    }
+  })();
+  const moonPhi = (unclampedInclination + 1) * Math.PI; // Always full orbit
+  const moonTheta = (skyboxMaterial.azimuth + 0.5) * 2 * Math.PI;
+  const moonDistance = 400;
+  const moonPos = new Vector3(
+    Math.cos(moonPhi) * Math.sin(moonTheta) * moonDistance,
+    Math.sin(moonPhi) * moonDistance,
+    Math.cos(moonPhi) * Math.cos(moonTheta) * moonDistance
+  );
+  moonPlane.position = moonPos;
+  // Fade moon in/out at night transitions
+  let moonVisibility = 0;
+  let moonLightIntensity = 0;
+  if (targetNightSkyAlpha > 0.01) {
+    moonVisibility = Math.min(1, targetNightSkyAlpha * 1.2);
+    moonLightIntensity = 0.4 * moonVisibility; // Brighter moonlight
+  }
+  moonPlane.visibility = moonVisibility;
+  moonLight.intensity = moonLightIntensity;
+  moonMaterial.emissiveColor = new Color3(1, 1, 1);
+  light.intensity = targetHemisphericIntensity * (1 - 0.5 * moonVisibility);
 
   scene.render();
   if (fpsDisplay) fpsDisplay.textContent = "FPS: " + engine.getFps().toFixed();

@@ -71,6 +71,9 @@ let playerBodyMesh: Mesh;
 let spiders: Spider[] = [];
 let playerSwordInstance: Sword | null = null;
 
+let isDebugModeEnabled = false;
+let debugRayHelper: RayHelper | null = null;
+
 const camera = new FreeCamera("camera1", new Vector3(0, 1.6, -5), scene);
 camera.maxZ = 10000;
 camera.setTarget(Vector3.Zero());
@@ -699,7 +702,22 @@ engine.runRenderLoop(() => {
   const forwardDirection = camera.getDirection(Vector3.Forward()); // Get the camera's forward direction
   const ray = new Ray(rayOrigin, forwardDirection, crosshairMaxDistance); // Create the ray
 
-  // RayHelper.CreateAndShow(ray, scene, new Color3(1, 1, 0));
+  // RayHelper logic based on isDebugModeEnabled
+  if (isDebugModeEnabled) {
+    if (!debugRayHelper) {
+      // Only create if it doesn't exist
+      debugRayHelper = RayHelper.CreateAndShow(ray, scene, new Color3(1, 1, 0)); // Yellow color for the ray
+    } else {
+      // If it already exists, just update its ray
+      debugRayHelper.ray = ray;
+    }
+  } else {
+    if (debugRayHelper) {
+      // Only dispose if it exists
+      debugRayHelper.dispose();
+      debugRayHelper = null;
+    }
+  }
 
   const pickInfo = scene.pickWithRay(
     ray,
@@ -1123,8 +1141,61 @@ function handleConsoleCommand(command: string): void {
         );
       }
     }
-  } else if (lowerCommand === "enable_debug") {
+  } else if (lowerCommand === "inspect") {
     scene.debugLayer.show();
+  } else if (lowerCommand === "debug") {
+    isDebugModeEnabled = !isDebugModeEnabled;
+    console.log(`Debug mode ${isDebugModeEnabled ? "enabled" : "disabled"}.`);
+
+    // Toggle visibility of playerBodyMesh
+    if (playerBodyMesh) {
+      playerBodyMesh.isVisible = isDebugModeEnabled;
+    }
+
+    // Toggle visibility of wall colliders
+    for (let i = 1; i <= 4; i++) {
+      const wall = scene.getMeshByName(`wall${i}`);
+      if (wall) {
+        wall.isVisible = isDebugModeEnabled;
+      }
+    }
+
+    // Toggle visibility of other colliders (e.g., assets, enemies)
+    scene.meshes.forEach((mesh) => {
+      let processedAsSpiderColliderParent = false;
+      // If this mesh is a spider's visual part, its parent is likely the collider
+      if (
+        mesh.metadata &&
+        mesh.metadata.enemyType === "spider" &&
+        mesh.parent &&
+        mesh.parent instanceof AbstractMesh
+      ) {
+        (mesh.parent as AbstractMesh).isVisible = isDebugModeEnabled;
+        processedAsSpiderColliderParent = true; // Mark that the parent (collider) was handled
+      }
+
+      // General rule for meshes named as colliders, unless it was the parent of a spider (already handled)
+      // or if it's the player or a wall (handled separately and explicitly).
+      // Also, don't try to make the spider's visual mesh itself visible via this rule if its name happens to end with "collider".
+      if (
+        !processedAsSpiderColliderParent && // Avoid reprocessing if it was a spider parent handled above
+        mesh.name.toLowerCase().endsWith("collider") &&
+        mesh !== playerBodyMesh &&
+        !mesh.name.startsWith("wall")
+      ) {
+        mesh.isVisible = isDebugModeEnabled;
+      }
+      // If the mesh itself is a spider visual AND its parent was NOT the collider (e.g. no parent, or parent not a mesh)
+      // AND this visual mesh happens to be named like a collider, the above generic rule might make the visual mesh visible.
+      // This is generally not what we want for spider visuals; we only want their physics colliders visible.
+      // However, the current logic focuses on making colliders visible. If a visual part is named "collider", it might become visible.
+      // This scenario is less common.
+    });
+
+    // TODO: In the future, implement a more universal abstraction for managing debug visibility
+    // of all colliders in the scene without specific mentions of entity types like 'spider'
+    // or naming conventions like 'endsWith("collider")'. This could involve a component system
+    // or a dedicated registry for physics-related debug meshes.
   } else {
     console.log(`Unknown command: ${command}`);
   }

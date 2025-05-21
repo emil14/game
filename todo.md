@@ -8,6 +8,7 @@
 
 # TODO
 
+- when player is sitting, his stamina should regen x1.5 faster
 - day skybox
 - do not destroy spider's body after his dead, instead apply ragdoll to it
 - make jumps more "real"

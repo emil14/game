@@ -30,30 +30,63 @@ import { ClosedChest } from "./interactables";
 import { Spider } from "./enemies/spider";
 import { Sword } from "./weapons/sword";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture";
+import {
+  UI_ELEMENT_IDS,
+  PLAYER_CONFIG,
+  CAMERA_CONFIG,
+  WORLD_CONFIG,
+  ASSET_PATHS,
+  PHYSICS_CONFIG,
+  KEY_MAPPINGS,
+  GAME_SETTINGS,
+  TAB_MENU_CONFIG,
+} from "./config";
 
-const canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
-const fpsDisplay = document.getElementById("fpsDisplay") as HTMLElement;
-const staminaText = document.getElementById("staminaText") as HTMLElement;
-const staminaBarFill = document.getElementById("staminaBarFill") as HTMLElement;
-const healthText = document.getElementById("healthText") as HTMLElement;
-const healthBarFill = document.getElementById("healthBarFill") as HTMLElement;
+const canvas = document.getElementById(
+  UI_ELEMENT_IDS.RENDER_CANVAS
+)! as HTMLCanvasElement;
+const fpsDisplay = document.getElementById(
+  UI_ELEMENT_IDS.FPS_DISPLAY
+)! as HTMLElement;
+const staminaText = document.getElementById(
+  UI_ELEMENT_IDS.STAMINA_TEXT
+)! as HTMLElement;
+const staminaBarFill = document.getElementById(
+  UI_ELEMENT_IDS.STAMINA_BAR_FILL
+)! as HTMLElement;
+const healthText = document.getElementById(
+  UI_ELEMENT_IDS.HEALTH_TEXT
+)! as HTMLElement;
+const healthBarFill = document.getElementById(
+  UI_ELEMENT_IDS.HEALTH_BAR_FILL
+)! as HTMLElement;
 const bloodScreenEffect = document.getElementById(
-  "bloodScreenEffect"
-) as HTMLElement;
+  UI_ELEMENT_IDS.BLOOD_SCREEN_EFFECT
+)! as HTMLElement;
 const enemyInfoContainer = document.getElementById(
-  "enemyInfoContainer"
-) as HTMLElement;
+  UI_ELEMENT_IDS.ENEMY_INFO_CONTAINER
+)! as HTMLElement;
 const enemyHealthText = document.getElementById(
-  "enemyHealthText"
-) as HTMLElement;
+  UI_ELEMENT_IDS.ENEMY_HEALTH_TEXT
+)! as HTMLElement;
 const enemyHealthBarFill = document.getElementById(
-  "enemyHealthBarFill"
-) as HTMLElement;
-const enemyNameText = document.getElementById("enemyNameText") as HTMLElement;
-const enemyLevelText = document.getElementById("enemyLevelText") as HTMLElement;
-const crosshairElement = document.getElementById("crosshair") as HTMLElement;
-const fightMusic = document.getElementById("fightMusic") as HTMLAudioElement;
-const deathScreen = document.getElementById("deathScreen") as HTMLElement;
+  UI_ELEMENT_IDS.ENEMY_HEALTH_BAR_FILL
+)! as HTMLElement;
+const enemyNameText = document.getElementById(
+  UI_ELEMENT_IDS.ENEMY_NAME_TEXT
+)! as HTMLElement;
+const enemyLevelText = document.getElementById(
+  UI_ELEMENT_IDS.ENEMY_LEVEL_TEXT
+)! as HTMLElement;
+const crosshairElement = document.getElementById(
+  UI_ELEMENT_IDS.CROSSHAIR
+)! as HTMLElement;
+const fightMusic = document.getElementById(
+  UI_ELEMENT_IDS.FIGHT_MUSIC
+) as HTMLAudioElement | null;
+const deathScreen = document.getElementById(
+  UI_ELEMENT_IDS.DEATH_SCREEN
+)! as HTMLElement;
 
 crosshairElement.textContent = "•";
 
@@ -71,42 +104,46 @@ let playerBodyMesh: Mesh;
 let spiders: Spider[] = [];
 let playerSwordInstance: Sword | null = null;
 
-let isDebugModeEnabled = false;
+let isDebugModeEnabled = GAME_SETTINGS.DEBUG_START_MODE;
 let debugRayHelper: RayHelper | null = null;
 
-const camera = new FreeCamera("camera1", new Vector3(0, 1.6, -5), scene);
-camera.maxZ = 10000;
+const camera = new FreeCamera(
+  "camera1",
+  new Vector3(0, CAMERA_CONFIG.STAND_CAMERA_Y, -5),
+  scene
+);
+camera.maxZ = CAMERA_CONFIG.MAX_Z;
 camera.setTarget(Vector3.Zero());
 camera.attachControl(canvas, true);
 camera.inputs.remove(camera.inputs.attached.keyboard);
 
-const crosshairMaxDistance = 30;
+const crosshairMaxDistance = PLAYER_CONFIG.CROSSHAIR_MAX_DISTANCE;
 
-const defaultSpeed = 2.0;
-const runSpeedMultiplier = 2.0;
-camera.angularSensibility = 2000;
-camera.inertia = 0;
+const defaultSpeed = PLAYER_CONFIG.DEFAULT_SPEED;
+const runSpeedMultiplier = PLAYER_CONFIG.RUN_SPEED_MULTIPLIER;
+camera.angularSensibility = CAMERA_CONFIG.ANGULAR_SENSIBILITY;
+camera.inertia = CAMERA_CONFIG.INERTIA;
 
 let isCrouching = false;
-const crouchSpeedMultiplier = 0.5;
-const crouchCameraPositionY = 1.0;
-const standCameraPositionY = 1.6;
+const crouchSpeedMultiplier = PLAYER_CONFIG.CROUCH_SPEED_MULTIPLIER;
+const crouchCameraPositionY = CAMERA_CONFIG.CROUCH_CAMERA_Y;
+const standCameraPositionY = CAMERA_CONFIG.STAND_CAMERA_Y;
 
 // Jump parameters
-const jumpForce = 5; // The upward force applied for a jump
-const jumpStaminaCost = 15; // Stamina consumed per jump
-const groundCheckDistance = 0.2; // How far below the player to check for ground
+const jumpForce = PLAYER_CONFIG.JUMP_FORCE; // The upward force applied for a jump
+const jumpStaminaCost = PLAYER_CONFIG.JUMP_STAMINA_COST; // Stamina consumed per jump
+const groundCheckDistance = PHYSICS_CONFIG.GROUND_CHECK_DISTANCE; // How far below the player to check for ground
 
 // Player capsule dimensions (should match setupGameAndPhysics)
-const playerHeight = 1.6; // Must match playerHeight in setupGameAndPhysics
-const playerRadius = 0.4; // Must match playerRadius in setupGameAndPhysics
+const playerHeight = PLAYER_CONFIG.PLAYER_HEIGHT; // Must match playerHeight in setupGameAndPhysics
+const playerRadius = PLAYER_CONFIG.PLAYER_RADIUS; // Must match playerRadius in setupGameAndPhysics
 
-let maxStamina = 100;
+let maxStamina = PLAYER_CONFIG.MAX_STAMINA;
 let currentStamina = maxStamina;
-const staminaDepletionRate = 10;
-const staminaRegenerationRate = 5;
+const staminaDepletionRate = PLAYER_CONFIG.STAMINA_DEPLETION_RATE;
+const staminaRegenerationRate = PLAYER_CONFIG.STAMINA_REGENERATION_RATE;
 
-let maxHealth = 100;
+let maxHealth = PLAYER_CONFIG.MAX_HEALTH;
 let currentHealth = maxHealth;
 let playerIsDead = false;
 let keyRPressed = false;
@@ -121,19 +158,19 @@ let isInFightMode = false;
 let isSprinting = false;
 
 window.addEventListener("keydown", (event) => {
-  const keyCode = event.keyCode;
+  const key = event.key.toLowerCase();
 
-  if (keyCode === 16) {
+  if (event.code === "ShiftLeft" || event.code === "ShiftRight") {
     if (currentStamina > 0 && !isSprinting && !playerIsDead) {
       isSprinting = true;
     }
-  } else if (keyCode === 87) isMovingForward = true;
-  else if (keyCode === 83) isMovingBackward = true;
-  else if (keyCode === 65) isMovingLeft = true;
-  else if (keyCode === 68) isMovingRight = true;
-  else if (keyCode === 67 && !playerIsDead) {
+  } else if (key === KEY_MAPPINGS.FORWARD) isMovingForward = true;
+  else if (key === KEY_MAPPINGS.BACKWARD) isMovingBackward = true;
+  else if (key === KEY_MAPPINGS.LEFT) isMovingLeft = true;
+  else if (key === KEY_MAPPINGS.RIGHT) isMovingRight = true;
+  else if (key === KEY_MAPPINGS.CROUCH && !playerIsDead) {
     isCrouching = !isCrouching;
-  } else if (keyCode === 32 && !playerIsDead) {
+  } else if (key === KEY_MAPPINGS.JUMP && !playerIsDead) {
     const isOnGround = isPlayerOnGroundCheck(
       playerBodyMesh,
       scene,
@@ -155,22 +192,22 @@ window.addEventListener("keydown", (event) => {
       currentStamina -= jumpStaminaCost;
       updateStaminaBar(currentStamina, maxStamina); // Update UI immediately
     }
-  } else if (keyCode === 82) {
+  } else if (key === KEY_MAPPINGS.RESPAWN) {
     keyRPressed = true;
   }
 });
 
 window.addEventListener("keyup", (event) => {
-  const keyCode = event.keyCode;
-  if (keyCode === 16) {
+  const key = event.key.toLowerCase();
+  if (event.code === "ShiftLeft" || event.code === "ShiftRight") {
     if (isSprinting) {
       isSprinting = false;
     }
-  } else if (keyCode === 87) isMovingForward = false;
-  else if (keyCode === 83) isMovingBackward = false;
-  else if (keyCode === 65) isMovingLeft = false;
-  else if (keyCode === 68) isMovingRight = false;
-  else if (keyCode === 82) {
+  } else if (key === KEY_MAPPINGS.FORWARD) isMovingForward = false;
+  else if (key === KEY_MAPPINGS.BACKWARD) isMovingBackward = false;
+  else if (key === KEY_MAPPINGS.LEFT) isMovingLeft = false;
+  else if (key === KEY_MAPPINGS.RIGHT) isMovingRight = false;
+  else if (key === KEY_MAPPINGS.RESPAWN) {
     keyRPressed = false;
   }
 });
@@ -227,37 +264,43 @@ const playerLight = new PointLight(
   new Vector3(0, 0.5, 0),
   scene
 );
-playerLight.intensity = 0.3;
-playerLight.range = 10;
+playerLight.intensity = CAMERA_CONFIG.PLAYER_LIGHT_INTENSITY;
+playerLight.range = CAMERA_CONFIG.PLAYER_LIGHT_RANGE;
 playerLight.diffuse = new Color3(1, 0.9, 0.7);
 playerLight.parent = camera;
 
-const CYCLE_DURATION_SECONDS = 1440;
-let currentCycleTime = CYCLE_DURATION_SECONDS / 2;
+const CYCLE_DURATION_SECONDS = WORLD_CONFIG.CYCLE_DURATION_SECONDS;
+let currentCycleTime =
+  CYCLE_DURATION_SECONDS * WORLD_CONFIG.INITIAL_CYCLE_TIME_PROGRESS;
 
 // New Day/Night Cycle Parameters
-const NEW_SUNRISE_HOUR = 5;
-const NEW_SUNSET_HOUR = 20;
+const NEW_SUNRISE_HOUR = WORLD_CONFIG.NEW_SUNRISE_HOUR;
+const NEW_SUNSET_HOUR = WORLD_CONFIG.NEW_SUNSET_HOUR;
 
 const newSunrisePoint = NEW_SUNRISE_HOUR / 24; // Progress point for sunrise center
 const newSunsetPoint = NEW_SUNSET_HOUR / 24; // Progress point for sunset center
 const newMiddayPoint = (newSunrisePoint + newSunsetPoint) / 2; // Sun is highest
 
-const dayNightTransitionWidth = 0.05; // Half-width of the transition period (0.05 * 24h = 1.2h)
+const dayNightTransitionWidth =
+  WORLD_CONFIG.DAY_NIGHT_TRANSITION_WIDTH_HOURS_PORTION;
 
-const sunAngleNight = -0.2; // Sun inclination during full night
-const sunAngleHorizon = 0.0; // Sun inclination at horizon (sunrise/sunset peak)
-const sunAnglePeak = 0.5; // Sun inclination at midday peak
+const sunAngleNight = WORLD_CONFIG.SUN_ANGLE_NIGHT;
+const sunAngleHorizon = WORLD_CONFIG.SUN_ANGLE_HORIZON;
+const sunAnglePeak = WORLD_CONFIG.SUN_ANGLE_PEAK;
 
 const ground = MeshBuilder.CreateGround(
   "ground1",
-  { width: 50, height: 50, subdivisions: 2 },
+  {
+    width: WORLD_CONFIG.GROUND_SIZE,
+    height: WORLD_CONFIG.GROUND_SIZE,
+    subdivisions: 2,
+  },
   scene
 );
 const groundMaterial = new StandardMaterial("groundMaterial", scene);
 groundMaterial.diffuseColor = new Color3(0.9, 0.8, 0.6);
 // Add sand texture
-const sandTexture = new Texture("assets/textures/sand.png", scene);
+const sandTexture = new Texture(ASSET_PATHS.SAND_TEXTURE, scene);
 groundMaterial.diffuseTexture = sandTexture;
 (groundMaterial.diffuseTexture as any).uScale = 8; // Tile horizontally
 (groundMaterial.diffuseTexture as any).vScale = 8; // Tile vertically
@@ -265,11 +308,11 @@ ground.material = groundMaterial;
 
 const skyboxMaterial = new SkyMaterial("skyBoxMaterial", scene);
 skyboxMaterial.backFaceCulling = false;
-skyboxMaterial.turbidity = 10;
-skyboxMaterial.mieDirectionalG = 0.8;
+skyboxMaterial.turbidity = WORLD_CONFIG.SKYBOX_TURBIDITY;
+skyboxMaterial.mieDirectionalG = WORLD_CONFIG.SKYBOX_MIE_DIRECTIONAL_G;
 skyboxMaterial.useSunPosition = true;
-skyboxMaterial.azimuth = 0.25;
-skyboxMaterial.luminance = 1.0;
+skyboxMaterial.azimuth = WORLD_CONFIG.SKYBOX_AZIMUTH;
+skyboxMaterial.luminance = WORLD_CONFIG.SKYBOX_LUMINANCE;
 skyboxMaterial.disableDepthWrite = true;
 
 // NIGHT SKYBOX SETUP (now using WebP for better compression and performance)
@@ -277,7 +320,7 @@ skyboxMaterial.disableDepthWrite = true;
 const nightSkyboxMaterial = new StandardMaterial("nightSkyboxMaterial", scene);
 nightSkyboxMaterial.backFaceCulling = false;
 nightSkyboxMaterial.reflectionTexture = new CubeTexture(
-  "assets/skybox/night/bkg1",
+  ASSET_PATHS.SKYBOX_NIGHT,
   scene,
   [
     "_right.webp", // right
@@ -295,17 +338,25 @@ nightSkyboxMaterial.disableLighting = true;
 nightSkyboxMaterial.alpha = 0.0;
 nightSkyboxMaterial.disableDepthWrite = true;
 
-const daySkybox = MeshBuilder.CreateBox("daySkyBox", { size: 1000 }, scene);
+const daySkybox = MeshBuilder.CreateBox(
+  "daySkyBox",
+  { size: WORLD_CONFIG.GROUND_SIZE * 20 },
+  scene
+);
 daySkybox.material = skyboxMaterial;
 daySkybox.infiniteDistance = true;
 
-const nightSkybox = MeshBuilder.CreateBox("nightSkybox", { size: 1000 }, scene);
+const nightSkybox = MeshBuilder.CreateBox(
+  "nightSkybox",
+  { size: WORLD_CONFIG.GROUND_SIZE * 20 },
+  scene
+);
 nightSkybox.material = nightSkyboxMaterial;
 nightSkybox.infiniteDistance = true;
 
-const wallHeight = 100;
-const wallThickness = 0.1;
-const groundSize = 50;
+const wallHeight = WORLD_CONFIG.WALL_HEIGHT;
+const wallThickness = WORLD_CONFIG.WALL_THICKNESS;
+const groundSize = WORLD_CONFIG.GROUND_SIZE;
 const wallPositions = [
   [0, groundSize / 2, groundSize, wallThickness],
   [0, -groundSize / 2, groundSize, wallThickness],
@@ -314,7 +365,7 @@ const wallPositions = [
 ];
 
 // === MOON SETUP ===
-const moonTexture = new Texture("assets/skybox/moon.png", scene);
+const moonTexture = new Texture(ASSET_PATHS.MOON_TEXTURE, scene);
 const moonMaterial = new StandardMaterial("moonMaterial", scene);
 moonMaterial.diffuseTexture = moonTexture;
 moonMaterial.emissiveTexture = moonTexture;
@@ -341,8 +392,8 @@ moonLight.specular = new Color3(0.8, 0.9, 1.0);
 
 async function loadAssetWithCollider(
   name: string,
-  filePath: string,
-  fileName: string,
+  filePathKey: keyof typeof ASSET_PATHS,
+  fileNameKey: keyof typeof ASSET_PATHS,
   scene: Scene,
   position: Vector3,
   scaling: Vector3,
@@ -355,8 +406,8 @@ async function loadAssetWithCollider(
   try {
     const result = await SceneLoader.ImportMeshAsync(
       "",
-      filePath,
-      fileName,
+      ASSET_PATHS[filePathKey],
+      ASSET_PATHS[fileNameKey],
       scene
     );
     const visualMesh = result.meshes[0] as AbstractMesh;
@@ -438,7 +489,7 @@ async function initializeGameAssets() {
     const spiderInstance = await Spider.Create(
       scene,
       new Vector3(20, 0, 20),
-      defaultSpeed
+      PLAYER_CONFIG.DEFAULT_SPEED
     );
     spiders.push(spiderInstance);
     spiderInstance.setOnPlayerDamaged((damage: number) => {
@@ -838,7 +889,7 @@ engine.runRenderLoop(() => {
   })();
   const moonPhi = (unclampedInclination + 1) * Math.PI; // Always full orbit
   const moonTheta = (skyboxMaterial.azimuth + 0.5) * 2 * Math.PI;
-  const moonDistance = 400;
+  const moonDistance = WORLD_CONFIG.MOON_DISTANCE_FROM_CAMERA;
   const moonPos = new Vector3(
     Math.cos(moonPhi) * Math.sin(moonTheta) * moonDistance,
     Math.sin(moonPhi) * moonDistance,
@@ -866,19 +917,25 @@ window.addEventListener("resize", () => {
 });
 
 document.addEventListener("DOMContentLoaded", () => {
-  const tabMenu = document.getElementById("tab-menu") as HTMLElement;
+  const tabMenu = document.getElementById(
+    UI_ELEMENT_IDS.TAB_MENU
+  )! as HTMLElement;
   const mainUiContainer = document.querySelector(
-    ".ui-container"
-  ) as HTMLElement;
-  const fpsDisp = document.getElementById("fpsDisplay") as HTMLElement;
+    "." + UI_ELEMENT_IDS.UI_CONTAINER
+  ) as HTMLElement | null;
+  const fpsDisp = document.getElementById(
+    UI_ELEMENT_IDS.FPS_DISPLAY
+  )! as HTMLElement;
   const enemyInfoCont = document.getElementById(
-    "enemyInfoContainer"
-  ) as HTMLElement;
-  const crosshair = document.getElementById("crosshair") as HTMLElement;
+    UI_ELEMENT_IDS.ENEMY_INFO_CONTAINER
+  )! as HTMLElement;
+  const crosshair = document.getElementById(
+    UI_ELEMENT_IDS.CROSSHAIR
+  )! as HTMLElement;
 
   const tabNavigation = document.getElementById(
-    "tab-navigation"
-  ) as HTMLElement;
+    UI_ELEMENT_IDS.TAB_NAVIGATION
+  )! as HTMLElement;
   const tabButtons = Array.from(
     tabNavigation.querySelectorAll(".tab-button")
   ) as HTMLButtonElement[];
@@ -887,28 +944,31 @@ document.addEventListener("DOMContentLoaded", () => {
   ) as NodeListOf<HTMLElement>;
 
   const playerLevelDisplay = document.getElementById(
-    "player-level"
-  ) as HTMLElement;
+    UI_ELEMENT_IDS.PLAYER_LEVEL_TAB
+  )! as HTMLElement;
   const playerHealthDisplay = document.getElementById(
-    "player-health"
-  ) as HTMLElement;
+    UI_ELEMENT_IDS.PLAYER_HEALTH_TAB
+  )! as HTMLElement;
   const playerStaminaDisplay = document.getElementById(
-    "player-stamina"
-  ) as HTMLElement;
+    UI_ELEMENT_IDS.PLAYER_STAMINA_TAB
+  )! as HTMLElement;
   const playerExperienceDisplay = document.getElementById(
-    "player-experience"
-  ) as HTMLElement;
+    UI_ELEMENT_IDS.PLAYER_EXPERIENCE_TAB
+  )! as HTMLElement;
   const experienceBarFillTab = document.getElementById(
-    "experience-bar-fill-tab"
-  ) as HTMLElement;
+    UI_ELEMENT_IDS.EXPERIENCE_BAR_FILL_TAB
+  )! as HTMLElement;
   const ingameTimeDisplayTab = document.getElementById(
-    "ingame-time-tab"
-  ) as HTMLElement;
+    UI_ELEMENT_IDS.INGAME_TIME_TAB
+  )! as HTMLElement;
 
   let isTabMenuOpen = false;
-  let currentActiveTab = "player-stats-tab";
+  let currentActiveTab = TAB_MENU_CONFIG.INITIAL_ACTIVE_TAB;
 
-  const tabPlayerData = { level: 1, experienceToNextLevel: 1000 };
+  const tabPlayerData = {
+    level: TAB_MENU_CONFIG.PLACEHOLDER_PLAYER_LEVEL,
+    experienceToNextLevel: TAB_MENU_CONFIG.PLACEHOLDER_PLAYER_EXP_TO_NEXT_LEVEL,
+  };
 
   if (canvas) {
     canvas.addEventListener("click", () => {
@@ -920,16 +980,25 @@ document.addEventListener("DOMContentLoaded", () => {
     if (
       !tabMenu ||
       tabMenu.classList.contains("hidden") ||
-      currentActiveTab !== "player-stats-tab"
+      currentActiveTab !== TAB_MENU_CONFIG.PLAYER_STATS_TAB_ID
     )
       return;
     const currentHealthGame =
-      typeof currentHealth !== "undefined" ? currentHealth : 100;
-    const maxHealthGame = typeof maxHealth !== "undefined" ? maxHealth : 100;
+      typeof currentHealth !== "undefined"
+        ? currentHealth
+        : PLAYER_CONFIG.MAX_HEALTH;
+    const maxHealthGame =
+      typeof maxHealth !== "undefined" ? maxHealth : PLAYER_CONFIG.MAX_HEALTH;
     const currentStaminaGame =
-      typeof currentStamina !== "undefined" ? currentStamina : 100;
-    const maxStaminaGame = typeof maxStamina !== "undefined" ? maxStamina : 100;
-    const placeholderCurrentExp = 250;
+      typeof currentStamina !== "undefined"
+        ? currentStamina
+        : PLAYER_CONFIG.MAX_STAMINA;
+    const maxStaminaGame =
+      typeof maxStamina !== "undefined"
+        ? maxStamina
+        : PLAYER_CONFIG.MAX_STAMINA;
+    const placeholderCurrentExp =
+      TAB_MENU_CONFIG.PLACEHOLDER_PLAYER_CURRENT_EXP;
 
     if (playerLevelDisplay)
       playerLevelDisplay.textContent = tabPlayerData.level.toString();
@@ -970,24 +1039,26 @@ document.addEventListener("DOMContentLoaded", () => {
     tabPanes.forEach((pane) =>
       pane.classList.toggle("active", pane.id === tabId)
     );
-    if (tabId === "player-stats-tab") updateStatsTabData();
+    if (tabId === TAB_MENU_CONFIG.PLAYER_STATS_TAB_ID) updateStatsTabData();
   }
 
   function openTabMenu(tabIdToShow?: string) {
     isTabMenuOpen = true;
     tabMenu.classList.remove("hidden");
     [mainUiContainer, fpsDisp, enemyInfoCont, crosshair].forEach((el) =>
-      el.classList.add("hidden")
+      el?.classList.add("hidden")
     );
     if (engine.isPointerLock) engine.exitPointerlock();
-    setActiveTab(tabIdToShow || currentActiveTab || "player-stats-tab");
+    setActiveTab(
+      tabIdToShow || currentActiveTab || TAB_MENU_CONFIG.INITIAL_ACTIVE_TAB
+    );
   }
 
   function closeTabMenu() {
     isTabMenuOpen = false;
     tabMenu.classList.add("hidden");
     [mainUiContainer, fpsDisp, enemyInfoCont, crosshair].forEach((el) =>
-      el.classList.remove("hidden")
+      el?.classList.remove("hidden")
     );
   }
 
@@ -1015,15 +1086,15 @@ document.addEventListener("DOMContentLoaded", () => {
       switch (event.key.toLowerCase()) {
         case "i":
           event.preventDefault();
-          toggleTabMenu("inventory-tab");
+          toggleTabMenu(TAB_MENU_CONFIG.INVENTORY_TAB_ID);
           break;
         case "j":
           event.preventDefault();
-          toggleTabMenu("journal-tab");
+          toggleTabMenu(TAB_MENU_CONFIG.JOURNAL_TAB_ID);
           break;
         case "m":
           event.preventDefault();
-          toggleTabMenu("map-tab");
+          toggleTabMenu(TAB_MENU_CONFIG.MAP_TAB_ID);
           break;
       }
     }
@@ -1166,9 +1237,9 @@ function handleConsoleCommand(command: string): void {
         );
       }
     }
-  } else if (lowerCommand === "inspect") {
+  } else if (lowerCommand === KEY_MAPPINGS.TOGGLE_INSPECTOR) {
     scene.debugLayer.show();
-  } else if (lowerCommand === "debug") {
+  } else if (lowerCommand === KEY_MAPPINGS.TOGGLE_DEBUG) {
     isDebugModeEnabled = !isDebugModeEnabled;
     console.log(`Debug mode ${isDebugModeEnabled ? "enabled" : "disabled"}.`);
 
@@ -1243,11 +1314,9 @@ async function setupGameAndPhysics() {
   // 1. Initialize Havok Physics Engine
   try {
     havokInstance = await HavokPhysics({
-      locateFile: (file) => {
-        // Attempt to load directly from a conventionally served node_modules path
+      locateFile: (file: string) => {
         if (file.endsWith(".wasm")) {
-          const wasmPath =
-            "/node_modules/@babylonjs/havok/lib/esm/HavokPhysics.wasm";
+          const wasmPath = PHYSICS_CONFIG.HAVOK_WASM_PATH;
           console.log(
             `Havok locateFile: attempting to load WASM from ${wasmPath}`
           );
@@ -1275,13 +1344,17 @@ async function setupGameAndPhysics() {
   }
 
   const havokPlugin = new HavokPlugin(true, havokInstance);
-  scene.enablePhysics(new Vector3(0, -9.81, 0), havokPlugin);
+  scene.enablePhysics(new Vector3(0, PHYSICS_CONFIG.GRAVITY_Y, 0), havokPlugin);
 
   // 2. Setup Ground with Physics (ground mesh is already created globally)
   const groundAggregate = new PhysicsAggregate(
     ground,
     PhysicsShapeType.BOX,
-    { mass: 0, friction: 0.5, restitution: 0.1 },
+    {
+      mass: 0,
+      friction: PHYSICS_CONFIG.GROUND_FRICTION,
+      restitution: PHYSICS_CONFIG.GROUND_RESTITUTION,
+    },
     scene
   );
 
@@ -1297,14 +1370,18 @@ async function setupGameAndPhysics() {
     const wallAggregate = new PhysicsAggregate(
       wall,
       PhysicsShapeType.BOX,
-      { mass: 0, friction: 0.5, restitution: 0.1 },
+      {
+        mass: 0,
+        friction: PHYSICS_CONFIG.WALL_FRICTION,
+        restitution: PHYSICS_CONFIG.WALL_RESTITUTION,
+      },
       scene
     );
   });
 
   // 4. Setup Player (Camera) Physics
   const playerStartPos = new Vector3(0, 1.0, -5); // Base of the capsule on the ground
-  const playerEyeHeightOffset = 0.6;
+  const playerEyeHeightOffset = PLAYER_CONFIG.PLAYER_EYE_HEIGHT_OFFSET;
 
   playerBodyMesh = MeshBuilder.CreateCapsule(
     "playerBody",
@@ -1319,9 +1396,9 @@ async function setupGameAndPhysics() {
     playerBodyMesh,
     PhysicsShapeType.CAPSULE,
     {
-      mass: 1,
-      friction: 0.7,
-      restitution: 0.1,
+      mass: PLAYER_CONFIG.PLAYER_MASS,
+      friction: PLAYER_CONFIG.PLAYER_FRICTION,
+      restitution: PLAYER_CONFIG.PLAYER_RESTITUTION,
       // Define capsule explicitly with pointA, pointB, and radius for PhysicsAggregate
       pointA: new Vector3(0, -(playerHeight / 2 - playerRadius), 0), // Bottom sphere center
       pointB: new Vector3(0, playerHeight / 2 - playerRadius, 0), // Top sphere center
@@ -1350,8 +1427,8 @@ async function setupGameAndPhysics() {
   // These calls are now made after physics is initialized
   await loadAssetWithCollider(
     "palmTree1",
-    "assets/models/pirate_kit/",
-    "palm_tree1.glb",
+    "PIRATE_KIT_MODELS",
+    "PALM_TREE_1_GLB",
     scene,
     new Vector3(10, 0, 10),
     new Vector3(2, 2, 2),
@@ -1363,8 +1440,8 @@ async function setupGameAndPhysics() {
   );
   await loadAssetWithCollider(
     "palmTree2",
-    "assets/models/pirate_kit/",
-    "palm_tree2.glb",
+    "PIRATE_KIT_MODELS",
+    "PALM_TREE_2_GLB",
     scene,
     new Vector3(5, 0, 15),
     new Vector3(1.8, 1.8, 1.8),
@@ -1376,8 +1453,8 @@ async function setupGameAndPhysics() {
   );
   await loadAssetWithCollider(
     "palmTree3",
-    "assets/models/pirate_kit/",
-    "palm_tree3.glb",
+    "PIRATE_KIT_MODELS",
+    "PALM_TREE_3_GLB",
     scene,
     new Vector3(-5, 0, 15),
     new Vector3(2.2, 2.2, 2.2),
@@ -1390,8 +1467,8 @@ async function setupGameAndPhysics() {
 
   await loadAssetWithCollider(
     "chestClosed",
-    "assets/models/pirate_kit/",
-    "chest_closed.glb",
+    "PIRATE_KIT_MODELS",
+    "CHEST_CLOSED_GLB",
     scene,
     new Vector3(18, 0, 18),
     new Vector3(1, 1, 1),
@@ -1399,7 +1476,9 @@ async function setupGameAndPhysics() {
     (collider) => {
       new ClosedChest(collider as Mesh, true, "key_old_chest", () => {
         if (collider.metadata && collider.metadata.chestInstance) {
-          const ray = camera.getForwardRay(crosshairMaxDistance);
+          const ray = camera.getForwardRay(
+            PLAYER_CONFIG.CROSSHAIR_MAX_DISTANCE
+          );
           const pickInfo = scene.pickWithRay(ray, (mesh) => mesh === collider);
           if (pickInfo && pickInfo.hit && crosshairElement) {
             crosshairElement.textContent =
@@ -1425,7 +1504,7 @@ async function setupGameAndPhysics() {
       !playerSwordInstance.getIsSwinging()
     ) {
       playerSwordInstance.swing(
-        crosshairMaxDistance,
+        PLAYER_CONFIG.CROSSHAIR_MAX_DISTANCE,
         (mesh) => mesh.metadata && mesh.metadata.enemyType === "spider",
         (_targetMesh, instance) => {
           const spiderInstance = instance as Spider;

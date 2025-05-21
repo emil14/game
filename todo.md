@@ -15,9 +15,9 @@
 
 # TODO
 
-- sand texture
 - day skybox
 - do not destroy spider's body after his dead, instead apply ragdoll to it
+- make jumps more "real"
 - double jump
 - jerks
 - gun

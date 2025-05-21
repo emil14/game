@@ -283,7 +283,7 @@ export class Spider {
     );
 
     // this.collider.checkCollisions = true; // Replaced by PhysicsAggregate
-    this.colliderMesh.isVisible = true; // Temporarily true for debugging
+    this.colliderMesh.isVisible = false; // Enable for debugging
     this.colliderMesh.metadata = { enemyType: "spider", instance: this };
     this.colliderMesh.position = boundingInfo.min.add(
       spiderDimensions.scale(0.5)

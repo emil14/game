@@ -19,8 +19,7 @@ import "@babylonjs/core/Collisions/collisionCoordinator";
 import "@babylonjs/inspector";
 import { CubeTexture } from "@babylonjs/core/Materials/Textures/cubeTexture";
 import { Ray } from "@babylonjs/core/Culling/ray";
-
-// import { RayHelper } from "@babylonjs/core/Debug/rayHelper";
+import { RayHelper } from "@babylonjs/core/Debug/rayHelper";
 
 import { HavokPlugin } from "@babylonjs/core/Physics";
 import HavokPhysics from "@babylonjs/havok";
@@ -193,12 +192,6 @@ function isPlayerOnGroundCheck(
   const rayLength = pHeight / 2 + checkDistance;
 
   const ray = new Ray(rayOrigin, Vector3.Down(), rayLength);
-
-  // Optional: Visualize the ray for debugging
-  // const rayHelper = RayHelper.CreateAndShow(ray, sceneRef, new Color3(1, 1, 0));
-  // setTimeout(() => {
-  //   if (rayHelper) rayHelper.dispose();
-  // }, 500); // Dispose after a short time
 
   const pickInfo = sceneRef.pickWithRay(
     ray,
@@ -701,60 +694,57 @@ engine.runRenderLoop(() => {
     respawnPlayer();
   }
 
-  if (
-    enemyInfoContainer &&
-    enemyHealthText &&
-    enemyHealthBarFill &&
-    enemyNameText &&
-    enemyLevelText &&
-    crosshairElement
-  ) {
-    const ray = camera.getForwardRay(crosshairMaxDistance);
-    const pickInfo = scene.pickWithRay(
-      ray,
-      (mesh) =>
-        (mesh.metadata && mesh.metadata.enemyType === "spider") ||
-        (mesh.metadata && mesh.metadata.interactableType)
-    );
-    let lookingAtEnemy = false;
-    let lookingAtInteractable = false;
+  camera.computeWorldMatrix(); // Force update of camera's world matrix
+  const rayOrigin = camera.globalPosition; // Get the camera's absolute position
+  const forwardDirection = camera.getDirection(Vector3.Forward()); // Get the camera's forward direction
+  const ray = new Ray(rayOrigin, forwardDirection, crosshairMaxDistance); // Create the ray
 
-    if (pickInfo && pickInfo.hit && pickInfo.pickedMesh) {
-      const pickedMesh = pickInfo.pickedMesh;
-      if (pickedMesh.metadata && pickedMesh.metadata.enemyType === "spider") {
-        lookingAtEnemy = true;
-        enemyInfoContainer.style.display = "block";
-        crosshairElement.classList.add("crosshair-enemy-focus");
-        if (crosshairElement) crosshairElement.textContent = "💢";
-        const spiderInstance = pickedMesh.metadata.instance as Spider;
-        if (spiderInstance) {
-          enemyNameText.textContent = spiderInstance.name;
-          enemyLevelText.textContent = `| Lvl ${spiderInstance.level}`;
-          enemyHealthText.textContent = `${spiderInstance.currentHealth.toFixed(
-            0
-          )}/${spiderInstance.maxHealth}`;
-          enemyHealthBarFill.style.width = `${
-            (spiderInstance.currentHealth / spiderInstance.maxHealth) * 100
-          }%`;
-        }
-      } else if (
-        pickedMesh.metadata &&
-        pickedMesh.metadata.interactableType === "chest"
-      ) {
-        lookingAtInteractable = true;
-        const chestInstance = pickedMesh.metadata.chestInstance as ClosedChest;
-        if (crosshairElement) {
-          crosshairElement.textContent = chestInstance.getDisplayIcon();
-          crosshairElement.classList.remove("crosshair-enemy-focus");
-        }
-        enemyInfoContainer.style.display = "none";
+  // RayHelper.CreateAndShow(ray, scene, new Color3(1, 1, 0));
+
+  const pickInfo = scene.pickWithRay(
+    ray,
+    (mesh) =>
+      (mesh.metadata && mesh.metadata.enemyType === "spider") ||
+      (mesh.metadata && mesh.metadata.interactableType)
+  );
+  let lookingAtEnemy = false;
+  let lookingAtInteractable = false;
+
+  if (pickInfo && pickInfo.hit && pickInfo.pickedMesh) {
+    const pickedMesh = pickInfo.pickedMesh;
+    if (pickedMesh.metadata && pickedMesh.metadata.enemyType === "spider") {
+      lookingAtEnemy = true;
+      enemyInfoContainer.style.display = "block";
+      crosshairElement.classList.add("crosshair-enemy-focus");
+      if (crosshairElement) crosshairElement.textContent = "💢";
+      const spiderInstance = pickedMesh.metadata.instance as Spider;
+      if (spiderInstance) {
+        enemyNameText.textContent = spiderInstance.name;
+        enemyLevelText.textContent = `| Lvl ${spiderInstance.level}`;
+        enemyHealthText.textContent = `${spiderInstance.currentHealth.toFixed(
+          0
+        )}/${spiderInstance.maxHealth}`;
+        enemyHealthBarFill.style.width = `${
+          (spiderInstance.currentHealth / spiderInstance.maxHealth) * 100
+        }%`;
       }
-    }
-    if (!lookingAtEnemy && !lookingAtInteractable) {
+    } else if (
+      pickedMesh.metadata &&
+      pickedMesh.metadata.interactableType === "chest"
+    ) {
+      lookingAtInteractable = true;
+      const chestInstance = pickedMesh.metadata.chestInstance as ClosedChest;
+      if (crosshairElement) {
+        crosshairElement.textContent = chestInstance.getDisplayIcon();
+        crosshairElement.classList.remove("crosshair-enemy-focus");
+      }
       enemyInfoContainer.style.display = "none";
-      crosshairElement.classList.remove("crosshair-enemy-focus");
-      if (crosshairElement) crosshairElement.textContent = "•";
     }
+  }
+  if (!lookingAtEnemy && !lookingAtInteractable) {
+    enemyInfoContainer.style.display = "none";
+    crosshairElement.classList.remove("crosshair-enemy-focus");
+    if (crosshairElement) crosshairElement.textContent = "•";
   }
 
   // === MOON POSITION & VISIBILITY ===

@@ -5,6 +5,7 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
 import { FreeCamera } from "@babylonjs/core/Cameras/freeCamera";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
+import { Ray } from "@babylonjs/core/Culling/ray";
 
 export class Sword {
   public visualMesh!: AbstractMesh;
@@ -160,7 +161,10 @@ export class Sword {
         this.isSwinging = false; // Reset if sword became invalid
         return;
       }
-      const ray = this.camera.getForwardRay(crosshairMaxDistance);
+      this.camera.computeWorldMatrix(); // Force update of camera's world matrix
+      const rayOrigin = this.camera.globalPosition; // Get the camera's absolute position
+      const forwardDirection = this.camera.getDirection(Vector3.Forward()); // Get the camera's forward direction
+      const ray = new Ray(rayOrigin, forwardDirection, crosshairMaxDistance); // Create the ray
       const pickInfo = this.scene.pickWithRay(ray, targetFilter);
 
       if (pickInfo && pickInfo.hit && pickInfo.pickedMesh) {

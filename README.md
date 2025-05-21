@@ -16,3 +16,9 @@ Action/RPG with generative open world.
 - Kenney 3D: иногда в наборах есть простые анимированные модели.
 - OpenGameArt: фильтруй по “3D” и “animation”.
 - Sketchfab: часть моделей уже с анимациями.
+
+## Textures
+
+- https://polyhaven.com/textures?c=ground&h=sand
+- https://ambientcg.com/list?category=Ground&sort=popular
+- https://opengameart.org/art-search-advanced?keys=sand&title=&field_art_tags_tid_op=or&field_art_tags_tid=sand&name=&field_art_type_tid%5B%5D=14&sort_by=score&sort_order=DESC&items_per_page=24&Collection=

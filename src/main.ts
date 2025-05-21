@@ -20,14 +20,17 @@ import "@babylonjs/inspector";
 import { CubeTexture } from "@babylonjs/core/Materials/Textures/cubeTexture";
 import { Ray } from "@babylonjs/core/Culling/ray";
 
+// import { RayHelper } from "@babylonjs/core/Debug/rayHelper";
+
 import { HavokPlugin } from "@babylonjs/core/Physics";
 import HavokPhysics from "@babylonjs/havok";
 import { PhysicsAggregate, PhysicsShapeType } from "@babylonjs/core/Physics";
-import { PhysicsBody } from "@babylonjs/core/Physics";
+// import { PhysicsBody } from "@babylonjs/core/Physics";
 
 import { ClosedChest } from "./interactables";
 import { Spider } from "./enemies/spider";
 import { Sword } from "./weapons/sword";
+import { Texture } from "@babylonjs/core/Materials/Textures/texture";
 
 const canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
 const fpsDisplay = document.getElementById("fpsDisplay") as HTMLElement;
@@ -192,10 +195,10 @@ function isPlayerOnGroundCheck(
   const ray = new Ray(rayOrigin, Vector3.Down(), rayLength);
 
   // Optional: Visualize the ray for debugging
-  // import { RayHelper } from "@babylonjs/core/Debug/rayHelper";
-  // import { Color3 } from "@babylonjs/core/Maths/math.color";
   // const rayHelper = RayHelper.CreateAndShow(ray, sceneRef, new Color3(1, 1, 0));
-  // setTimeout(() => { if (rayHelper) rayHelper.dispose(); }, 500); // Dispose after a short time
+  // setTimeout(() => {
+  //   if (rayHelper) rayHelper.dispose();
+  // }, 500); // Dispose after a short time
 
   const pickInfo = sceneRef.pickWithRay(
     ray,
@@ -257,6 +260,11 @@ const ground = MeshBuilder.CreateGround(
 );
 const groundMaterial = new StandardMaterial("groundMaterial", scene);
 groundMaterial.diffuseColor = new Color3(0.9, 0.8, 0.6);
+// Add sand texture
+const sandTexture = new Texture("assets/textures/sand.png", scene);
+groundMaterial.diffuseTexture = sandTexture;
+(groundMaterial.diffuseTexture as any).uScale = 8; // Tile horizontally
+(groundMaterial.diffuseTexture as any).vScale = 8; // Tile vertically
 ground.material = groundMaterial;
 
 const skyboxMaterial = new SkyMaterial("skyBoxMaterial", scene);

@@ -41,63 +41,25 @@ import {
   TAB_MENU_CONFIG,
 } from "./config";
 import { InputManager } from "./input_manager";
+import { HUDManager } from "./hud_manager";
 
 const canvas = document.getElementById(
   UI_ELEMENT_IDS.RENDER_CANVAS
 )! as HTMLCanvasElement;
 const inputManager = new InputManager(canvas);
-const fpsDisplay = document.getElementById(
-  UI_ELEMENT_IDS.FPS_DISPLAY
-)! as HTMLElement;
-const staminaText = document.getElementById(
-  UI_ELEMENT_IDS.STAMINA_TEXT
-)! as HTMLElement;
-const staminaBarFill = document.getElementById(
-  UI_ELEMENT_IDS.STAMINA_BAR_FILL
-)! as HTMLElement;
-const healthText = document.getElementById(
-  UI_ELEMENT_IDS.HEALTH_TEXT
-)! as HTMLElement;
-const healthBarFill = document.getElementById(
-  UI_ELEMENT_IDS.HEALTH_BAR_FILL
-)! as HTMLElement;
-const bloodScreenEffect = document.getElementById(
-  UI_ELEMENT_IDS.BLOOD_SCREEN_EFFECT
-)! as HTMLElement;
-const enemyInfoContainer = document.getElementById(
-  UI_ELEMENT_IDS.ENEMY_INFO_CONTAINER
-)! as HTMLElement;
-const enemyHealthText = document.getElementById(
-  UI_ELEMENT_IDS.ENEMY_HEALTH_TEXT
-)! as HTMLElement;
-const enemyHealthBarFill = document.getElementById(
-  UI_ELEMENT_IDS.ENEMY_HEALTH_BAR_FILL
-)! as HTMLElement;
-const enemyNameText = document.getElementById(
-  UI_ELEMENT_IDS.ENEMY_NAME_TEXT
-)! as HTMLElement;
-const enemyLevelText = document.getElementById(
-  UI_ELEMENT_IDS.ENEMY_LEVEL_TEXT
-)! as HTMLElement;
-const crosshairElement = document.getElementById(
-  UI_ELEMENT_IDS.CROSSHAIR
-)! as HTMLElement;
-const fightMusic = document.getElementById(
-  UI_ELEMENT_IDS.FIGHT_MUSIC
-) as HTMLAudioElement | null;
-const deathScreen = document.getElementById(
-  UI_ELEMENT_IDS.DEATH_SCREEN
-)! as HTMLElement;
-
-crosshairElement.textContent = "•";
 
 const engine = new Engine(canvas, false, {
   preserveDrawingBuffer: true,
   stencil: true,
   disableWebGL2Support: false,
 });
-
 const scene = new Scene(engine);
+
+const hudManager = new HUDManager(engine, scene);
+
+const fightMusic = document.getElementById(
+  UI_ELEMENT_IDS.FIGHT_MUSIC
+) as HTMLAudioElement | null;
 
 let havokInstance: any;
 let playerBodyAggregate: PhysicsAggregate;
@@ -416,13 +378,7 @@ async function initializeGameAssets() {
     spiderInstance.setOnPlayerDamaged((damage: number) => {
       if (playerIsDead) return;
       currentHealth -= damage;
-      if (bloodScreenEffect) {
-        bloodScreenEffect.style.backgroundColor = "rgba(255, 0, 0, 0.3)";
-        bloodScreenEffect.style.opacity = "1";
-        setTimeout(() => {
-          bloodScreenEffect.style.opacity = "0";
-        }, 200);
-      }
+      hudManager.showBloodScreenEffect();
       if (currentHealth < 0) currentHealth = 0;
     });
   } catch (error) {
@@ -430,24 +386,6 @@ async function initializeGameAssets() {
   }
 
   playerSwordInstance = await Sword.Create(scene, camera, 15);
-}
-
-function updateStaminaBar(current: number, max: number) {
-  if (staminaText && staminaBarFill) {
-    staminaText.textContent = `${current.toFixed(0)}/${max.toFixed(0)}`;
-    staminaBarFill.style.width = `${(current / max) * 100}%`;
-  }
-}
-
-function updateHealthBar(current: number, max: number) {
-  if (healthText && healthBarFill) {
-    healthText.textContent = `${current.toFixed(0)}/${max.toFixed(0)}`;
-    healthBarFill.style.width = `${(current / max) * 100}%`;
-  }
-}
-
-function showDeathScreen() {
-  deathScreen.classList.remove("hidden");
 }
 
 function respawnPlayer() {
@@ -585,7 +523,6 @@ engine.runRenderLoop(() => {
     targetDaySkyLuminance = 0.005;
     targetNightSkyAlpha = 1.0;
   }
-
   currentDaySkyMaterial.inclination = targetInclination;
   light.intensity = targetHemisphericIntensity;
   sunLight.intensity = targetSunLightIntensity;
@@ -609,7 +546,6 @@ engine.runRenderLoop(() => {
       }
     });
   }
-
   if (isAnyEnemyAggro && !isInFightMode) {
     isInFightMode = true;
     if (fightMusic)
@@ -672,11 +608,9 @@ engine.runRenderLoop(() => {
       if (currentStamina >= jumpStaminaCost && isOnGround) {
         finalVelocity.y = jumpForce;
         currentStamina -= jumpStaminaCost;
-        updateStaminaBar(currentStamina, maxStamina);
       }
     }
     jumpKeyPressedLastFrame = jumpKeyCurrentlyPressed;
-
     playerBodyAggregate.body.setLinearVelocity(finalVelocity);
 
     if (isSprinting && targetVelocityXZ.lengthSquared() > 0.001) {
@@ -705,13 +639,17 @@ engine.runRenderLoop(() => {
     playerBodyAggregate.body.setLinearVelocity(Vector3.Zero());
   }
 
-  updateStaminaBar(currentStamina, maxStamina);
-  updateHealthBar(currentHealth, maxHealth);
+  hudManager.updatePlayerStats(
+    currentHealth,
+    maxHealth,
+    currentStamina,
+    maxStamina
+  );
 
   if (currentHealth <= 0 && !playerIsDead) {
     playerIsDead = true;
     console.log("Player has died.");
-    showDeathScreen();
+    hudManager.showDeathScreen();
     if (isInFightMode && fightMusic) {
       fightMusic.pause();
       fightMusic.currentTime = 0;
@@ -753,22 +691,19 @@ engine.runRenderLoop(() => {
         spiderInstance &&
         (spiderInstance.getIsDying() || spiderInstance.currentHealth <= 0)
       ) {
-        if (crosshairElement) crosshairElement.textContent = "✋";
-        crosshairElement.classList.remove("crosshair-enemy-focus");
-        enemyInfoContainer.style.display = "none";
+        hudManager.setCrosshairText("✋");
+        hudManager.setCrosshairFocus(false);
+        hudManager.hideEnemyInfo();
         crosshairSetForSpecificTarget = true;
       } else if (spiderInstance) {
-        enemyInfoContainer.style.display = "block";
-        crosshairElement.classList.add("crosshair-enemy-focus");
-        if (crosshairElement) crosshairElement.textContent = "💢";
-        enemyNameText.textContent = spiderInstance.name;
-        enemyLevelText.textContent = `| Lvl ${spiderInstance.level}`;
-        enemyHealthText.textContent = `${spiderInstance.currentHealth.toFixed(
-          0
-        )}/${spiderInstance.maxHealth}`;
-        enemyHealthBarFill.style.width = `${
-          (spiderInstance.currentHealth / spiderInstance.maxHealth) * 100
-        }%`;
+        hudManager.showEnemyInfo(
+          spiderInstance.name,
+          spiderInstance.level,
+          spiderInstance.currentHealth,
+          spiderInstance.maxHealth
+        );
+        hudManager.setCrosshairText("💢");
+        hudManager.setCrosshairFocus(true);
         crosshairSetForSpecificTarget = true;
       }
     } else if (
@@ -776,18 +711,16 @@ engine.runRenderLoop(() => {
       pickedMesh.metadata.interactableType === "chest"
     ) {
       const chestInstance = pickedMesh.metadata.chestInstance as ClosedChest;
-      if (crosshairElement) {
-        crosshairElement.textContent = chestInstance.getDisplayIcon();
-        crosshairElement.classList.remove("crosshair-enemy-focus");
-      }
-      enemyInfoContainer.style.display = "none";
+      hudManager.setCrosshairText(chestInstance.getDisplayIcon());
+      hudManager.setCrosshairFocus(false);
+      hudManager.hideEnemyInfo();
       crosshairSetForSpecificTarget = true;
     }
   }
   if (!crosshairSetForSpecificTarget) {
-    enemyInfoContainer.style.display = "none";
-    crosshairElement.classList.remove("crosshair-enemy-focus");
-    if (crosshairElement) crosshairElement.textContent = "•";
+    hudManager.hideEnemyInfo();
+    hudManager.setCrosshairFocus(false);
+    hudManager.setCrosshairText("•");
   }
 
   const unclampedInclination = (() => {
@@ -851,7 +784,7 @@ engine.runRenderLoop(() => {
   light.intensity = targetHemisphericIntensity * (1 - 0.5 * moonVisibility);
 
   scene.render();
-  if (fpsDisplay) fpsDisplay.textContent = "FPS: " + engine.getFps().toFixed();
+  hudManager.updateFPS();
 });
 
 window.addEventListener("resize", () => {
@@ -861,18 +794,6 @@ window.addEventListener("resize", () => {
 document.addEventListener("DOMContentLoaded", () => {
   const tabMenu = document.getElementById(
     UI_ELEMENT_IDS.TAB_MENU
-  )! as HTMLElement;
-  const mainUiContainer = document.querySelector(
-    "." + UI_ELEMENT_IDS.UI_CONTAINER
-  ) as HTMLElement | null;
-  const fpsDisp = document.getElementById(
-    UI_ELEMENT_IDS.FPS_DISPLAY
-  )! as HTMLElement;
-  const enemyInfoCont = document.getElementById(
-    UI_ELEMENT_IDS.ENEMY_INFO_CONTAINER
-  )! as HTMLElement;
-  const crosshair = document.getElementById(
-    UI_ELEMENT_IDS.CROSSHAIR
   )! as HTMLElement;
 
   const tabNavigation = document.getElementById(
@@ -906,7 +827,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let isTabMenuOpen = false;
   let currentActiveTab = TAB_MENU_CONFIG.INITIAL_ACTIVE_TAB;
-
   const tabPlayerData = {
     level: TAB_MENU_CONFIG.PLACEHOLDER_PLAYER_LEVEL,
     experienceToNextLevel: TAB_MENU_CONFIG.PLACEHOLDER_PLAYER_EXP_TO_NEXT_LEVEL,
@@ -987,9 +907,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function openTabMenu(tabIdToShow?: string) {
     isTabMenuOpen = true;
     tabMenu.classList.remove("hidden");
-    [mainUiContainer, fpsDisp, enemyInfoCont, crosshair].forEach((el) =>
-      el?.classList.add("hidden")
-    );
+    hudManager.hideCoreHud();
     if (engine.isPointerLock) engine.exitPointerlock();
     setActiveTab(
       tabIdToShow || currentActiveTab || TAB_MENU_CONFIG.INITIAL_ACTIVE_TAB
@@ -999,9 +917,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function closeTabMenu() {
     isTabMenuOpen = false;
     tabMenu.classList.add("hidden");
-    [mainUiContainer, fpsDisp, enemyInfoCont, crosshair].forEach((el) =>
-      el?.classList.remove("hidden")
-    );
+    hudManager.showCoreHud();
   }
 
   function toggleTabMenu(tabIdToShow?: string) {
@@ -1077,22 +993,18 @@ function handleConsoleCommand(command: string): void {
         const currentDaySkyMaterial = daySkybox.material as SkyMaterial;
         const currentNightSkyMaterial =
           nightSkybox.material as StandardMaterial;
-        let targetInclinationUpdate: number;
-        let targetHemisphericIntensityUpdate: number;
-        let targetSunLightIntensityUpdate: number;
-        let targetDaySkyLuminanceUpdate: number;
-        let targetNightSkyAlphaUpdate: number;
-        const sr_transition_start = newSunrisePoint - dayNightTransitionWidth;
-        const sr_transition_end = newSunrisePoint + dayNightTransitionWidth;
-        const ss_transition_start = newSunsetPoint - dayNightTransitionWidth;
-        const ss_transition_end = newSunsetPoint + dayNightTransitionWidth;
-        if (
-          targetCycleProgress >= sr_transition_start &&
-          targetCycleProgress < sr_transition_end
-        ) {
+        let targetInclinationUpdate: number,
+          targetHemisphericIntensityUpdate: number,
+          targetSunLightIntensityUpdate: number,
+          targetDaySkyLuminanceUpdate: number,
+          targetNightSkyAlphaUpdate: number;
+        const sr_start = newSunrisePoint - dayNightTransitionWidth;
+        const sr_end = newSunrisePoint + dayNightTransitionWidth;
+        const ss_start = newSunsetPoint - dayNightTransitionWidth;
+        const ss_end = newSunsetPoint + dayNightTransitionWidth;
+        if (targetCycleProgress >= sr_start && targetCycleProgress < sr_end) {
           const transProgress =
-            (targetCycleProgress - sr_transition_start) /
-            (dayNightTransitionWidth * 2);
+            (targetCycleProgress - sr_start) / (dayNightTransitionWidth * 2);
           targetInclinationUpdate =
             sunAngleNight + transProgress * (sunAngleHorizon - sunAngleNight);
           targetHemisphericIntensityUpdate = 0.05 + transProgress * 0.65;
@@ -1100,12 +1012,11 @@ function handleConsoleCommand(command: string): void {
           targetDaySkyLuminanceUpdate = 0.005 + transProgress * (1.0 - 0.005);
           targetNightSkyAlphaUpdate = 1.0 - transProgress;
         } else if (
-          targetCycleProgress >= ss_transition_start &&
-          targetCycleProgress < ss_transition_end
+          targetCycleProgress >= ss_start &&
+          targetCycleProgress < ss_end
         ) {
           const transProgress =
-            (targetCycleProgress - ss_transition_start) /
-            (dayNightTransitionWidth * 2);
+            (targetCycleProgress - ss_start) / (dayNightTransitionWidth * 2);
           targetInclinationUpdate =
             sunAngleHorizon - transProgress * (sunAngleHorizon - sunAngleNight);
           targetHemisphericIntensityUpdate = 0.7 - transProgress * 0.65;
@@ -1113,8 +1024,8 @@ function handleConsoleCommand(command: string): void {
           targetDaySkyLuminanceUpdate = 1.0 - transProgress * (1.0 - 0.005);
           targetNightSkyAlphaUpdate = transProgress;
         } else if (
-          targetCycleProgress >= sr_transition_end &&
-          targetCycleProgress < ss_transition_start
+          targetCycleProgress >= sr_end &&
+          targetCycleProgress < ss_start
         ) {
           targetHemisphericIntensityUpdate = 0.7;
           targetSunLightIntensityUpdate = 1.0;
@@ -1122,22 +1033,21 @@ function handleConsoleCommand(command: string): void {
           targetNightSkyAlphaUpdate = 0.0;
           if (targetCycleProgress < newMiddayPoint) {
             const morningProgress =
-              (targetCycleProgress - sr_transition_end) /
-              (newMiddayPoint - sr_transition_end);
+              (targetCycleProgress - sr_end) / (newMiddayPoint - sr_end);
             targetInclinationUpdate =
               sunAngleHorizon +
               morningProgress * (sunAnglePeak - sunAngleHorizon);
           } else {
             const afternoonProgress =
               (targetCycleProgress - newMiddayPoint) /
-              (ss_transition_start - newMiddayPoint);
+              (ss_start - newMiddayPoint);
             targetInclinationUpdate =
               sunAnglePeak -
               afternoonProgress * (sunAnglePeak - sunAngleHorizon);
           }
           targetInclinationUpdate = Math.max(
             sunAngleHorizon,
-            Math.min(sunAnglePeak, targetInclinationUpdate)
+            Math.min(sunAnglePeak, targetInclinationUpdate!)
           );
         } else {
           targetInclinationUpdate = sunAngleNight;
@@ -1146,11 +1056,11 @@ function handleConsoleCommand(command: string): void {
           targetDaySkyLuminanceUpdate = 0.005;
           targetNightSkyAlphaUpdate = 1.0;
         }
-        currentDaySkyMaterial.inclination = targetInclinationUpdate;
-        light.intensity = targetHemisphericIntensityUpdate;
-        sunLight.intensity = targetSunLightIntensityUpdate;
-        currentDaySkyMaterial.luminance = targetDaySkyLuminanceUpdate;
-        currentNightSkyMaterial.alpha = targetNightSkyAlphaUpdate;
+        currentDaySkyMaterial.inclination = targetInclinationUpdate!;
+        light.intensity = targetHemisphericIntensityUpdate!;
+        sunLight.intensity = targetSunLightIntensityUpdate!;
+        currentDaySkyMaterial.luminance = targetDaySkyLuminanceUpdate!;
+        currentNightSkyMaterial.alpha = targetNightSkyAlphaUpdate!;
         if (currentDaySkyMaterial.useSunPosition) {
           const phi = currentDaySkyMaterial.inclination * Math.PI;
           const theta = currentDaySkyMaterial.azimuth * 2 * Math.PI;
@@ -1166,18 +1076,14 @@ function handleConsoleCommand(command: string): void {
       }
     }
   } else if (lowerCommand === KEY_MAPPINGS.TOGGLE_INSPECTOR) {
-    scene.debugLayer.show();
+    hudManager.toggleInspector();
   } else if (lowerCommand === KEY_MAPPINGS.TOGGLE_DEBUG) {
     isDebugModeEnabled = !isDebugModeEnabled;
     console.log(`Debug mode ${isDebugModeEnabled ? "enabled" : "disabled"}.`);
-    if (playerBodyMesh) {
-      playerBodyMesh.isVisible = isDebugModeEnabled;
-    }
+    if (playerBodyMesh) playerBodyMesh.isVisible = isDebugModeEnabled;
     for (let i = 1; i <= 4; i++) {
       const wall = scene.getMeshByName(`wall${i}`);
-      if (wall) {
-        wall.isVisible = isDebugModeEnabled;
-      }
+      if (wall) wall.isVisible = isDebugModeEnabled;
     }
     scene.meshes.forEach((mesh) => {
       let processedAsSpiderColliderParent = false;
@@ -1208,28 +1114,18 @@ window.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
   if (key === KEY_MAPPINGS.TOGGLE_CONSOLE || (event.shiftKey && key === "~")) {
     const input = window.prompt("Enter command:");
-    if (input) {
-      handleConsoleCommand(input);
-    }
+    if (input) handleConsoleCommand(input);
   }
 });
 
-deathScreen.classList.add("hidden");
+hudManager.hideDeathScreen();
 
 async function setupGameAndPhysics() {
   console.log("Attempting to initialize Havok Physics...");
   try {
     havokInstance = await HavokPhysics({
-      locateFile: (file: string) => {
-        if (file.endsWith(".wasm")) {
-          const wasmPath = PHYSICS_CONFIG.HAVOK_WASM_PATH;
-          console.log(
-            `Havok locateFile: attempting to load WASM from ${wasmPath}`
-          );
-          return wasmPath;
-        }
-        return file;
-      },
+      locateFile: (file: string) =>
+        file.endsWith(".wasm") ? PHYSICS_CONFIG.HAVOK_WASM_PATH : file,
     });
   } catch (e) {
     console.error(
@@ -1239,9 +1135,7 @@ async function setupGameAndPhysics() {
     return;
   }
   if (!havokInstance) {
-    console.error(
-      "Havok physics engine could not be initialized (HavokPhysics() returned null/undefined)."
-    );
+    console.error("Havok physics engine could not be initialized.");
     return;
   }
   const havokPlugin = new HavokPlugin(true, havokInstance);
@@ -1264,7 +1158,7 @@ async function setupGameAndPhysics() {
     );
     wall.position = new Vector3(props[0], wallHeight / 2, props[1]);
     wall.isVisible = false;
-    const wallAggregate = new PhysicsAggregate(
+    new PhysicsAggregate(
       wall,
       PhysicsShapeType.BOX,
       {
@@ -1275,7 +1169,6 @@ async function setupGameAndPhysics() {
       scene
     );
   });
-
   const playerStartPos = new Vector3(0, 1.0, -5);
   const playerEyeHeightOffset = PLAYER_CONFIG.PLAYER_EYE_HEIGHT_OFFSET;
   playerBodyMesh = MeshBuilder.CreateCapsule(
@@ -1308,7 +1201,6 @@ async function setupGameAndPhysics() {
   }
   camera.parent = playerBodyMesh;
   camera.position = new Vector3(0, playerEyeHeightOffset, 0);
-
   await loadAssetWithCollider(
     "palmTree1",
     "PIRATE_KIT_MODELS",
@@ -1363,9 +1255,10 @@ async function setupGameAndPhysics() {
             PLAYER_CONFIG.CROSSHAIR_MAX_DISTANCE
           );
           const pickInfo = scene.pickWithRay(ray, (mesh) => mesh === collider);
-          if (pickInfo && pickInfo.hit && crosshairElement) {
-            crosshairElement.textContent =
-              collider.metadata.chestInstance.getDisplayIcon();
+          if (pickInfo && pickInfo.hit) {
+            hudManager.setCrosshairText(
+              collider.metadata.chestInstance.getDisplayIcon()
+            );
           }
         }
       });

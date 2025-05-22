@@ -22,7 +22,7 @@ export const UI_ELEMENT_IDS = {
   PLAYER_EXPERIENCE_TAB: "player-experience",
   EXPERIENCE_BAR_FILL_TAB: "experience-bar-fill-tab",
   INGAME_TIME_TAB: "ingame-time-tab",
-  UI_CONTAINER: "ui-container", // Assuming "ui-container" is the class, but used as ID in querySelector
+  UI_CONTAINER: "mainHudContainer",
 };
 
 export const PLAYER_CONFIG = {

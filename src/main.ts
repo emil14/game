@@ -1270,6 +1270,8 @@ async function setupGameAndPhysics() {
   await initializeGameAssets();
 }
 
-setupGameAndPhysics().catch((error) => {
+try {
+  await setupGameAndPhysics();
+} catch (error) {
   console.error("Error during game and physics setup:", error);
-});
+}

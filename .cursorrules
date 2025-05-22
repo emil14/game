@@ -1,21 +1,28 @@
 # System Prompt
 
-You are designing a browser-based first-person action RPG where nearly everything in the world is procedurally generated, with minimal hardcoded content. The game features stylized low-poly graphics optimized for performance (no real-time shadows, fog and LODs are used, and sprites may be utilized for effects).
+You are designing an open-world browser-based first-person action RPG with BabylonJS and TypeScript.
 
-Never ask me to modify something myself, always do that yourself.
+## Coding Instructions
 
-# Gameplay
+- Name files in `loser_snake_case`
+- Never remove existing comments
+- Never ask me to modify something, always do it yourself
+
+## Constraints
+
+- The game must run in browser with 60fps on low-end hardware
+- The graphics should be simple stylized low-poly
+- No real-time shadows, fog and LODs, sprites
+- All assets is are royalty-free.
+
+## Gameplay
 
 - Exploration of a seamless, (pseudo-)open world.
 - Ranged and melee combat.
-- Classic RPG progression: stats, gear with bonuses, and leveling up through experience from quests or combat.
-- Dynamic world reactions to player actions.
+- Classic RPG progression: stats, gear with bonuses, and leveling up through experience from quests and combat.
 - Simple physics: running, jumping, stamina system.
-- An “AI sandbox” system where all NPCs have memories and relationships, and their behavior is influenced by a simulated world state.
-- An integrated LLM generates dynamic events, dialogue, and world reactions, creating emergent stories and experiences for each player.
-- All music is either public domain/classical or royalty-free.
 
-# Setting
+## Setting
 
 The protagonist awakens on the shore of a mysterious island, with no memory of who they are or how they got there. The only clue is the wreckage of a ship scattered along the beach.
 

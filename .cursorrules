@@ -1,13 +1,18 @@
 # System Prompt
 
-You are designing an open-world browser-based first-person action RPG with BabylonJS and TypeScript.
+You are designing a open-world browser-based first-person action RPG with BabylonJS and TypeScript.
 
-## Coding Instructions
+## Coding Guidelines
 
 - Name files in `loser_snake_case`
 - Never remove existing comments
 - Never ask me to modify something, always do it yourself
 - Always use async/await syntax, avoid promise/callback hell
+- Zero fault-tolerance, avoid conditionals for handling incorrect setup (e.g. assume that HTML contains all needed, all dependencies are provided, etc.)
+- Always prefer "early-return" style of function logic, reduce nesting
+- Write if's with `{...}` curly braces, avoid one-liners
+- Prefer `switch` to `if-else` chains with more than 2 branches
+- Prefer "switch true" where appliable
 
 ## Constraints
 

@@ -5,6 +5,9 @@ import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { PointLight } from "@babylonjs/core/Lights/pointLight";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { Ray } from "@babylonjs/core/Culling/ray";
+import { PhysicsAggregate } from "@babylonjs/core/Physics";
+import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
+
 import {
   CAMERA_CONFIG,
   PLAYER_CONFIG,
@@ -12,13 +15,18 @@ import {
   PHYSICS_CONFIG,
 } from "./config";
 import { InputManager } from "./input_manager";
+import { Sword } from "./weapons/sword";
+import { Spider } from "./enemies/spider";
+import { HUDManager } from "./hud_manager";
 
 export class PlayerManager {
   public camera: FreeCamera;
   public playerLight: PointLight;
+  public playerSword!: Sword;
 
   private scene: Scene;
   private inputManager: InputManager;
+  private hudManager: HUDManager;
   private canvas: HTMLCanvasElement;
 
   public maxHealth: number = PLAYER_CONFIG.MAX_HEALTH;
@@ -30,16 +38,27 @@ export class PlayerManager {
   public isCrouching: boolean = false;
   private crouchKeyPressedLastFrame: boolean = false;
 
-  // Will be set from main.ts after physics initialization
+  // Physics & Movement
   public playerBodyMesh!: Mesh;
+  public playerBodyAggregate!: PhysicsAggregate;
+
+  // Movement state
+  private isMovingForward: boolean = false;
+  private isMovingBackward: boolean = false;
+  private isMovingLeft: boolean = false;
+  private isMovingRight: boolean = false;
+  private isSprinting: boolean = false;
+  private jumpKeyPressedLastFrame: boolean = false;
 
   constructor(
     scene: Scene,
     inputManager: InputManager,
+    hudManager: HUDManager,
     canvas: HTMLCanvasElement
   ) {
     this.scene = scene;
     this.inputManager = inputManager;
+    this.hudManager = hudManager;
     this.canvas = canvas;
 
     this.camera = new FreeCamera(
@@ -66,8 +85,12 @@ export class PlayerManager {
     this.playerLight.parent = this.camera; // Light follows the camera
   }
 
-  public initializePhysics(playerBodyMesh: Mesh) {
+  public initializePhysics(
+    playerBodyMesh: Mesh,
+    playerBodyAggregate: PhysicsAggregate
+  ) {
     this.playerBodyMesh = playerBodyMesh;
+    this.playerBodyAggregate = playerBodyAggregate;
     this.camera.parent = this.playerBodyMesh;
     // Adjust camera position relative to the player body mesh (capsule center)
     this.camera.position = new Vector3(
@@ -77,12 +100,61 @@ export class PlayerManager {
     );
   }
 
+  public async initializeSword() {
+    this.playerSword = await Sword.Create(
+      this.scene,
+      this.camera,
+      PLAYER_CONFIG.SWORD_DAMAGE
+    );
+  }
+
   public update(deltaTime: number): void {
+    // Handle respawn
     if (
       this.playerIsDead &&
       this.inputManager.isKeyPressed(KEY_MAPPINGS.RESPAWN)
     ) {
       this.respawn();
+    }
+
+    // Handle sword attack input
+    if (
+      this.inputManager.isMouseButtonPressed(0) &&
+      this.playerSword &&
+      !this.playerIsDead &&
+      !this.playerSword.getIsSwinging()
+    ) {
+      this.playerSword.swing(
+        PLAYER_CONFIG.CROSSHAIR_MAX_DISTANCE,
+        (mesh: AbstractMesh) =>
+          mesh.metadata && mesh.metadata.enemyType === "spider",
+        (_targetMesh: AbstractMesh, instance: Spider) => {
+          const spiderInstance = instance as Spider;
+          if (
+            spiderInstance &&
+            spiderInstance.currentHealth > 0 &&
+            this.playerSword
+          ) {
+            spiderInstance.takeDamage(this.playerSword.attackDamage);
+          }
+        }
+      );
+    }
+
+    // Update movement input states
+    this.isMovingForward = this.inputManager.isKeyPressed(KEY_MAPPINGS.FORWARD);
+    this.isMovingBackward = this.inputManager.isKeyPressed(
+      KEY_MAPPINGS.BACKWARD
+    );
+    this.isMovingLeft = this.inputManager.isKeyPressed(KEY_MAPPINGS.LEFT);
+    this.isMovingRight = this.inputManager.isKeyPressed(KEY_MAPPINGS.RIGHT);
+
+    // Handle sprinting
+    const shiftPressed = this.inputManager.isKeyCodePressed("ShiftLeft");
+    if (shiftPressed && this.currentStamina > 0 && !this.playerIsDead) {
+      this.isSprinting = true;
+    } else {
+      this.isSprinting = false;
     }
 
     // Crouching
@@ -98,23 +170,9 @@ export class PlayerManager {
     }
     this.crouchKeyPressedLastFrame = crouchKeyCurrentlyPressed;
 
-    // We need to adjust the camera's local Y position relative to its parent (playerBodyMesh)
-    // The playerBodyMesh's center is at its local origin (0,0,0).
-    // The camera needs to be at PLAYER_EYE_HEIGHT_OFFSET when standing,
-    // and PLAYER_EYE_HEIGHT_OFFSET - (STAND_CAMERA_Y - CROUCH_CAMERA_Y) when crouching.
-    // However, since camera.position.y was initially set to STAND_CAMERA_Y and parented,
-    // this becomes more complex.
-    // Let's adjust the local Y position directly.
+    // Update camera position for crouch
     const crouchLerpSpeed = 10;
-
-    // The actual camera position is relative to playerBodyMesh.
-    // STAND_CAMERA_Y and CROUCH_CAMERA_Y were absolute world positions before.
-    // Now, they represent offsets from the player's feet if the camera wasn't parented.
-    // Since it *is* parented to playerBodyMesh (whose origin is at its center),
-    // we need to calculate the target Y relative to the playerBodyMesh origin.
-    // PLAYER_EYE_HEIGHT_OFFSET is the standing eye height from the *center* of the capsule.
     const standEyePositionRelToParent = PLAYER_CONFIG.PLAYER_EYE_HEIGHT_OFFSET;
-    // The difference in height when crouching
     const crouchHeightDelta =
       CAMERA_CONFIG.STAND_CAMERA_Y - CAMERA_CONFIG.CROUCH_CAMERA_Y;
     const crouchEyePositionRelToParent =
@@ -128,22 +186,127 @@ export class PlayerManager {
       (targetLocalCameraY - this.camera.position.y) *
       Math.min(1, crouchLerpSpeed * deltaTime);
 
-    // Stamina regeneration/depletion will be handled in Iteration 6 (Physics & Movement)
-    // Health updates (taking damage) will be handled by external systems (e.g., enemies, environment)
-    // and then PlayerManager will be notified.
+    // Handle physics movement
+    if (
+      !this.playerIsDead &&
+      this.playerBodyAggregate &&
+      this.playerBodyAggregate.body
+    ) {
+      const currentPhysicsVelocity =
+        this.playerBodyAggregate.body.getLinearVelocity();
+      let finalVelocity = new Vector3(0, currentPhysicsVelocity.y, 0);
+
+      // Calculate movement direction
+      let targetVelocityXZ = Vector3.Zero();
+      const forward = this.camera.getDirection(Vector3.Forward());
+      const right = this.camera.getDirection(Vector3.Right());
+      forward.y = 0;
+      right.y = 0;
+      forward.normalize();
+      right.normalize();
+
+      if (this.isMovingForward) targetVelocityXZ.addInPlace(forward);
+      if (this.isMovingBackward) targetVelocityXZ.subtractInPlace(forward);
+      if (this.isMovingLeft) targetVelocityXZ.subtractInPlace(right);
+      if (this.isMovingRight) targetVelocityXZ.addInPlace(right);
+
+      // Apply speed modifiers
+      let actualSpeed = PLAYER_CONFIG.DEFAULT_SPEED;
+      if (this.isSprinting) {
+        actualSpeed *= PLAYER_CONFIG.RUN_SPEED_MULTIPLIER;
+      }
+      if (this.isCrouching) {
+        actualSpeed *= PLAYER_CONFIG.CROUCH_SPEED_MULTIPLIER;
+      }
+
+      // Apply movement
+      if (targetVelocityXZ.lengthSquared() > 0.001) {
+        targetVelocityXZ.normalize().scaleInPlace(actualSpeed);
+        finalVelocity.x = targetVelocityXZ.x;
+        finalVelocity.z = targetVelocityXZ.z;
+      } else {
+        finalVelocity.x = 0;
+        finalVelocity.z = 0;
+      }
+
+      // Handle jumping
+      const jumpKeyCurrentlyPressed = this.inputManager.isKeyPressed(
+        KEY_MAPPINGS.JUMP
+      );
+      if (
+        jumpKeyCurrentlyPressed &&
+        !this.jumpKeyPressedLastFrame &&
+        !this.playerIsDead
+      ) {
+        const isOnGround = this.isPlayerOnGround();
+        if (
+          this.currentStamina >= PLAYER_CONFIG.JUMP_STAMINA_COST &&
+          isOnGround
+        ) {
+          finalVelocity.y = PLAYER_CONFIG.JUMP_FORCE;
+          this.depleteStamina(PLAYER_CONFIG.JUMP_STAMINA_COST);
+        }
+      }
+      this.jumpKeyPressedLastFrame = jumpKeyCurrentlyPressed;
+
+      // Apply final velocity
+      this.playerBodyAggregate.body.setLinearVelocity(finalVelocity);
+
+      // Handle stamina depletion/regeneration
+      if (this.isSprinting && targetVelocityXZ.lengthSquared() > 0.001) {
+        if (this.currentStamina > 0) {
+          this.depleteStamina(PLAYER_CONFIG.STAMINA_DEPLETION_RATE * deltaTime);
+        }
+        if (this.currentStamina <= 0) {
+          this.currentStamina = 0;
+          this.isSprinting = false;
+        }
+      } else {
+        if (this.currentStamina < this.maxStamina) {
+          let currentRegenRate = PLAYER_CONFIG.STAMINA_REGENERATION_RATE;
+          // No regen while moving (but not sprinting)
+          if (
+            !this.isSprinting &&
+            (this.isMovingForward ||
+              this.isMovingBackward ||
+              this.isMovingLeft ||
+              this.isMovingRight)
+          ) {
+            currentRegenRate = 0;
+          }
+          if (currentRegenRate > 0) {
+            this.regenerateStamina(currentRegenRate * deltaTime);
+          }
+        }
+      }
+    } else if (
+      this.playerIsDead &&
+      this.playerBodyAggregate &&
+      this.playerBodyAggregate.body
+    ) {
+      // Stop all movement when dead
+      this.playerBodyAggregate.body.setLinearVelocity(Vector3.Zero());
+    }
+
+    // Handle player death
+    if (this.currentHealth <= 0 && !this.playerIsDead) {
+      this.setDead();
+      // Note: Fight music pause is handled in main.ts based on isInFightMode
+    }
   }
 
   public takeDamage(amount: number): void {
     if (this.playerIsDead) return;
     this.currentHealth -= amount;
     if (this.currentHealth < 0) this.currentHealth = 0;
-    // HUD blood screen effect will be called from HUDManager when it observes health change or via an event system.
-    // For now, we can assume HUDManager might poll this or PlayerManager will call HUDManager.
+    this.hudManager.showBloodScreenEffect(); // Notify HUDManager
   }
 
   public setDead(): void {
     this.playerIsDead = true;
-    // Death screen will be called from HUDManager.
+    this.hudManager.showDeathScreen(); // Notify HUDManager
+    console.log("Player has died.");
+    // Potentially stop fight music here or emit an event
   }
 
   public respawn(): void {
@@ -152,16 +315,15 @@ export class PlayerManager {
   }
 
   public isPlayerOnGround(): boolean {
-    // This check will be moved from main.ts and improved in Iteration 6
     if (
       !this.playerBodyMesh ||
-      !this.playerBodyMesh.physicsImpostor ||
+      !this.playerBodyAggregate ||
+      !this.playerBodyAggregate.body ||
       !this.scene
     ) {
       return false;
     }
-    // Placeholder - actual ground check needs physics body and raycasting
-    // This is a simplified version and will be replaced with a proper raycast in Iteration 6
+
     const rayOrigin = this.playerBodyMesh.getAbsolutePosition().clone();
     // Ray needs to start from bottom of player model
     rayOrigin.y -= PLAYER_CONFIG.PLAYER_HEIGHT / 2;

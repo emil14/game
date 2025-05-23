@@ -3,18 +3,16 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
 import { DirectionalLight } from "@babylonjs/core/Lights/directionalLight";
-import { PointLight } from "@babylonjs/core/Lights/pointLight";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { SkyMaterial } from "@babylonjs/materials/sky";
 import { CubeTexture } from "@babylonjs/core/Materials/Textures/cubeTexture";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
+
 import { WORLD_CONFIG, ASSET_PATHS } from "./config";
 
 export class SkyManager {
-  private scene: Scene;
-
   // Lights
   private hemisphericLight: HemisphericLight;
   private sunLight: DirectionalLight;
@@ -48,8 +46,6 @@ export class SkyManager {
   private readonly sunAnglePeak = WORLD_CONFIG.SUN_ANGLE_PEAK;
 
   constructor(scene: Scene) {
-    this.scene = scene;
-
     // Initialize current cycle time
     this.currentCycleTime =
       this.CYCLE_DURATION_SECONDS * WORLD_CONFIG.INITIAL_CYCLE_TIME_PROGRESS;

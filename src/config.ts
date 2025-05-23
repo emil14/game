@@ -36,12 +36,13 @@ export const PLAYER_CONFIG = {
   STAMINA_DEPLETION_RATE: 10, // per second
   STAMINA_REGENERATION_RATE: 5, // per second
   MAX_HEALTH: 100,
-  PLAYER_HEIGHT: 1.6,
+  PLAYER_HEIGHT: 1.8,
   PLAYER_RADIUS: 0.4,
-  PLAYER_MASS: 1,
+  PLAYER_MASS: 70,
   PLAYER_FRICTION: 0.7,
   PLAYER_RESTITUTION: 0.1,
-  PLAYER_EYE_HEIGHT_OFFSET: 0.6, // Relative to playerBodyMesh center
+  PLAYER_EYE_HEIGHT_OFFSET: 0.6, // From the center of the capsule
+  SWORD_DAMAGE: 25, // Default sword damage
 };
 
 export const CAMERA_CONFIG = {

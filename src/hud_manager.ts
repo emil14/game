@@ -1,5 +1,6 @@
 import { Engine } from "@babylonjs/core/Engines/engine";
 import { Scene } from "@babylonjs/core/scene";
+
 import { UI_ELEMENT_IDS } from "./config";
 
 export class HUDManager {

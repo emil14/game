@@ -52,74 +52,26 @@ const scene = new Scene(engine);
 
 const hudManager = new HUDManager(engine, scene);
 const skyManager = new SkyManager(scene);
-const playerManager = new PlayerManager(scene, inputManager, canvas);
+const playerManager = new PlayerManager(
+  scene,
+  inputManager,
+  hudManager,
+  canvas
+);
 
 const fightMusic = document.getElementById(
   UI_ELEMENT_IDS.FIGHT_MUSIC
 ) as HTMLAudioElement | null;
 
 let havokInstance: any;
-let playerBodyAggregate: PhysicsAggregate;
 let spiders: Spider[] = [];
-let playerSwordInstance: Sword | null = null;
 
 let isDebugModeEnabled = GAME_SETTINGS.DEBUG_START_MODE;
 let debugRayHelper: RayHelper | null = null;
 
 const crosshairMaxDistance = PLAYER_CONFIG.CROSSHAIR_MAX_DISTANCE;
 
-const defaultSpeed = PLAYER_CONFIG.DEFAULT_SPEED;
-const runSpeedMultiplier = PLAYER_CONFIG.RUN_SPEED_MULTIPLIER;
-const crouchSpeedMultiplier = PLAYER_CONFIG.CROUCH_SPEED_MULTIPLIER;
-
-const jumpForce = PLAYER_CONFIG.JUMP_FORCE;
-const jumpStaminaCost = PLAYER_CONFIG.JUMP_STAMINA_COST;
-const groundCheckDistance = PHYSICS_CONFIG.GROUND_CHECK_DISTANCE;
-
-const playerHeight = PLAYER_CONFIG.PLAYER_HEIGHT;
-const playerRadius = PLAYER_CONFIG.PLAYER_RADIUS;
-
-const staminaDepletionRate = PLAYER_CONFIG.STAMINA_DEPLETION_RATE;
-const staminaRegenerationRate = PLAYER_CONFIG.STAMINA_REGENERATION_RATE;
-
-let isMovingForward = false;
-let isMovingBackward = false;
-let isMovingLeft = false;
-let isMovingRight = false;
-let isSprinting = false;
-
-let jumpKeyPressedLastFrame = false;
-
 let isInFightMode = false;
-
-function isPlayerOnGroundCheck(
-  sceneRef: Scene,
-  checkDistance: number,
-  pHeight: number,
-  _pRadius: number
-): boolean {
-  if (
-    !playerManager.playerBodyMesh ||
-    !playerBodyAggregate ||
-    !playerBodyAggregate.body
-  ) {
-    return false;
-  }
-  const rayOrigin = playerManager.playerBodyMesh.getAbsolutePosition().clone();
-  rayOrigin.y -= pHeight / 2;
-  const rayLength = checkDistance + 0.1;
-  const ray = new Ray(rayOrigin, Vector3.Down(), rayLength);
-  const pickInfo = sceneRef.pickWithRay(
-    ray,
-    (mesh) =>
-      mesh !== playerManager.playerBodyMesh &&
-      mesh.isPickable &&
-      mesh.isEnabled() &&
-      !mesh.name.toLowerCase().includes("spider") &&
-      mesh.getTotalVertices() > 0
-  );
-  return pickInfo?.hit || false;
-}
 
 const ground = MeshBuilder.CreateGround(
   "ground1",
@@ -252,58 +204,18 @@ async function initializeGameAssets() {
     spiderInstance.setOnPlayerDamaged((damage: number) => {
       if (playerManager.playerIsDead) return;
       playerManager.takeDamage(damage);
-      hudManager.showBloodScreenEffect();
     });
   } catch (error) {
     console.error("Failed to create spider:", error);
   }
 
-  playerSwordInstance = await Sword.Create(scene, playerManager.camera, 15);
+  await playerManager.initializeSword();
 }
 
 engine.runRenderLoop(() => {
   const deltaTime = engine.getDeltaTime() / 1000;
 
   playerManager.update(deltaTime);
-
-  isMovingForward = inputManager.isKeyPressed(KEY_MAPPINGS.FORWARD);
-  isMovingBackward = inputManager.isKeyPressed(KEY_MAPPINGS.BACKWARD);
-  isMovingLeft = inputManager.isKeyPressed(KEY_MAPPINGS.LEFT);
-  isMovingRight = inputManager.isKeyPressed(KEY_MAPPINGS.RIGHT);
-
-  const shiftPressed = inputManager.isKeyCodePressed("ShiftLeft");
-  if (
-    shiftPressed &&
-    playerManager.getCurrentStamina() > 0 &&
-    !playerManager.playerIsDead
-  ) {
-    isSprinting = true;
-  } else {
-    isSprinting = false;
-  }
-
-  if (
-    inputManager.isMouseButtonPressed(0) &&
-    playerSwordInstance &&
-    !playerManager.playerIsDead &&
-    !playerSwordInstance.getIsSwinging()
-  ) {
-    playerSwordInstance.swing(
-      PLAYER_CONFIG.CROSSHAIR_MAX_DISTANCE,
-      (mesh: AbstractMesh) =>
-        mesh.metadata && mesh.metadata.enemyType === "spider",
-      (_targetMesh: AbstractMesh, instance: Spider) => {
-        const spiderInstance = instance as Spider;
-        if (
-          spiderInstance &&
-          spiderInstance.currentHealth > 0 &&
-          playerSwordInstance
-        ) {
-          spiderInstance.takeDamage(playerSwordInstance.attackDamage);
-        }
-      }
-    );
-  }
 
   skyManager.update(deltaTime);
 
@@ -330,95 +242,7 @@ engine.runRenderLoop(() => {
     }
   }
 
-  if (
-    !playerManager.playerIsDead &&
-    playerBodyAggregate &&
-    playerBodyAggregate.body
-  ) {
-    const currentPhysicsVelocity = playerBodyAggregate.body.getLinearVelocity();
-    let finalVelocity = new Vector3(0, currentPhysicsVelocity.y, 0);
-
-    let targetVelocityXZ = Vector3.Zero();
-    const forward = playerManager.camera.getDirection(Vector3.Forward());
-    const right = playerManager.camera.getDirection(Vector3.Right());
-    forward.y = 0;
-    right.y = 0;
-    forward.normalize();
-    right.normalize();
-
-    if (isMovingForward) targetVelocityXZ.addInPlace(forward);
-    if (isMovingBackward) targetVelocityXZ.subtractInPlace(forward);
-    if (isMovingLeft) targetVelocityXZ.subtractInPlace(right);
-    if (isMovingRight) targetVelocityXZ.addInPlace(right);
-
-    let actualSpeed = defaultSpeed;
-    if (isSprinting) {
-      actualSpeed *= runSpeedMultiplier;
-    }
-    if (playerManager.isCrouching) {
-      actualSpeed *= crouchSpeedMultiplier;
-    }
-
-    if (targetVelocityXZ.lengthSquared() > 0.001) {
-      targetVelocityXZ.normalize().scaleInPlace(actualSpeed);
-      finalVelocity.x = targetVelocityXZ.x;
-      finalVelocity.z = targetVelocityXZ.z;
-    } else {
-      finalVelocity.x = 0;
-      finalVelocity.z = 0;
-    }
-
-    const jumpKeyCurrentlyPressed = inputManager.isKeyPressed(
-      KEY_MAPPINGS.JUMP
-    );
-    if (
-      jumpKeyCurrentlyPressed &&
-      !jumpKeyPressedLastFrame &&
-      !playerManager.playerIsDead
-    ) {
-      const isOnGround = isPlayerOnGroundCheck(
-        scene,
-        groundCheckDistance,
-        playerHeight,
-        playerRadius
-      );
-      if (playerManager.getCurrentStamina() >= jumpStaminaCost && isOnGround) {
-        finalVelocity.y = jumpForce;
-        playerManager.depleteStamina(jumpStaminaCost);
-      }
-    }
-    jumpKeyPressedLastFrame = jumpKeyCurrentlyPressed;
-    playerBodyAggregate.body.setLinearVelocity(finalVelocity);
-
-    if (isSprinting && targetVelocityXZ.lengthSquared() > 0.001) {
-      if (playerManager.getCurrentStamina() > 0)
-        playerManager.depleteStamina(staminaDepletionRate * deltaTime);
-      if (playerManager.getCurrentStamina() <= 0) {
-        playerManager.depleteStamina(0);
-        isSprinting = false;
-      }
-    } else {
-      if (playerManager.getCurrentStamina() < playerManager.getMaxStamina()) {
-        let currentRegenRate = staminaRegenerationRate;
-        if (
-          !isSprinting &&
-          (isMovingForward || isMovingBackward || isMovingLeft || isMovingRight)
-        ) {
-          currentRegenRate = 0;
-        }
-        if (currentRegenRate > 0) {
-          playerManager.regenerateStamina(currentRegenRate * deltaTime);
-        }
-      }
-    }
-  } else if (
-    playerManager.playerIsDead &&
-    playerBodyAggregate &&
-    playerBodyAggregate.body
-  ) {
-    playerBodyAggregate.body.setLinearVelocity(Vector3.Zero());
-  }
-
+  // Update HUD with player stats
   hudManager.updatePlayerStats(
     playerManager.getCurrentHealth(),
     playerManager.getMaxHealth(),
@@ -426,17 +250,19 @@ engine.runRenderLoop(() => {
     playerManager.getMaxStamina()
   );
 
-  if (playerManager.getCurrentHealth() <= 0 && !playerManager.playerIsDead) {
-    playerManager.setDead();
-    console.log("Player has died.");
-    hudManager.showDeathScreen();
-    if (isInFightMode && fightMusic) {
-      fightMusic.pause();
-      fightMusic.currentTime = 0;
-      isInFightMode = false;
-    }
+  // Handle player death
+  if (
+    playerManager.playerIsDead &&
+    isInFightMode &&
+    fightMusic &&
+    !fightMusic.paused
+  ) {
+    fightMusic.pause();
+    fightMusic.currentTime = 0;
+    isInFightMode = false;
   }
 
+  // Crosshair targeting system
   playerManager.camera.computeWorldMatrix();
   const rayOrigin = playerManager.camera.globalPosition;
   const forwardDirection = playerManager.camera.getDirection(Vector3.Forward());
@@ -794,28 +620,41 @@ async function setupGameAndPhysics() {
 
   const playerBodyMeshInstance = MeshBuilder.CreateCapsule(
     "playerBody",
-    { radius: playerRadius, height: playerHeight, tessellation: 20 },
+    {
+      radius: PLAYER_CONFIG.PLAYER_RADIUS,
+      height: PLAYER_CONFIG.PLAYER_HEIGHT,
+      tessellation: 20,
+    },
     scene
   );
   playerBodyMeshInstance.position = playerStartPos.clone();
-  playerBodyMeshInstance.position.y = playerStartPos.y + playerHeight / 2;
+  playerBodyMeshInstance.position.y =
+    playerStartPos.y + PLAYER_CONFIG.PLAYER_HEIGHT / 2;
   playerBodyMeshInstance.isVisible = GAME_SETTINGS.DEBUG_START_MODE;
 
-  playerManager.initializePhysics(playerBodyMeshInstance);
-
-  playerBodyAggregate = new PhysicsAggregate(
-    playerManager.playerBodyMesh,
+  // Create physics aggregate for player
+  const playerBodyAggregate = new PhysicsAggregate(
+    playerBodyMeshInstance,
     PhysicsShapeType.CAPSULE,
     {
       mass: PLAYER_CONFIG.PLAYER_MASS,
       friction: PLAYER_CONFIG.PLAYER_FRICTION,
       restitution: PLAYER_CONFIG.PLAYER_RESTITUTION,
-      pointA: new Vector3(0, -(playerHeight / 2 - playerRadius), 0),
-      pointB: new Vector3(0, playerHeight / 2 - playerRadius, 0),
-      radius: playerRadius,
+      pointA: new Vector3(
+        0,
+        -(PLAYER_CONFIG.PLAYER_HEIGHT / 2 - PLAYER_CONFIG.PLAYER_RADIUS),
+        0
+      ),
+      pointB: new Vector3(
+        0,
+        PLAYER_CONFIG.PLAYER_HEIGHT / 2 - PLAYER_CONFIG.PLAYER_RADIUS,
+        0
+      ),
+      radius: PLAYER_CONFIG.PLAYER_RADIUS,
     },
     scene
   );
+
   if (playerBodyAggregate.body) {
     playerBodyAggregate.body.setMassProperties({
       inertia: new Vector3(0, 0, 0),
@@ -823,6 +662,8 @@ async function setupGameAndPhysics() {
   } else {
     console.error("Failed to create physics body for player.");
   }
+
+  playerManager.initializePhysics(playerBodyMeshInstance, playerBodyAggregate);
 
   await loadAssetWithCollider(
     "palmTree1",

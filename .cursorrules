@@ -7,13 +7,15 @@ You are designing an open-world browser-based first-person action RPG with Babyl
 - Name files in `loser_snake_case`
 - Never remove existing comments
 - Never ask me to modify something, always do it yourself
+- Always use async/await syntax, avoid promise/callback hell
 
 ## Constraints
 
 - The game must run in browser with 60fps on low-end hardware
 - The graphics should be simple stylized low-poly
 - No real-time shadows, fog and LODs, sprites
-- All assets is are royalty-free.
+- All assets is are royalty-free
+- Only latest Chrome version needs to be supported
 
 ## Gameplay
 

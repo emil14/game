@@ -3,12 +3,9 @@ import { Scene } from "@babylonjs/core/scene";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { FreeCamera } from "@babylonjs/core/Cameras/freeCamera";
-import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
-import { DirectionalLight } from "@babylonjs/core/Lights/directionalLight";
 import { PointLight } from "@babylonjs/core/Lights/pointLight";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
-import { SkyMaterial } from "@babylonjs/materials/sky";
 import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
@@ -17,7 +14,6 @@ import "@babylonjs/core/Meshes/Builders/groundBuilder";
 import "@babylonjs/core/Meshes/Builders/boxBuilder";
 import "@babylonjs/core/Collisions/collisionCoordinator";
 import "@babylonjs/inspector";
-import { CubeTexture } from "@babylonjs/core/Materials/Textures/cubeTexture";
 import { Ray } from "@babylonjs/core/Culling/ray";
 import { RayHelper } from "@babylonjs/core/Debug/rayHelper";
 
@@ -42,6 +38,7 @@ import {
 } from "./config";
 import { InputManager } from "./input_manager";
 import { HUDManager } from "./hud_manager";
+import { SkyManager } from "./sky_manager";
 
 const canvas = document.getElementById(
   UI_ELEMENT_IDS.RENDER_CANVAS
@@ -56,6 +53,7 @@ const engine = new Engine(canvas, false, {
 const scene = new Scene(engine);
 
 const hudManager = new HUDManager(engine, scene);
+const skyManager = new SkyManager(scene);
 
 const fightMusic = document.getElementById(
   UI_ELEMENT_IDS.FIGHT_MUSIC
@@ -144,14 +142,7 @@ function isPlayerOnGroundCheck(
   return pickInfo?.hit || false;
 }
 
-const light = new HemisphericLight("light1", new Vector3(0, 1, 0), scene);
-light.intensity = 0.7;
-
-const sunLight = new DirectionalLight("sunLight", new Vector3(0, -1, 0), scene);
-sunLight.intensity = 1.0;
-sunLight.diffuse = new Color3(1, 0.9, 0.7);
-sunLight.specular = new Color3(1, 1, 0.8);
-
+// Player light (not part of sky system)
 const playerLight = new PointLight(
   "playerLight",
   new Vector3(0, 0.5, 0),
@@ -162,21 +153,7 @@ playerLight.range = CAMERA_CONFIG.PLAYER_LIGHT_RANGE;
 playerLight.diffuse = new Color3(1, 0.9, 0.7);
 playerLight.parent = camera;
 
-const CYCLE_DURATION_SECONDS = WORLD_CONFIG.CYCLE_DURATION_SECONDS;
-let currentCycleTime =
-  CYCLE_DURATION_SECONDS * WORLD_CONFIG.INITIAL_CYCLE_TIME_PROGRESS;
-
-const NEW_SUNRISE_HOUR = WORLD_CONFIG.NEW_SUNRISE_HOUR;
-const NEW_SUNSET_HOUR = WORLD_CONFIG.NEW_SUNSET_HOUR;
-const newSunrisePoint = NEW_SUNRISE_HOUR / 24;
-const newSunsetPoint = NEW_SUNSET_HOUR / 24;
-const newMiddayPoint = (newSunrisePoint + newSunsetPoint) / 2;
-const dayNightTransitionWidth =
-  WORLD_CONFIG.DAY_NIGHT_TRANSITION_WIDTH_HOURS_PORTION;
-const sunAngleNight = WORLD_CONFIG.SUN_ANGLE_NIGHT;
-const sunAngleHorizon = WORLD_CONFIG.SUN_ANGLE_HORIZON;
-const sunAnglePeak = WORLD_CONFIG.SUN_ANGLE_PEAK;
-
+// Ground setup
 const ground = MeshBuilder.CreateGround(
   "ground1",
   {
@@ -194,52 +171,7 @@ groundMaterial.diffuseTexture = sandTexture;
 (groundMaterial.diffuseTexture as any).vScale = 8;
 ground.material = groundMaterial;
 
-const skyboxMaterial = new SkyMaterial("skyBoxMaterial", scene);
-skyboxMaterial.backFaceCulling = false;
-skyboxMaterial.turbidity = WORLD_CONFIG.SKYBOX_TURBIDITY;
-skyboxMaterial.mieDirectionalG = WORLD_CONFIG.SKYBOX_MIE_DIRECTIONAL_G;
-skyboxMaterial.useSunPosition = true;
-skyboxMaterial.azimuth = WORLD_CONFIG.SKYBOX_AZIMUTH;
-skyboxMaterial.luminance = WORLD_CONFIG.SKYBOX_LUMINANCE;
-skyboxMaterial.disableDepthWrite = true;
-
-const nightSkyboxMaterial = new StandardMaterial("nightSkyboxMaterial", scene);
-nightSkyboxMaterial.backFaceCulling = false;
-nightSkyboxMaterial.reflectionTexture = new CubeTexture(
-  ASSET_PATHS.SKYBOX_NIGHT,
-  scene,
-  [
-    "_right.webp",
-    "_top.webp",
-    "_front.webp",
-    "_left.webp",
-    "_bot.webp",
-    "_back.webp",
-  ]
-);
-if (nightSkyboxMaterial.reflectionTexture) {
-  nightSkyboxMaterial.reflectionTexture.coordinatesMode = Texture.SKYBOX_MODE;
-}
-nightSkyboxMaterial.disableLighting = true;
-nightSkyboxMaterial.alpha = 0.0;
-nightSkyboxMaterial.disableDepthWrite = true;
-
-const daySkybox = MeshBuilder.CreateBox(
-  "daySkyBox",
-  { size: WORLD_CONFIG.GROUND_SIZE * 20 },
-  scene
-);
-daySkybox.material = skyboxMaterial;
-daySkybox.infiniteDistance = true;
-
-const nightSkybox = MeshBuilder.CreateBox(
-  "nightSkybox",
-  { size: WORLD_CONFIG.GROUND_SIZE * 20 },
-  scene
-);
-nightSkybox.material = nightSkyboxMaterial;
-nightSkybox.infiniteDistance = true;
-
+// Wall setup
 const wallHeight = WORLD_CONFIG.WALL_HEIGHT;
 const wallThickness = WORLD_CONFIG.WALL_THICKNESS;
 const groundSize = WORLD_CONFIG.GROUND_SIZE;
@@ -249,30 +181,6 @@ const wallPositions = [
   [-groundSize / 2, 0, wallThickness, groundSize],
   [groundSize / 2, 0, wallThickness, groundSize],
 ];
-
-const moonTexture = new Texture(ASSET_PATHS.MOON_TEXTURE, scene);
-const moonMaterial = new StandardMaterial("moonMaterial", scene);
-moonMaterial.diffuseTexture = moonTexture;
-moonMaterial.emissiveTexture = moonTexture;
-moonMaterial.disableLighting = true;
-moonMaterial.backFaceCulling = false;
-moonMaterial.alpha = 1.0;
-const moonPlane = MeshBuilder.CreatePlane("moonPlane", { size: 32 }, scene);
-moonPlane.material = moonMaterial;
-moonPlane.infiniteDistance = true;
-moonPlane.isPickable = false;
-moonPlane.alwaysSelectAsActiveMesh = false;
-moonPlane.visibility = 0;
-moonPlane.billboardMode = Mesh.BILLBOARDMODE_ALL;
-
-const moonLight = new DirectionalLight(
-  "moonLight",
-  new Vector3(0, -1, 0),
-  scene
-);
-moonLight.intensity = 0;
-moonLight.diffuse = new Color3(0.7, 0.8, 1.0);
-moonLight.specular = new Color3(0.8, 0.9, 1.0);
 
 async function loadAssetWithCollider(
   name: string,
@@ -453,89 +361,8 @@ engine.runRenderLoop(() => {
     (targetCameraY - camera.position.y) *
     Math.min(1, crouchLerpSpeed * deltaTime);
 
-  currentCycleTime = (currentCycleTime + deltaTime) % CYCLE_DURATION_SECONDS;
-  const cycleProgress = currentCycleTime / CYCLE_DURATION_SECONDS;
-  const currentDaySkyMaterial = daySkybox.material as SkyMaterial;
-  const currentNightSkyMaterial = nightSkybox.material as StandardMaterial;
-  let targetInclination: number;
-  let targetHemisphericIntensity: number;
-  let targetSunLightIntensity: number;
-  let targetDaySkyLuminance: number;
-  let targetNightSkyAlpha: number;
-  const sr_transition_start = newSunrisePoint - dayNightTransitionWidth;
-  const sr_transition_end = newSunrisePoint + dayNightTransitionWidth;
-  const ss_transition_start = newSunsetPoint - dayNightTransitionWidth;
-  const ss_transition_end = newSunsetPoint + dayNightTransitionWidth;
-
-  if (
-    cycleProgress >= sr_transition_start &&
-    cycleProgress < sr_transition_end
-  ) {
-    const transProgress =
-      (cycleProgress - sr_transition_start) / (dayNightTransitionWidth * 2);
-    targetInclination =
-      sunAngleNight + transProgress * (sunAngleHorizon - sunAngleNight);
-    targetHemisphericIntensity = 0.05 + transProgress * 0.65;
-    targetSunLightIntensity = transProgress * 1.0;
-    targetDaySkyLuminance = 0.005 + transProgress * (1.0 - 0.005);
-    targetNightSkyAlpha = 1.0 - transProgress;
-  } else if (
-    cycleProgress >= ss_transition_start &&
-    cycleProgress < ss_transition_end
-  ) {
-    const transProgress =
-      (cycleProgress - ss_transition_start) / (dayNightTransitionWidth * 2);
-    targetInclination =
-      sunAngleHorizon - transProgress * (sunAngleHorizon - sunAngleNight);
-    targetHemisphericIntensity = 0.7 - transProgress * 0.65;
-    targetSunLightIntensity = 1.0 - transProgress * 1.0;
-    targetDaySkyLuminance = 1.0 - transProgress * (1.0 - 0.005);
-    targetNightSkyAlpha = transProgress;
-  } else if (
-    cycleProgress >= sr_transition_end &&
-    cycleProgress < ss_transition_start
-  ) {
-    targetHemisphericIntensity = 0.7;
-    targetSunLightIntensity = 1.0;
-    targetDaySkyLuminance = 1.0;
-    targetNightSkyAlpha = 0.0;
-    if (cycleProgress < newMiddayPoint) {
-      const morningProgress =
-        (cycleProgress - sr_transition_end) /
-        (newMiddayPoint - sr_transition_end);
-      targetInclination =
-        sunAngleHorizon + morningProgress * (sunAnglePeak - sunAngleHorizon);
-    } else {
-      const afternoonProgress =
-        (cycleProgress - newMiddayPoint) /
-        (ss_transition_start - newMiddayPoint);
-      targetInclination =
-        sunAnglePeak - afternoonProgress * (sunAnglePeak - sunAngleHorizon);
-    }
-    targetInclination = Math.max(
-      sunAngleHorizon,
-      Math.min(sunAnglePeak, targetInclination)
-    );
-  } else {
-    targetInclination = sunAngleNight;
-    targetHemisphericIntensity = 0.05;
-    targetSunLightIntensity = 0;
-    targetDaySkyLuminance = 0.005;
-    targetNightSkyAlpha = 1.0;
-  }
-  currentDaySkyMaterial.inclination = targetInclination;
-  light.intensity = targetHemisphericIntensity;
-  sunLight.intensity = targetSunLightIntensity;
-  currentDaySkyMaterial.luminance = targetDaySkyLuminance;
-  currentNightSkyMaterial.alpha = targetNightSkyAlpha;
-  if (currentDaySkyMaterial.useSunPosition) {
-    const phi = currentDaySkyMaterial.inclination * Math.PI;
-    const theta = currentDaySkyMaterial.azimuth * 2 * Math.PI;
-    currentDaySkyMaterial.sunPosition.x = Math.cos(phi) * Math.sin(theta);
-    currentDaySkyMaterial.sunPosition.y = Math.sin(phi);
-    currentDaySkyMaterial.sunPosition.z = Math.cos(phi) * Math.cos(theta);
-    sunLight.direction = currentDaySkyMaterial.sunPosition.scale(-1);
-  }
+  // Update sky manager
+  skyManager.update(deltaTime);
 
   let isAnyEnemyAggro = false;
   if (!playerIsDead) {
@@ -723,66 +550,6 @@ engine.runRenderLoop(() => {
     hudManager.setCrosshairText("•");
   }
 
-  const unclampedInclination = (() => {
-    if (
-      cycleProgress >= sr_transition_start &&
-      cycleProgress < sr_transition_end
-    ) {
-      const transProgress =
-        (cycleProgress - sr_transition_start) / (dayNightTransitionWidth * 2);
-      return sunAngleNight + transProgress * (sunAngleHorizon - sunAngleNight);
-    } else if (
-      cycleProgress >= ss_transition_start &&
-      cycleProgress < ss_transition_end
-    ) {
-      const transProgress =
-        (cycleProgress - ss_transition_start) / (dayNightTransitionWidth * 2);
-      return (
-        sunAngleHorizon - transProgress * (sunAngleHorizon - sunAngleNight)
-      );
-    } else if (
-      cycleProgress >= sr_transition_end &&
-      cycleProgress < ss_transition_start
-    ) {
-      if (cycleProgress < newMiddayPoint) {
-        const morningProgress =
-          (cycleProgress - sr_transition_end) /
-          (newMiddayPoint - sr_transition_end);
-        return (
-          sunAngleHorizon + morningProgress * (sunAnglePeak - sunAngleHorizon)
-        );
-      } else {
-        const afternoonProgress =
-          (cycleProgress - newMiddayPoint) /
-          (ss_transition_start - newMiddayPoint);
-        return (
-          sunAnglePeak - afternoonProgress * (sunAnglePeak - sunAngleHorizon)
-        );
-      }
-    } else {
-      return sunAngleNight;
-    }
-  })();
-  const moonPhi = (unclampedInclination + 1) * Math.PI;
-  const moonTheta = (skyboxMaterial.azimuth + 0.5) * 2 * Math.PI;
-  const moonDistance = WORLD_CONFIG.MOON_DISTANCE_FROM_CAMERA;
-  const moonPos = new Vector3(
-    Math.cos(moonPhi) * Math.sin(moonTheta) * moonDistance,
-    Math.sin(moonPhi) * moonDistance,
-    Math.cos(moonPhi) * Math.cos(moonTheta) * moonDistance
-  );
-  moonPlane.position = moonPos;
-  let moonVisibility = 0;
-  let moonLightIntensity = 0;
-  if (targetNightSkyAlpha > 0.01) {
-    moonVisibility = Math.min(1, targetNightSkyAlpha * 1.2);
-    moonLightIntensity = 0.4 * moonVisibility;
-  }
-  moonPlane.visibility = moonVisibility;
-  moonLight.intensity = moonLightIntensity;
-  moonMaterial.emissiveColor = new Color3(1, 1, 1);
-  light.intensity = targetHemisphericIntensity * (1 - 0.5 * moonVisibility);
-
   scene.render();
   hudManager.updateFPS();
 });
@@ -876,15 +643,8 @@ document.addEventListener("DOMContentLoaded", () => {
       playerExperienceDisplay.textContent = `${placeholderCurrentExp} / ${tabPlayerData.experienceToNextLevel}`;
 
     if (ingameTimeDisplayTab) {
-      const cycleProgressForTab = currentCycleTime / CYCLE_DURATION_SECONDS;
-      const totalGameSecondsInDay = 86400;
-      const currentTotalGameSeconds =
-        cycleProgressForTab * totalGameSecondsInDay;
-      const gameHours = Math.floor(currentTotalGameSeconds / 3600) % 24;
-      const gameMinutes = Math.floor((currentTotalGameSeconds % 3600) / 60);
-      ingameTimeDisplayTab.textContent = `${gameHours
-        .toString()
-        .padStart(2, "0")}:${gameMinutes.toString().padStart(2, "0")}`;
+      // Use SkyManager to get current time
+      ingameTimeDisplayTab.textContent = skyManager.getCurrentTimeFormatted();
     }
     if (experienceBarFillTab) {
       experienceBarFillTab.style.width = `${
@@ -981,94 +741,8 @@ function handleConsoleCommand(command: string): void {
         minutes >= 0 &&
         minutes <= 59
       ) {
-        const totalMinutesInDay = 1440;
-        const inputTotalMinutes = hours * 60 + minutes;
-        const targetCycleProgress = inputTotalMinutes / totalMinutesInDay;
-        currentCycleTime = targetCycleProgress * CYCLE_DURATION_SECONDS;
-        console.log(
-          `Game time set to ${String(hours).padStart(2, "0")}:${String(
-            minutes
-          ).padStart(2, "0")}`
-        );
-        const currentDaySkyMaterial = daySkybox.material as SkyMaterial;
-        const currentNightSkyMaterial =
-          nightSkybox.material as StandardMaterial;
-        let targetInclinationUpdate: number,
-          targetHemisphericIntensityUpdate: number,
-          targetSunLightIntensityUpdate: number,
-          targetDaySkyLuminanceUpdate: number,
-          targetNightSkyAlphaUpdate: number;
-        const sr_start = newSunrisePoint - dayNightTransitionWidth;
-        const sr_end = newSunrisePoint + dayNightTransitionWidth;
-        const ss_start = newSunsetPoint - dayNightTransitionWidth;
-        const ss_end = newSunsetPoint + dayNightTransitionWidth;
-        if (targetCycleProgress >= sr_start && targetCycleProgress < sr_end) {
-          const transProgress =
-            (targetCycleProgress - sr_start) / (dayNightTransitionWidth * 2);
-          targetInclinationUpdate =
-            sunAngleNight + transProgress * (sunAngleHorizon - sunAngleNight);
-          targetHemisphericIntensityUpdate = 0.05 + transProgress * 0.65;
-          targetSunLightIntensityUpdate = transProgress * 1.0;
-          targetDaySkyLuminanceUpdate = 0.005 + transProgress * (1.0 - 0.005);
-          targetNightSkyAlphaUpdate = 1.0 - transProgress;
-        } else if (
-          targetCycleProgress >= ss_start &&
-          targetCycleProgress < ss_end
-        ) {
-          const transProgress =
-            (targetCycleProgress - ss_start) / (dayNightTransitionWidth * 2);
-          targetInclinationUpdate =
-            sunAngleHorizon - transProgress * (sunAngleHorizon - sunAngleNight);
-          targetHemisphericIntensityUpdate = 0.7 - transProgress * 0.65;
-          targetSunLightIntensityUpdate = 1.0 - transProgress * 1.0;
-          targetDaySkyLuminanceUpdate = 1.0 - transProgress * (1.0 - 0.005);
-          targetNightSkyAlphaUpdate = transProgress;
-        } else if (
-          targetCycleProgress >= sr_end &&
-          targetCycleProgress < ss_start
-        ) {
-          targetHemisphericIntensityUpdate = 0.7;
-          targetSunLightIntensityUpdate = 1.0;
-          targetDaySkyLuminanceUpdate = 1.0;
-          targetNightSkyAlphaUpdate = 0.0;
-          if (targetCycleProgress < newMiddayPoint) {
-            const morningProgress =
-              (targetCycleProgress - sr_end) / (newMiddayPoint - sr_end);
-            targetInclinationUpdate =
-              sunAngleHorizon +
-              morningProgress * (sunAnglePeak - sunAngleHorizon);
-          } else {
-            const afternoonProgress =
-              (targetCycleProgress - newMiddayPoint) /
-              (ss_start - newMiddayPoint);
-            targetInclinationUpdate =
-              sunAnglePeak -
-              afternoonProgress * (sunAnglePeak - sunAngleHorizon);
-          }
-          targetInclinationUpdate = Math.max(
-            sunAngleHorizon,
-            Math.min(sunAnglePeak, targetInclinationUpdate!)
-          );
-        } else {
-          targetInclinationUpdate = sunAngleNight;
-          targetHemisphericIntensityUpdate = 0.05;
-          targetSunLightIntensityUpdate = 0;
-          targetDaySkyLuminanceUpdate = 0.005;
-          targetNightSkyAlphaUpdate = 1.0;
-        }
-        currentDaySkyMaterial.inclination = targetInclinationUpdate!;
-        light.intensity = targetHemisphericIntensityUpdate!;
-        sunLight.intensity = targetSunLightIntensityUpdate!;
-        currentDaySkyMaterial.luminance = targetDaySkyLuminanceUpdate!;
-        currentNightSkyMaterial.alpha = targetNightSkyAlphaUpdate!;
-        if (currentDaySkyMaterial.useSunPosition) {
-          const phi = currentDaySkyMaterial.inclination * Math.PI;
-          const theta = currentDaySkyMaterial.azimuth * 2 * Math.PI;
-          currentDaySkyMaterial.sunPosition.x = Math.cos(phi) * Math.sin(theta);
-          currentDaySkyMaterial.sunPosition.y = Math.sin(phi);
-          currentDaySkyMaterial.sunPosition.z = Math.cos(phi) * Math.cos(theta);
-          sunLight.direction = currentDaySkyMaterial.sunPosition.scale(-1);
-        }
+        // Use SkyManager to set time
+        skyManager.setTime(hours, minutes);
       } else {
         console.error(
           "Invalid time format or value for set_time. Use HH:MM (00:00 - 23:59)."
@@ -1270,8 +944,6 @@ async function setupGameAndPhysics() {
   await initializeGameAssets();
 }
 
-try {
-  await setupGameAndPhysics();
-} catch (error) {
+setupGameAndPhysics().catch((error) => {
   console.error("Error during game and physics setup:", error);
-}
+});

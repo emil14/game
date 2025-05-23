@@ -7,7 +7,6 @@ Action/RPG with generative open world.
 - Kenney.nl 3D: много бесплатных low-poly моделей (персонажи, природа, предметы, техника).
 - Poly Pizza: огромная библиотека бесплатных low-poly моделей (CC0).
 - OpenGameArt 3D: некоторые наборы, смотри лицензию.
-- Sketchfab (low-poly фильтр): фильтруй по лицензии CC0/CC-BY.
 
 ## Готовые анимации:
 

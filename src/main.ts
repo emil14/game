@@ -28,7 +28,6 @@ import { Texture } from "@babylonjs/core/Materials/Textures/texture";
 import {
   UI_ELEMENT_IDS,
   PLAYER_CONFIG,
-  CAMERA_CONFIG,
   WORLD_CONFIG,
   ASSET_PATHS,
   PHYSICS_CONFIG,
@@ -39,6 +38,7 @@ import {
 import { InputManager } from "./input_manager";
 import { HUDManager } from "./hud_manager";
 import { SkyManager } from "./sky_manager";
+import { PlayerManager } from "./player_manager";
 
 const canvas = document.getElementById(
   UI_ELEMENT_IDS.RENDER_CANVAS
@@ -54,6 +54,7 @@ const scene = new Scene(engine);
 
 const hudManager = new HUDManager(engine, scene);
 const skyManager = new SkyManager(scene);
+const playerManager = new PlayerManager(scene, inputManager, canvas);
 
 const fightMusic = document.getElementById(
   UI_ELEMENT_IDS.FIGHT_MUSIC
@@ -61,34 +62,17 @@ const fightMusic = document.getElementById(
 
 let havokInstance: any;
 let playerBodyAggregate: PhysicsAggregate;
-let playerBodyMesh: Mesh;
 let spiders: Spider[] = [];
 let playerSwordInstance: Sword | null = null;
 
 let isDebugModeEnabled = GAME_SETTINGS.DEBUG_START_MODE;
 let debugRayHelper: RayHelper | null = null;
 
-const camera = new FreeCamera(
-  "camera1",
-  new Vector3(0, CAMERA_CONFIG.STAND_CAMERA_Y, -5),
-  scene
-);
-camera.maxZ = CAMERA_CONFIG.MAX_Z;
-camera.setTarget(Vector3.Zero());
-camera.attachControl(canvas, true);
-camera.inputs.remove(camera.inputs.attached.keyboard);
-
 const crosshairMaxDistance = PLAYER_CONFIG.CROSSHAIR_MAX_DISTANCE;
 
 const defaultSpeed = PLAYER_CONFIG.DEFAULT_SPEED;
 const runSpeedMultiplier = PLAYER_CONFIG.RUN_SPEED_MULTIPLIER;
-camera.angularSensibility = CAMERA_CONFIG.ANGULAR_SENSIBILITY;
-camera.inertia = CAMERA_CONFIG.INERTIA;
-
-let isCrouching = false;
 const crouchSpeedMultiplier = PLAYER_CONFIG.CROUCH_SPEED_MULTIPLIER;
-const crouchCameraPositionY = CAMERA_CONFIG.CROUCH_CAMERA_Y;
-const standCameraPositionY = CAMERA_CONFIG.STAND_CAMERA_Y;
 
 const jumpForce = PLAYER_CONFIG.JUMP_FORCE;
 const jumpStaminaCost = PLAYER_CONFIG.JUMP_STAMINA_COST;
@@ -97,14 +81,8 @@ const groundCheckDistance = PHYSICS_CONFIG.GROUND_CHECK_DISTANCE;
 const playerHeight = PLAYER_CONFIG.PLAYER_HEIGHT;
 const playerRadius = PLAYER_CONFIG.PLAYER_RADIUS;
 
-let maxStamina = PLAYER_CONFIG.MAX_STAMINA;
-let currentStamina = maxStamina;
 const staminaDepletionRate = PLAYER_CONFIG.STAMINA_DEPLETION_RATE;
 const staminaRegenerationRate = PLAYER_CONFIG.STAMINA_REGENERATION_RATE;
-
-let maxHealth = PLAYER_CONFIG.MAX_HEALTH;
-let currentHealth = maxHealth;
-let playerIsDead = false;
 
 let isMovingForward = false;
 let isMovingBackward = false;
@@ -112,28 +90,31 @@ let isMovingLeft = false;
 let isMovingRight = false;
 let isSprinting = false;
 
-let crouchKeyPressedLastFrame = false;
 let jumpKeyPressedLastFrame = false;
 
 let isInFightMode = false;
 
 function isPlayerOnGroundCheck(
-  playerMesh: Mesh,
   sceneRef: Scene,
   checkDistance: number,
   pHeight: number,
   _pRadius: number
 ): boolean {
-  if (!playerMesh || !playerBodyAggregate || !playerBodyAggregate.body) {
+  if (
+    !playerManager.playerBodyMesh ||
+    !playerBodyAggregate ||
+    !playerBodyAggregate.body
+  ) {
     return false;
   }
-  const rayOrigin = playerMesh.getAbsolutePosition().clone();
-  const rayLength = pHeight / 2 + checkDistance;
+  const rayOrigin = playerManager.playerBodyMesh.getAbsolutePosition().clone();
+  rayOrigin.y -= pHeight / 2;
+  const rayLength = checkDistance + 0.1;
   const ray = new Ray(rayOrigin, Vector3.Down(), rayLength);
   const pickInfo = sceneRef.pickWithRay(
     ray,
     (mesh) =>
-      mesh !== playerMesh &&
+      mesh !== playerManager.playerBodyMesh &&
       mesh.isPickable &&
       mesh.isEnabled() &&
       !mesh.name.toLowerCase().includes("spider") &&
@@ -142,18 +123,6 @@ function isPlayerOnGroundCheck(
   return pickInfo?.hit || false;
 }
 
-// Player light (not part of sky system)
-const playerLight = new PointLight(
-  "playerLight",
-  new Vector3(0, 0.5, 0),
-  scene
-);
-playerLight.intensity = CAMERA_CONFIG.PLAYER_LIGHT_INTENSITY;
-playerLight.range = CAMERA_CONFIG.PLAYER_LIGHT_RANGE;
-playerLight.diffuse = new Color3(1, 0.9, 0.7);
-playerLight.parent = camera;
-
-// Ground setup
 const ground = MeshBuilder.CreateGround(
   "ground1",
   {
@@ -167,15 +136,14 @@ const groundMaterial = new StandardMaterial("groundMaterial", scene);
 groundMaterial.diffuseColor = new Color3(0.9, 0.8, 0.6);
 const sandTexture = new Texture(ASSET_PATHS.SAND_TEXTURE, scene);
 groundMaterial.diffuseTexture = sandTexture;
-(groundMaterial.diffuseTexture as any).uScale = 8;
-(groundMaterial.diffuseTexture as any).vScale = 8;
+(groundMaterial.diffuseTexture as Texture).uScale = 8;
+(groundMaterial.diffuseTexture as Texture).vScale = 8;
 ground.material = groundMaterial;
 
-// Wall setup
 const wallHeight = WORLD_CONFIG.WALL_HEIGHT;
 const wallThickness = WORLD_CONFIG.WALL_THICKNESS;
 const groundSize = WORLD_CONFIG.GROUND_SIZE;
-const wallPositions = [
+const wallPositions: [number, number, number, number][] = [
   [0, groundSize / 2, groundSize, wallThickness],
   [0, -groundSize / 2, groundSize, wallThickness],
   [-groundSize / 2, 0, wallThickness, groundSize],
@@ -244,7 +212,7 @@ async function loadAssetWithCollider(
       scene
     );
 
-    collider.isVisible = false;
+    collider.isVisible = GAME_SETTINGS.DEBUG_START_MODE;
 
     if (isDynamicCollider) {
       visualMesh.parent = collider;
@@ -284,24 +252,21 @@ async function initializeGameAssets() {
     );
     spiders.push(spiderInstance);
     spiderInstance.setOnPlayerDamaged((damage: number) => {
-      if (playerIsDead) return;
-      currentHealth -= damage;
+      if (playerManager.playerIsDead) return;
+      playerManager.takeDamage(damage);
       hudManager.showBloodScreenEffect();
-      if (currentHealth < 0) currentHealth = 0;
     });
   } catch (error) {
     console.error("Failed to create spider:", error);
   }
 
-  playerSwordInstance = await Sword.Create(scene, camera, 15);
-}
-
-function respawnPlayer() {
-  window.location.reload();
+  playerSwordInstance = await Sword.Create(scene, playerManager.camera, 15);
 }
 
 engine.runRenderLoop(() => {
   const deltaTime = engine.getDeltaTime() / 1000;
+
+  playerManager.update(deltaTime);
 
   isMovingForward = inputManager.isKeyPressed(KEY_MAPPINGS.FORWARD);
   isMovingBackward = inputManager.isKeyPressed(KEY_MAPPINGS.BACKWARD);
@@ -309,38 +274,27 @@ engine.runRenderLoop(() => {
   isMovingRight = inputManager.isKeyPressed(KEY_MAPPINGS.RIGHT);
 
   const shiftPressed = inputManager.isKeyCodePressed("ShiftLeft");
-  if (shiftPressed && currentStamina > 0 && !playerIsDead) {
+  if (
+    shiftPressed &&
+    playerManager.getCurrentStamina() > 0 &&
+    !playerManager.playerIsDead
+  ) {
     isSprinting = true;
   } else {
     isSprinting = false;
   }
 
-  const crouchKeyCurrentlyPressed = inputManager.isKeyPressed(
-    KEY_MAPPINGS.CROUCH
-  );
-  if (
-    crouchKeyCurrentlyPressed &&
-    !crouchKeyPressedLastFrame &&
-    !playerIsDead
-  ) {
-    isCrouching = !isCrouching;
-  }
-  crouchKeyPressedLastFrame = crouchKeyCurrentlyPressed;
-
-  if (playerIsDead && inputManager.isKeyPressed(KEY_MAPPINGS.RESPAWN)) {
-    respawnPlayer();
-  }
-
   if (
     inputManager.isMouseButtonPressed(0) &&
     playerSwordInstance &&
-    !playerIsDead &&
+    !playerManager.playerIsDead &&
     !playerSwordInstance.getIsSwinging()
   ) {
     playerSwordInstance.swing(
       PLAYER_CONFIG.CROSSHAIR_MAX_DISTANCE,
-      (mesh) => mesh.metadata && mesh.metadata.enemyType === "spider",
-      (_targetMesh, instance) => {
+      (mesh: AbstractMesh) =>
+        mesh.metadata && mesh.metadata.enemyType === "spider",
+      (_targetMesh: AbstractMesh, instance: Spider) => {
         const spiderInstance = instance as Spider;
         if (
           spiderInstance &&
@@ -353,22 +307,13 @@ engine.runRenderLoop(() => {
     );
   }
 
-  const targetCameraY = isCrouching
-    ? crouchCameraPositionY
-    : standCameraPositionY;
-  const crouchLerpSpeed = 10;
-  camera.position.y +=
-    (targetCameraY - camera.position.y) *
-    Math.min(1, crouchLerpSpeed * deltaTime);
-
-  // Update sky manager
   skyManager.update(deltaTime);
 
   let isAnyEnemyAggro = false;
-  if (!playerIsDead) {
+  if (!playerManager.playerIsDead) {
     spiders.forEach((spider) => {
       if (spider.currentHealth > 0) {
-        spider.update(deltaTime, camera);
+        spider.update(deltaTime, playerManager.camera);
         if (spider.getIsAggro()) isAnyEnemyAggro = true;
       }
     });
@@ -387,13 +332,17 @@ engine.runRenderLoop(() => {
     }
   }
 
-  if (!playerIsDead && playerBodyAggregate && playerBodyAggregate.body) {
+  if (
+    !playerManager.playerIsDead &&
+    playerBodyAggregate &&
+    playerBodyAggregate.body
+  ) {
     const currentPhysicsVelocity = playerBodyAggregate.body.getLinearVelocity();
     let finalVelocity = new Vector3(0, currentPhysicsVelocity.y, 0);
 
     let targetVelocityXZ = Vector3.Zero();
-    const forward = camera.getDirection(Vector3.Forward());
-    const right = camera.getDirection(Vector3.Right());
+    const forward = playerManager.camera.getDirection(Vector3.Forward());
+    const right = playerManager.camera.getDirection(Vector3.Right());
     forward.y = 0;
     right.y = 0;
     forward.normalize();
@@ -408,7 +357,7 @@ engine.runRenderLoop(() => {
     if (isSprinting) {
       actualSpeed *= runSpeedMultiplier;
     }
-    if (isCrouching) {
+    if (playerManager.isCrouching) {
       actualSpeed *= crouchSpeedMultiplier;
     }
 
@@ -424,31 +373,34 @@ engine.runRenderLoop(() => {
     const jumpKeyCurrentlyPressed = inputManager.isKeyPressed(
       KEY_MAPPINGS.JUMP
     );
-    if (jumpKeyCurrentlyPressed && !jumpKeyPressedLastFrame && !playerIsDead) {
+    if (
+      jumpKeyCurrentlyPressed &&
+      !jumpKeyPressedLastFrame &&
+      !playerManager.playerIsDead
+    ) {
       const isOnGround = isPlayerOnGroundCheck(
-        playerBodyMesh,
         scene,
         groundCheckDistance,
         playerHeight,
         playerRadius
       );
-      if (currentStamina >= jumpStaminaCost && isOnGround) {
+      if (playerManager.getCurrentStamina() >= jumpStaminaCost && isOnGround) {
         finalVelocity.y = jumpForce;
-        currentStamina -= jumpStaminaCost;
+        playerManager.depleteStamina(jumpStaminaCost);
       }
     }
     jumpKeyPressedLastFrame = jumpKeyCurrentlyPressed;
     playerBodyAggregate.body.setLinearVelocity(finalVelocity);
 
     if (isSprinting && targetVelocityXZ.lengthSquared() > 0.001) {
-      if (currentStamina > 0)
-        currentStamina -= staminaDepletionRate * deltaTime;
-      if (currentStamina <= 0) {
-        currentStamina = 0;
+      if (playerManager.getCurrentStamina() > 0)
+        playerManager.depleteStamina(staminaDepletionRate * deltaTime);
+      if (playerManager.getCurrentStamina() <= 0) {
+        playerManager.depleteStamina(0);
         isSprinting = false;
       }
     } else {
-      if (currentStamina < maxStamina) {
+      if (playerManager.getCurrentStamina() < playerManager.getMaxStamina()) {
         let currentRegenRate = staminaRegenerationRate;
         if (
           !isSprinting &&
@@ -457,24 +409,27 @@ engine.runRenderLoop(() => {
           currentRegenRate = 0;
         }
         if (currentRegenRate > 0) {
-          currentStamina += currentRegenRate * deltaTime;
+          playerManager.regenerateStamina(currentRegenRate * deltaTime);
         }
-        if (currentStamina > maxStamina) currentStamina = maxStamina;
       }
     }
-  } else if (playerIsDead && playerBodyAggregate && playerBodyAggregate.body) {
+  } else if (
+    playerManager.playerIsDead &&
+    playerBodyAggregate &&
+    playerBodyAggregate.body
+  ) {
     playerBodyAggregate.body.setLinearVelocity(Vector3.Zero());
   }
 
   hudManager.updatePlayerStats(
-    currentHealth,
-    maxHealth,
-    currentStamina,
-    maxStamina
+    playerManager.getCurrentHealth(),
+    playerManager.getMaxHealth(),
+    playerManager.getCurrentStamina(),
+    playerManager.getMaxStamina()
   );
 
-  if (currentHealth <= 0 && !playerIsDead) {
-    playerIsDead = true;
+  if (playerManager.getCurrentHealth() <= 0 && !playerManager.playerIsDead) {
+    playerManager.setDead();
     console.log("Player has died.");
     hudManager.showDeathScreen();
     if (isInFightMode && fightMusic) {
@@ -484,9 +439,9 @@ engine.runRenderLoop(() => {
     }
   }
 
-  camera.computeWorldMatrix();
-  const rayOrigin = camera.globalPosition;
-  const forwardDirection = camera.getDirection(Vector3.Forward());
+  playerManager.camera.computeWorldMatrix();
+  const rayOrigin = playerManager.camera.globalPosition;
+  const forwardDirection = playerManager.camera.getDirection(Vector3.Forward());
   const ray = new Ray(rayOrigin, forwardDirection, crosshairMaxDistance);
 
   if (isDebugModeEnabled) {
@@ -612,20 +567,10 @@ document.addEventListener("DOMContentLoaded", () => {
       currentActiveTab !== TAB_MENU_CONFIG.PLAYER_STATS_TAB_ID
     )
       return;
-    const currentHealthGame =
-      typeof currentHealth !== "undefined"
-        ? currentHealth
-        : PLAYER_CONFIG.MAX_HEALTH;
-    const maxHealthGame =
-      typeof maxHealth !== "undefined" ? maxHealth : PLAYER_CONFIG.MAX_HEALTH;
-    const currentStaminaGame =
-      typeof currentStamina !== "undefined"
-        ? currentStamina
-        : PLAYER_CONFIG.MAX_STAMINA;
-    const maxStaminaGame =
-      typeof maxStamina !== "undefined"
-        ? maxStamina
-        : PLAYER_CONFIG.MAX_STAMINA;
+    const currentHealthGame = playerManager.getCurrentHealth();
+    const maxHealthGame = playerManager.getMaxHealth();
+    const currentStaminaGame = playerManager.getCurrentStamina();
+    const maxStaminaGame = playerManager.getMaxStamina();
     const placeholderCurrentExp =
       TAB_MENU_CONFIG.PLACEHOLDER_PLAYER_CURRENT_EXP;
 
@@ -643,7 +588,6 @@ document.addEventListener("DOMContentLoaded", () => {
       playerExperienceDisplay.textContent = `${placeholderCurrentExp} / ${tabPlayerData.experienceToNextLevel}`;
 
     if (ingameTimeDisplayTab) {
-      // Use SkyManager to get current time
       ingameTimeDisplayTab.textContent = skyManager.getCurrentTimeFormatted();
     }
     if (experienceBarFillTab) {
@@ -741,7 +685,6 @@ function handleConsoleCommand(command: string): void {
         minutes >= 0 &&
         minutes <= 59
       ) {
-        // Use SkyManager to set time
         skyManager.setTime(hours, minutes);
       } else {
         console.error(
@@ -754,7 +697,8 @@ function handleConsoleCommand(command: string): void {
   } else if (lowerCommand === KEY_MAPPINGS.TOGGLE_DEBUG) {
     isDebugModeEnabled = !isDebugModeEnabled;
     console.log(`Debug mode ${isDebugModeEnabled ? "enabled" : "disabled"}.`);
-    if (playerBodyMesh) playerBodyMesh.isVisible = isDebugModeEnabled;
+    if (playerManager.playerBodyMesh)
+      playerManager.playerBodyMesh.isVisible = isDebugModeEnabled;
     for (let i = 1; i <= 4; i++) {
       const wall = scene.getMeshByName(`wall${i}`);
       if (wall) wall.isVisible = isDebugModeEnabled;
@@ -773,7 +717,7 @@ function handleConsoleCommand(command: string): void {
       if (
         !processedAsSpiderColliderParent &&
         mesh.name.toLowerCase().endsWith("collider") &&
-        mesh !== playerBodyMesh &&
+        mesh !== playerManager.playerBodyMesh &&
         !mesh.name.startsWith("wall")
       ) {
         mesh.isVisible = isDebugModeEnabled;
@@ -814,6 +758,7 @@ async function setupGameAndPhysics() {
   }
   const havokPlugin = new HavokPlugin(true, havokInstance);
   scene.enablePhysics(new Vector3(0, PHYSICS_CONFIG.GRAVITY_Y, 0), havokPlugin);
+
   const groundAggregate = new PhysicsAggregate(
     ground,
     PhysicsShapeType.BOX,
@@ -824,37 +769,44 @@ async function setupGameAndPhysics() {
     },
     scene
   );
-  wallPositions.forEach((props, i) => {
-    const wall = MeshBuilder.CreateBox(
-      `wall${i + 1}`,
-      { width: props[2], height: wallHeight, depth: props[3] },
-      scene
-    );
-    wall.position = new Vector3(props[0], wallHeight / 2, props[1]);
-    wall.isVisible = false;
-    new PhysicsAggregate(
-      wall,
-      PhysicsShapeType.BOX,
-      {
-        mass: 0,
-        friction: PHYSICS_CONFIG.WALL_FRICTION,
-        restitution: PHYSICS_CONFIG.WALL_RESTITUTION,
-      },
-      scene
-    );
-  });
+
+  wallPositions.forEach(
+    (props: [number, number, number, number], i: number) => {
+      const wall = MeshBuilder.CreateBox(
+        `wall${i + 1}`,
+        { width: props[2], height: wallHeight, depth: props[3] },
+        scene
+      );
+      wall.position = new Vector3(props[0], wallHeight / 2, props[1]);
+      wall.isVisible = GAME_SETTINGS.DEBUG_START_MODE;
+      new PhysicsAggregate(
+        wall,
+        PhysicsShapeType.BOX,
+        {
+          mass: 0,
+          friction: PHYSICS_CONFIG.WALL_FRICTION,
+          restitution: PHYSICS_CONFIG.WALL_RESTITUTION,
+        },
+        scene
+      );
+    }
+  );
+
   const playerStartPos = new Vector3(0, 1.0, -5);
-  const playerEyeHeightOffset = PLAYER_CONFIG.PLAYER_EYE_HEIGHT_OFFSET;
-  playerBodyMesh = MeshBuilder.CreateCapsule(
+
+  const playerBodyMeshInstance = MeshBuilder.CreateCapsule(
     "playerBody",
     { radius: playerRadius, height: playerHeight, tessellation: 20 },
     scene
   );
-  playerBodyMesh.position = playerStartPos.clone();
-  playerBodyMesh.position.y = playerStartPos.y + playerHeight / 2;
-  playerBodyMesh.isVisible = false;
+  playerBodyMeshInstance.position = playerStartPos.clone();
+  playerBodyMeshInstance.position.y = playerStartPos.y + playerHeight / 2;
+  playerBodyMeshInstance.isVisible = GAME_SETTINGS.DEBUG_START_MODE;
+
+  playerManager.initializePhysics(playerBodyMeshInstance);
+
   playerBodyAggregate = new PhysicsAggregate(
-    playerBodyMesh,
+    playerManager.playerBodyMesh,
     PhysicsShapeType.CAPSULE,
     {
       mass: PLAYER_CONFIG.PLAYER_MASS,
@@ -873,8 +825,7 @@ async function setupGameAndPhysics() {
   } else {
     console.error("Failed to create physics body for player.");
   }
-  camera.parent = playerBodyMesh;
-  camera.position = new Vector3(0, playerEyeHeightOffset, 0);
+
   await loadAssetWithCollider(
     "palmTree1",
     "PIRATE_KIT_MODELS",
@@ -925,13 +876,13 @@ async function setupGameAndPhysics() {
     (collider) => {
       new ClosedChest(collider as Mesh, true, "key_old_chest", () => {
         if (collider.metadata && collider.metadata.chestInstance) {
-          const ray = camera.getForwardRay(
+          const ray = playerManager.camera.getForwardRay(
             PLAYER_CONFIG.CROSSHAIR_MAX_DISTANCE
           );
           const pickInfo = scene.pickWithRay(ray, (mesh) => mesh === collider);
           if (pickInfo && pickInfo.hit) {
             hudManager.setCrosshairText(
-              collider.metadata.chestInstance.getDisplayIcon()
+              (collider.metadata.chestInstance as ClosedChest).getDisplayIcon()
             );
           }
         }
@@ -941,6 +892,7 @@ async function setupGameAndPhysics() {
     2.25,
     2.25
   );
+
   await initializeGameAssets();
 }
 

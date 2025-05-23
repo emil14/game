@@ -44,7 +44,7 @@ export class PlayerManager {
 
     this.camera = new FreeCamera(
       "playerCamera",
-      new Vector3(0, CAMERA_CONFIG.STAND_CAMERA_Y, 0), // Initial position will be overridden by parenting to playerBodyMesh
+      new Vector3(0, CAMERA_CONFIG.STAND_CAMERA_Y, -5),
       this.scene
     );
     this.camera.maxZ = CAMERA_CONFIG.MAX_Z;

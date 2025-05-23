@@ -4,6 +4,7 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { PointLight } from "@babylonjs/core/Lights/pointLight";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
+import { Ray } from "@babylonjs/core/Culling/ray";
 import {
   CAMERA_CONFIG,
   PLAYER_CONFIG,
@@ -97,10 +98,6 @@ export class PlayerManager {
     }
     this.crouchKeyPressedLastFrame = crouchKeyCurrentlyPressed;
 
-    const targetCameraY = this.isCrouching
-      ? CAMERA_CONFIG.CROUCH_CAMERA_Y
-      : CAMERA_CONFIG.STAND_CAMERA_Y;
-
     // We need to adjust the camera's local Y position relative to its parent (playerBodyMesh)
     // The playerBodyMesh's center is at its local origin (0,0,0).
     // The camera needs to be at PLAYER_EYE_HEIGHT_OFFSET when standing,
@@ -169,10 +166,10 @@ export class PlayerManager {
     // Ray needs to start from bottom of player model
     rayOrigin.y -= PLAYER_CONFIG.PLAYER_HEIGHT / 2;
     const rayLength = PHYSICS_CONFIG.GROUND_CHECK_DISTANCE + 0.1; // Small epsilon
-    const ray = new Ray(rayOrigin, Vector3.Down(), rayLength);
+    const localRay = new Ray(rayOrigin, Vector3.Down(), rayLength);
 
     const pickInfo = this.scene.pickWithRay(
-      ray,
+      localRay,
       (mesh) =>
         mesh !== this.playerBodyMesh &&
         mesh.isPickable &&

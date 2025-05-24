@@ -6,6 +6,7 @@ import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
 import { FreeCamera } from "@babylonjs/core/Cameras/freeCamera";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { Ray } from "@babylonjs/core/Culling/ray";
+import "@babylonjs/loaders/glTF";
 
 export class Sword {
   public visualMesh!: AbstractMesh;

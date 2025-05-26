@@ -219,6 +219,26 @@ export class PlayerManager {
         actualSpeed *= PLAYER_CONFIG.CROUCH_SPEED_MULTIPLIER;
       }
 
+      // --- Camera FOV based on speed ---
+      const velocityXZ = new Vector3(
+        currentPhysicsVelocity.x,
+        0,
+        currentPhysicsVelocity.z
+      );
+      const speedXZ = velocityXZ.length();
+      const minFov = CAMERA_CONFIG.BASE_FOV;
+      const maxFov = CAMERA_CONFIG.MAX_FOV;
+      // Assume max speed is sprinting speed
+      const maxSpeed =
+        PLAYER_CONFIG.DEFAULT_SPEED * PLAYER_CONFIG.RUN_SPEED_MULTIPLIER;
+      const t = Math.min(speedXZ / maxSpeed, 1);
+      const targetFov = minFov + (maxFov - minFov) * t;
+      // Smoothly interpolate FOV
+      const lerpFactor = 8 * deltaTime;
+      this.camera.fov +=
+        (targetFov - this.camera.fov) * Math.min(lerpFactor, 1);
+      // --- End Camera FOV ---
+
       // Apply movement
       if (targetVelocityXZ.lengthSquared() > 0.001) {
         targetVelocityXZ.normalize().scaleInPlace(actualSpeed);

@@ -219,6 +219,27 @@ export class PlayerManager {
         actualSpeed *= PLAYER_CONFIG.CROUCH_SPEED_MULTIPLIER;
       }
 
+      // --- Direction-based speed multiplier ---
+      let directionMultiplier = 1.0;
+      const movingForward = this.isMovingForward && !this.isMovingBackward;
+      const movingBackward = this.isMovingBackward && !this.isMovingForward;
+      const movingSide =
+        (this.isMovingLeft || this.isMovingRight) &&
+        !this.isMovingForward &&
+        !this.isMovingBackward;
+      // Diagonal: forward+side = forward dominates, back+side = backward dominates
+      if (movingForward) {
+        directionMultiplier = 1.0;
+      } else if (movingBackward) {
+        directionMultiplier = 0.5;
+      } else if (movingSide) {
+        directionMultiplier = 0.75;
+      }
+      // If moving diagonally (forward+side), forward dominates (already handled by movingForward)
+      // If moving diagonally (back+side), backward dominates (already handled by movingBackward)
+      actualSpeed *= directionMultiplier;
+      // --- End direction-based speed multiplier ---
+
       // --- Camera FOV based on sprinting ---
       const minFov = CAMERA_CONFIG.BASE_FOV;
       const maxFov = CAMERA_CONFIG.MAX_FOV;

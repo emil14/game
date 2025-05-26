@@ -125,7 +125,7 @@ export class PlayerManager {
       !this.playerSword.getIsSwinging()
     ) {
       this.playerSword.swing(
-        PLAYER_CONFIG.CROSSHAIR_MAX_DISTANCE,
+        PLAYER_CONFIG.SWORD_ATTACK_DISTANCE,
         (mesh: AbstractMesh) =>
           mesh.metadata && mesh.metadata.enemyType === "spider",
         (_targetMesh: AbstractMesh, instance: Spider) => {

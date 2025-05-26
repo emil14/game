@@ -43,6 +43,7 @@ export const PLAYER_CONFIG = {
   PLAYER_RESTITUTION: 0.1,
   PLAYER_EYE_HEIGHT_OFFSET: 0.6, // From the center of the capsule
   SWORD_DAMAGE: 25, // Default sword damage
+  SWORD_ATTACK_DISTANCE: 2.0, // Sword attack range (meters)
 };
 
 export const CAMERA_CONFIG = {

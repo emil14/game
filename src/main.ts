@@ -17,12 +17,12 @@ import { RayHelper } from "@babylonjs/core/Debug/rayHelper";
 
 import { HavokPlugin } from "@babylonjs/core/Physics";
 import HavokPhysics from "@babylonjs/havok";
-import { PhysicsAggregate, PhysicsShapeType } from "@babylonjs/core/Physics";
-
-import { ClosedChest } from "./interactables";
-import { Spider } from "./enemies/spider";
-import { Sword } from "./weapons/sword";
+import {
+  PhysicsAggregate,
+  PhysicsShapeType,
+} from "@babylonjs/core/Physics";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture";
+
 import {
   UI_ELEMENT_IDS,
   PLAYER_CONFIG,
@@ -34,21 +34,22 @@ import {
   TAB_MENU_CONFIG,
 } from "./config";
 import { InputManager } from "./input_manager";
-import { HUDManager } from "./hud_manager";
 import { SkyManager } from "./sky_manager";
+import { HUDManager } from "./hud_manager";
 import { PlayerManager } from "./player_manager";
+import { Spider } from "./enemies/spider";
+import { ClosedChest } from "./interactables";
+import { Game } from "./game";
 
 const canvas = document.getElementById(
   UI_ELEMENT_IDS.RENDER_CANVAS
-)! as HTMLCanvasElement;
-const inputManager = new InputManager(canvas);
+) as HTMLCanvasElement;
 
-const engine = new Engine(canvas, false, {
-  preserveDrawingBuffer: true,
-  stencil: true,
-  disableWebGL2Support: false,
-});
-const scene = new Scene(engine);
+const game = new Game(canvas);
+const engine = game.engine;
+const scene = game.scene;
+
+const inputManager = new InputManager(canvas);
 
 const hudManager = new HUDManager(engine, scene);
 const skyManager = new SkyManager(scene);

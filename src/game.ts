@@ -18,7 +18,7 @@ import { PlayerManager } from "./player_manager";
 import { Spider } from "./enemies/spider";
 import { ClosedChest } from "./interactables";
 import AssetManager from "./asset_manager";
-import { TabMenuManager } from "./ui/tab_menu_manager";
+import { TabMenuManager } from "./tab_menu_manager";
 import { EventSystem } from "./event_system";
 
 export class Game {
@@ -42,7 +42,6 @@ export class Game {
   private crosshairMaxDistance: number =
     this.config.PLAYER_CONFIG.CROSSHAIR_MAX_DISTANCE;
   private havokInstance: any;
-  private ground: Mesh | null = null;
   private wallPositions: [number, number, number, number][] = [];
   public gameState: "initializing" | "playing" | "paused" | "menu" =
     "initializing";
@@ -62,7 +61,13 @@ export class Game {
       this.hudManager,
       this.canvas
     );
-    this.tabMenuManager = new TabMenuManager(this);
+    this.tabMenuManager = new TabMenuManager(
+      this.engine,
+      this.canvas,
+      this.playerManager,
+      this.hudManager,
+      this.skyManager
+    );
     this.wallPositions = [
       [
         0,
@@ -209,7 +214,6 @@ export class Game {
       },
       this.scene
     );
-    this.ground = ground;
   }
 
   private _createWalls() {

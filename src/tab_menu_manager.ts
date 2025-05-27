@@ -1,8 +1,16 @@
-import { UI_ELEMENT_IDS, KEY_MAPPINGS, TAB_MENU_CONFIG } from "../config";
-import type { Game } from "../game";
+import { Engine } from "@babylonjs/core/Engines/engine";
+
+import { UI_ELEMENT_IDS, KEY_MAPPINGS, TAB_MENU_CONFIG } from "./config";
+import { HUDManager } from "./hud_manager";
+import { PlayerManager } from "./player_manager";
+import { SkyManager } from "./sky_manager";
 
 export class TabMenuManager {
-  private game: Game;
+  private engine: Engine;
+  private canvas: HTMLCanvasElement;
+  private playerManager: PlayerManager;
+  private hudManager: HUDManager;
+  private skyManager: SkyManager;
 
   private tabMenu: HTMLElement;
   private tabNavigation: HTMLElement;
@@ -19,11 +27,21 @@ export class TabMenuManager {
   private currentActiveTab: string = TAB_MENU_CONFIG.INITIAL_ACTIVE_TAB;
   private tabPlayerData = {
     level: TAB_MENU_CONFIG.PLACEHOLDER_PLAYER_LEVEL,
-    experienceToNextLevel: TAB_MENU_CONFIG.PLACEHOLDER_PLAYER_EXP_TO_NEXT_LEVEL,
+    experience: TAB_MENU_CONFIG.PLACEHOLDER_PLAYER_EXP_TO_NEXT_LEVEL,
   };
 
-  constructor(game: Game) {
-    this.game = game;
+  constructor(
+    engine: Engine,
+    canvas: HTMLCanvasElement,
+    playerManager: PlayerManager,
+    hudManager: HUDManager,
+    skyManager: SkyManager
+  ) {
+    this.engine = engine;
+    this.canvas = canvas;
+    this.playerManager = playerManager;
+    this.hudManager = hudManager;
+    this.skyManager = skyManager;
 
     this.tabMenu = document.getElementById(UI_ELEMENT_IDS.TAB_MENU)!;
     this.tabNavigation = document.getElementById(
@@ -76,8 +94,8 @@ export class TabMenuManager {
         this.toggleTabMenu();
       }
       if (key === KEY_MAPPINGS.EXIT_POINTER_LOCK) {
-        if (this.game.engine.isPointerLock) {
-          this.game.engine.exitPointerlock();
+        if (this.engine.isPointerLock) {
+          this.engine.exitPointerlock();
         }
       }
       if (!event.metaKey && !event.ctrlKey && !event.altKey) {
@@ -99,55 +117,41 @@ export class TabMenuManager {
     });
 
     // Canvas click to re-enter pointer lock
-    if (this.game["canvas"]) {
-      this.game["canvas"].addEventListener("click", () => {
-        if (!this.isTabMenuOpen && !this.game.engine.isPointerLock) {
-          this.game.engine.enterPointerlock();
-        }
-      });
-    }
+    this.canvas.addEventListener("click", () => {
+      if (!this.isTabMenuOpen && !this.engine.isPointerLock) {
+        this.engine.enterPointerlock();
+      }
+    });
   }
 
   private updateStatsTabData(): void {
     if (
-      !this.tabMenu ||
       this.tabMenu.classList.contains("hidden") ||
       this.currentActiveTab !== TAB_MENU_CONFIG.PLAYER_STATS_TAB_ID
     ) {
       return;
     }
-    const currentHealthGame = this.game.playerManager.getCurrentHealth();
-    const maxHealthGame = this.game.playerManager.getMaxHealth();
-    const currentStaminaGame = this.game.playerManager.getCurrentStamina();
-    const maxStaminaGame = this.game.playerManager.getMaxStamina();
+
+    const currentHealthGame = this.playerManager.getCurrentHealth();
+    const maxHealthGame = this.playerManager.getMaxHealth();
+    const currentStaminaGame = this.playerManager.getCurrentStamina();
+    const maxStaminaGame = this.playerManager.getMaxStamina();
     const placeholderCurrentExp =
       TAB_MENU_CONFIG.PLACEHOLDER_PLAYER_CURRENT_EXP;
 
-    if (this.playerLevelDisplay) {
-      this.playerLevelDisplay.textContent = this.tabPlayerData.level.toString();
-    }
-    if (this.playerHealthDisplay) {
-      this.playerHealthDisplay.textContent = `${currentHealthGame.toFixed(
-        0
-      )} / ${maxHealthGame.toFixed(0)}`;
-    }
-    if (this.playerStaminaDisplay) {
-      this.playerStaminaDisplay.textContent = `${currentStaminaGame.toFixed(
-        0
-      )} / ${maxStaminaGame.toFixed(0)}`;
-    }
-    if (this.playerExperienceDisplay) {
-      this.playerExperienceDisplay.textContent = `${placeholderCurrentExp} / ${this.tabPlayerData.experienceToNextLevel}`;
-    }
-    if (this.ingameTimeDisplayTab) {
-      this.ingameTimeDisplayTab.textContent =
-        this.game.skyManager.getCurrentTimeFormatted();
-    }
-    if (this.experienceBarFillTab) {
-      this.experienceBarFillTab.style.width = `${
-        (placeholderCurrentExp / this.tabPlayerData.experienceToNextLevel) * 100
-      }%`;
-    }
+    this.playerLevelDisplay.textContent = this.tabPlayerData.level.toString();
+    this.playerHealthDisplay.textContent = `${currentHealthGame.toFixed(
+      0
+    )} / ${maxHealthGame.toFixed(0)}`;
+    this.playerStaminaDisplay.textContent = `${currentStaminaGame.toFixed(
+      0
+    )} / ${maxStaminaGame.toFixed(0)}`;
+    this.playerExperienceDisplay.textContent = `${placeholderCurrentExp} / ${this.tabPlayerData.experience}`;
+    this.ingameTimeDisplayTab.textContent =
+      this.skyManager.getCurrentTimeFormatted();
+    this.experienceBarFillTab.style.width = `${
+      (placeholderCurrentExp / this.tabPlayerData.experience) * 100
+    }%`;
   }
 
   private setActiveTab(tabId: string): void {
@@ -166,9 +170,9 @@ export class TabMenuManager {
   private showTabMenu(tabIdToShow?: string): void {
     this.isTabMenuOpen = true;
     this.tabMenu.classList.remove("hidden");
-    this.game.hudManager.hideCoreHud();
-    if (this.game.engine.isPointerLock) {
-      this.game.engine.exitPointerlock();
+    this.hudManager.hideCoreHud();
+    if (this.engine.isPointerLock) {
+      this.engine.exitPointerlock();
     }
     this.setActiveTab(
       tabIdToShow || this.currentActiveTab || TAB_MENU_CONFIG.INITIAL_ACTIVE_TAB
@@ -178,7 +182,7 @@ export class TabMenuManager {
   private hideTabMenu(): void {
     this.isTabMenuOpen = false;
     this.tabMenu.classList.add("hidden");
-    this.game.hudManager.showCoreHud();
+    this.hudManager.showCoreHud();
   }
 
   private toggleTabMenu(tabIdToShow?: string): void {

@@ -241,12 +241,7 @@ export class PlayerManager {
       // --- End direction-based speed multiplier ---
 
       // --- Camera FOV based on sprinting ---
-      const minFov = CAMERA_CONFIG.BASE_FOV;
-      const maxFov = CAMERA_CONFIG.MAX_FOV;
-      const targetFov = this.isSprinting ? maxFov : minFov;
-      const lerpFactor = 8 * deltaTime;
-      this.camera.fov +=
-        (targetFov - this.camera.fov) * Math.min(lerpFactor, 1);
+      this.camera.fov = CAMERA_CONFIG.BASE_FOV;
       // --- End Camera FOV ---
 
       // Apply movement

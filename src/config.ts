@@ -55,7 +55,6 @@ export const CAMERA_CONFIG = {
   PLAYER_LIGHT_RANGE: 10,
   MAX_Z: 10000,
   BASE_FOV: 0.8, // Default FOV in radians (BabylonJS default)
-  MAX_FOV: 0.9, // Max FOV in radians when running at max speed
 };
 
 export const WORLD_CONFIG = {

@@ -18,6 +18,7 @@ import { ClosedChest } from "./interactables";
 import * as config from "./config";
 import AssetManager from "./asset_manager";
 import { TabMenuManager } from "./ui/tab_menu_manager";
+import { EventSystem } from "./event_system";
 
 export class Game {
   public readonly engine: Engine;
@@ -45,7 +46,7 @@ export class Game {
   public gameState: "initializing" | "playing" | "paused" | "menu" =
     "initializing";
   public readonly assetManager: AssetManager;
-  public readonly eventSystem: any = null; // To be implemented in Iteration 12
+  public readonly eventSystem: EventSystem;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -88,6 +89,7 @@ export class Game {
       ],
     ];
     this.assetManager = new AssetManager(this.scene);
+    this.eventSystem = new EventSystem();
   }
 
   private async _loadAssetWithCollider(

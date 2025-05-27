@@ -17,10 +17,7 @@ import { RayHelper } from "@babylonjs/core/Debug/rayHelper";
 
 import { HavokPlugin } from "@babylonjs/core/Physics";
 import HavokPhysics from "@babylonjs/havok";
-import {
-  PhysicsAggregate,
-  PhysicsShapeType,
-} from "@babylonjs/core/Physics";
+import { PhysicsAggregate, PhysicsShapeType } from "@babylonjs/core/Physics";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture";
 
 import {
@@ -48,17 +45,6 @@ const canvas = document.getElementById(
 const game = new Game(canvas);
 const engine = game.engine;
 const scene = game.scene;
-
-const inputManager = new InputManager(canvas);
-
-const hudManager = new HUDManager(engine, scene);
-const skyManager = new SkyManager(scene);
-const playerManager = new PlayerManager(
-  scene,
-  inputManager,
-  hudManager,
-  canvas
-);
 
 const fightMusic = document.getElementById(
   UI_ELEMENT_IDS.FIGHT_MUSIC
@@ -203,28 +189,28 @@ async function initializeGameAssets() {
     );
     spiders.push(spiderInstance);
     spiderInstance.setOnPlayerDamaged((damage: number) => {
-      if (playerManager.playerIsDead) return;
-      playerManager.takeDamage(damage);
+      if (game.playerIsDead) return;
+      game.playerManager.takeDamage(damage);
     });
   } catch (error) {
     console.error("Failed to create spider:", error);
   }
 
-  await playerManager.initializeSword();
+  await game.playerManager.initializeSword();
 }
 
 engine.runRenderLoop(() => {
   const deltaTime = engine.getDeltaTime() / 1000;
 
-  playerManager.update(deltaTime);
+  game.playerManager.update(deltaTime);
 
-  skyManager.update(deltaTime);
+  game.skyManager.update(deltaTime);
 
   let isAnyEnemyAggro = false;
-  if (!playerManager.playerIsDead) {
+  if (!game.playerIsDead) {
     spiders.forEach((spider) => {
       if (spider.currentHealth > 0) {
-        spider.update(deltaTime, playerManager.camera);
+        spider.update(deltaTime, game.playerManager.camera);
         if (spider.getIsAggro()) isAnyEnemyAggro = true;
       }
     });
@@ -244,29 +230,26 @@ engine.runRenderLoop(() => {
   }
 
   // Update HUD with player stats
-  hudManager.updatePlayerStats(
-    playerManager.getCurrentHealth(),
-    playerManager.getMaxHealth(),
-    playerManager.getCurrentStamina(),
-    playerManager.getMaxStamina()
+  game.hudManager.updatePlayerStats(
+    game.playerManager.getCurrentHealth(),
+    game.playerManager.getMaxHealth(),
+    game.playerManager.getCurrentStamina(),
+    game.playerManager.getMaxStamina()
   );
 
   // Handle player death
-  if (
-    playerManager.playerIsDead &&
-    isInFightMode &&
-    fightMusic &&
-    !fightMusic.paused
-  ) {
+  if (game.playerIsDead && isInFightMode && fightMusic && !fightMusic.paused) {
     fightMusic.pause();
     fightMusic.currentTime = 0;
     isInFightMode = false;
   }
 
   // Crosshair targeting system
-  playerManager.camera.computeWorldMatrix();
-  const rayOrigin = playerManager.camera.globalPosition;
-  const forwardDirection = playerManager.camera.getDirection(Vector3.Forward());
+  game.playerManager.camera.computeWorldMatrix();
+  const rayOrigin = game.playerManager.camera.globalPosition;
+  const forwardDirection = game.playerManager.camera.getDirection(
+    Vector3.Forward()
+  );
   const ray = new Ray(rayOrigin, forwardDirection, crosshairMaxDistance);
 
   if (isDebugModeEnabled) {
@@ -298,19 +281,19 @@ engine.runRenderLoop(() => {
         spiderInstance &&
         (spiderInstance.getIsDying() || spiderInstance.currentHealth <= 0)
       ) {
-        hudManager.setCrosshairText("✋");
-        hudManager.setCrosshairFocus(false);
-        hudManager.hideEnemyInfo();
+        game.hudManager.setCrosshairText("✋");
+        game.hudManager.setCrosshairFocus(false);
+        game.hudManager.hideEnemyInfo();
         crosshairSetForSpecificTarget = true;
       } else if (spiderInstance) {
-        hudManager.showEnemyInfo(
+        game.hudManager.showEnemyInfo(
           spiderInstance.name,
           spiderInstance.level,
           spiderInstance.currentHealth,
           spiderInstance.maxHealth
         );
-        hudManager.setCrosshairText("💢");
-        hudManager.setCrosshairFocus(true);
+        game.hudManager.setCrosshairText("💢");
+        game.hudManager.setCrosshairFocus(true);
         crosshairSetForSpecificTarget = true;
       }
     } else if (
@@ -318,20 +301,20 @@ engine.runRenderLoop(() => {
       pickedMesh.metadata.interactableType === "chest"
     ) {
       const chestInstance = pickedMesh.metadata.chestInstance as ClosedChest;
-      hudManager.setCrosshairText(chestInstance.getDisplayIcon());
-      hudManager.setCrosshairFocus(false);
-      hudManager.hideEnemyInfo();
+      game.hudManager.setCrosshairText(chestInstance.getDisplayIcon());
+      game.hudManager.setCrosshairFocus(false);
+      game.hudManager.hideEnemyInfo();
       crosshairSetForSpecificTarget = true;
     }
   }
   if (!crosshairSetForSpecificTarget) {
-    hudManager.hideEnemyInfo();
-    hudManager.setCrosshairFocus(false);
-    hudManager.setCrosshairText("•");
+    game.hudManager.hideEnemyInfo();
+    game.hudManager.setCrosshairFocus(false);
+    game.hudManager.setCrosshairText("•");
   }
 
   scene.render();
-  hudManager.updateFPS();
+  game.hudManager.updateFPS();
 });
 
 window.addEventListener("resize", () => {
@@ -392,10 +375,10 @@ document.addEventListener("DOMContentLoaded", () => {
       currentActiveTab !== TAB_MENU_CONFIG.PLAYER_STATS_TAB_ID
     )
       return;
-    const currentHealthGame = playerManager.getCurrentHealth();
-    const maxHealthGame = playerManager.getMaxHealth();
-    const currentStaminaGame = playerManager.getCurrentStamina();
-    const maxStaminaGame = playerManager.getMaxStamina();
+    const currentHealthGame = game.playerManager.getCurrentHealth();
+    const maxHealthGame = game.playerManager.getMaxHealth();
+    const currentStaminaGame = game.playerManager.getCurrentStamina();
+    const maxStaminaGame = game.playerManager.getMaxStamina();
     const placeholderCurrentExp =
       TAB_MENU_CONFIG.PLACEHOLDER_PLAYER_CURRENT_EXP;
 
@@ -413,7 +396,8 @@ document.addEventListener("DOMContentLoaded", () => {
       playerExperienceDisplay.textContent = `${placeholderCurrentExp} / ${tabPlayerData.experienceToNextLevel}`;
 
     if (ingameTimeDisplayTab) {
-      ingameTimeDisplayTab.textContent = skyManager.getCurrentTimeFormatted();
+      ingameTimeDisplayTab.textContent =
+        game.skyManager.getCurrentTimeFormatted();
     }
     if (experienceBarFillTab) {
       experienceBarFillTab.style.width = `${
@@ -436,7 +420,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function openTabMenu(tabIdToShow?: string) {
     isTabMenuOpen = true;
     tabMenu.classList.remove("hidden");
-    hudManager.hideCoreHud();
+    game.hudManager.hideCoreHud();
     if (engine.isPointerLock) engine.exitPointerlock();
     setActiveTab(
       tabIdToShow || currentActiveTab || TAB_MENU_CONFIG.INITIAL_ACTIVE_TAB
@@ -446,7 +430,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function closeTabMenu() {
     isTabMenuOpen = false;
     tabMenu.classList.add("hidden");
-    hudManager.showCoreHud();
+    game.hudManager.showCoreHud();
   }
 
   function toggleTabMenu(tabIdToShow?: string) {
@@ -510,7 +494,7 @@ function handleConsoleCommand(command: string): void {
         minutes >= 0 &&
         minutes <= 59
       ) {
-        skyManager.setTime(hours, minutes);
+        game.skyManager.setTime(hours, minutes);
       } else {
         console.error(
           "Invalid time format or value for set_time. Use HH:MM (00:00 - 23:59)."
@@ -518,12 +502,12 @@ function handleConsoleCommand(command: string): void {
       }
     }
   } else if (lowerCommand === KEY_MAPPINGS.TOGGLE_INSPECTOR) {
-    hudManager.toggleInspector();
+    game.hudManager.toggleInspector();
   } else if (lowerCommand === KEY_MAPPINGS.TOGGLE_DEBUG) {
     isDebugModeEnabled = !isDebugModeEnabled;
     console.log(`Debug mode ${isDebugModeEnabled ? "enabled" : "disabled"}.`);
-    if (playerManager.playerBodyMesh)
-      playerManager.playerBodyMesh.isVisible = isDebugModeEnabled;
+    if (game.playerManager.playerBodyMesh)
+      game.playerManager.playerBodyMesh.isVisible = isDebugModeEnabled;
     for (let i = 1; i <= 4; i++) {
       const wall = scene.getMeshByName(`wall${i}`);
       if (wall) wall.isVisible = isDebugModeEnabled;
@@ -542,7 +526,7 @@ function handleConsoleCommand(command: string): void {
       if (
         !processedAsSpiderColliderParent &&
         mesh.name.toLowerCase().endsWith("collider") &&
-        mesh !== playerManager.playerBodyMesh &&
+        mesh !== game.playerManager.playerBodyMesh &&
         !mesh.name.startsWith("wall")
       ) {
         mesh.isVisible = isDebugModeEnabled;
@@ -561,7 +545,7 @@ window.addEventListener("keydown", (event) => {
   }
 });
 
-hudManager.hideDeathScreen();
+game.hudManager.hideDeathScreen();
 
 async function setupGameAndPhysics() {
   console.log("Attempting to initialize Havok Physics...");
@@ -664,7 +648,10 @@ async function setupGameAndPhysics() {
     console.error("Failed to create physics body for player.");
   }
 
-  playerManager.initializePhysics(playerBodyMeshInstance, playerBodyAggregate);
+  game.playerManager.initializePhysics(
+    playerBodyMeshInstance,
+    playerBodyAggregate
+  );
 
   await loadAssetWithCollider(
     "palmTree1",
@@ -716,12 +703,12 @@ async function setupGameAndPhysics() {
     (collider) => {
       new ClosedChest(collider as Mesh, true, "key_old_chest", () => {
         if (collider.metadata && collider.metadata.chestInstance) {
-          const ray = playerManager.camera.getForwardRay(
+          const ray = game.playerManager.camera.getForwardRay(
             PLAYER_CONFIG.CROSSHAIR_MAX_DISTANCE
           );
           const pickInfo = scene.pickWithRay(ray, (mesh) => mesh === collider);
           if (pickInfo && pickInfo.hit) {
-            hudManager.setCrosshairText(
+            game.hudManager.setCrosshairText(
               (collider.metadata.chestInstance as ClosedChest).getDisplayIcon()
             );
           }

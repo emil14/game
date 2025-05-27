@@ -43,282 +43,9 @@ const canvas = document.getElementById(
 ) as HTMLCanvasElement;
 
 const game = new Game(canvas);
-const engine = game.engine;
-const scene = game.scene;
-
-const fightMusic = document.getElementById(
-  UI_ELEMENT_IDS.FIGHT_MUSIC
-) as HTMLAudioElement | null;
-
-let havokInstance: any;
-let spiders: Spider[] = [];
-
-let isDebugModeEnabled = GAME_SETTINGS.DEBUG_START_MODE;
-let debugRayHelper: RayHelper | null = null;
-
-const crosshairMaxDistance = PLAYER_CONFIG.CROSSHAIR_MAX_DISTANCE;
-
-let isInFightMode = false;
-
-const ground = MeshBuilder.CreateGround(
-  "ground1",
-  {
-    width: WORLD_CONFIG.GROUND_SIZE,
-    height: WORLD_CONFIG.GROUND_SIZE,
-    subdivisions: 2,
-  },
-  scene
-);
-const groundMaterial = new StandardMaterial("groundMaterial", scene);
-groundMaterial.diffuseColor = new Color3(0.9, 0.8, 0.6);
-const sandTexture = new Texture(ASSET_PATHS.SAND_TEXTURE, scene);
-groundMaterial.diffuseTexture = sandTexture;
-(groundMaterial.diffuseTexture as Texture).uScale = 8;
-(groundMaterial.diffuseTexture as Texture).vScale = 8;
-ground.material = groundMaterial;
-
-const wallHeight = WORLD_CONFIG.WALL_HEIGHT;
-const wallThickness = WORLD_CONFIG.WALL_THICKNESS;
-const groundSize = WORLD_CONFIG.GROUND_SIZE;
-const wallPositions: [number, number, number, number][] = [
-  [0, groundSize / 2, groundSize, wallThickness],
-  [0, -groundSize / 2, groundSize, wallThickness],
-  [-groundSize / 2, 0, wallThickness, groundSize],
-  [groundSize / 2, 0, wallThickness, groundSize],
-];
-
-async function loadAssetWithCollider(
-  name: string,
-  filePathKey: keyof typeof ASSET_PATHS,
-  fileNameKey: keyof typeof ASSET_PATHS,
-  scene: Scene,
-  position: Vector3,
-  scaling: Vector3,
-  isDynamicCollider = false,
-  onLoaded?: (collider: AbstractMesh, visual: AbstractMesh) => void,
-  colliderWidthOverride?: number,
-  colliderHeightOverride?: number,
-  colliderDepthOverride?: number
-) {
-  try {
-    const result = await SceneLoader.ImportMeshAsync(
-      "",
-      ASSET_PATHS[filePathKey],
-      ASSET_PATHS[fileNameKey],
-      scene
-    );
-    const visualMesh = result.meshes[0] as AbstractMesh;
-    visualMesh.name = `${name}Visual`;
-    visualMesh.position = position.clone();
-    visualMesh.scaling = scaling.clone();
-    visualMesh.checkCollisions = false;
-    visualMesh
-      .getChildMeshes(false, (node): node is Mesh => node instanceof Mesh)
-      .forEach((childMesh) => (childMesh.checkCollisions = false));
-
-    visualMesh.computeWorldMatrix(true);
-    const boundingInfo = visualMesh.getHierarchyBoundingVectors(true);
-    const dimensions = boundingInfo.max.subtract(boundingInfo.min);
-
-    const colliderWidth =
-      colliderWidthOverride !== undefined
-        ? colliderWidthOverride
-        : dimensions.x > 0
-        ? dimensions.x
-        : 0.1;
-    const colliderHeight =
-      colliderHeightOverride !== undefined
-        ? colliderHeightOverride
-        : dimensions.y > 0
-        ? dimensions.y
-        : 0.1;
-    const colliderDepth =
-      colliderDepthOverride !== undefined
-        ? colliderDepthOverride
-        : dimensions.z > 0
-        ? dimensions.z
-        : 0.1;
-
-    const collider = MeshBuilder.CreateBox(
-      `${name}Collider`,
-      {
-        width: colliderWidth,
-        height: colliderHeight,
-        depth: colliderDepth,
-      },
-      scene
-    );
-
-    collider.isVisible = GAME_SETTINGS.DEBUG_START_MODE;
-
-    if (isDynamicCollider) {
-      visualMesh.parent = collider;
-      visualMesh.position = Vector3.Zero();
-      collider.position = position;
-    } else {
-      visualMesh.parent = collider;
-      visualMesh.position = Vector3.Zero();
-      collider.position = position;
-    }
-
-    const aggregate = new PhysicsAggregate(
-      collider,
-      PhysicsShapeType.BOX,
-      {
-        mass: isDynamicCollider ? 1 : 0,
-        friction: 0.5,
-        restitution: 0.1,
-      },
-      scene
-    );
-
-    if (onLoaded) onLoaded(collider, visualMesh);
-    return { collider, visualMesh };
-  } catch (error) {
-    console.error(`Failed to load asset ${name}:`, error);
-    return null;
-  }
-}
-
-async function initializeGameAssets() {
-  try {
-    const spiderInstance = await Spider.Create(
-      scene,
-      new Vector3(20, 0, 20),
-      PLAYER_CONFIG.DEFAULT_SPEED
-    );
-    spiders.push(spiderInstance);
-    spiderInstance.setOnPlayerDamaged((damage: number) => {
-      if (game.playerIsDead) return;
-      game.playerManager.takeDamage(damage);
-    });
-  } catch (error) {
-    console.error("Failed to create spider:", error);
-  }
-
-  await game.playerManager.initializeSword();
-}
-
-engine.runRenderLoop(() => {
-  const deltaTime = engine.getDeltaTime() / 1000;
-
-  game.playerManager.update(deltaTime);
-
-  game.skyManager.update(deltaTime);
-
-  let isAnyEnemyAggro = false;
-  if (!game.playerIsDead) {
-    spiders.forEach((spider) => {
-      if (spider.currentHealth > 0) {
-        spider.update(deltaTime, game.playerManager.camera);
-        if (spider.getIsAggro()) isAnyEnemyAggro = true;
-      }
-    });
-  }
-  if (isAnyEnemyAggro && !isInFightMode) {
-    isInFightMode = true;
-    if (fightMusic)
-      fightMusic
-        .play()
-        .catch((e) => console.warn("Fight music play failed:", e));
-  } else if (!isAnyEnemyAggro && isInFightMode) {
-    isInFightMode = false;
-    if (fightMusic) {
-      fightMusic.pause();
-      fightMusic.currentTime = 0;
-    }
-  }
-
-  // Update HUD with player stats
-  game.hudManager.updatePlayerStats(
-    game.playerManager.getCurrentHealth(),
-    game.playerManager.getMaxHealth(),
-    game.playerManager.getCurrentStamina(),
-    game.playerManager.getMaxStamina()
-  );
-
-  // Handle player death
-  if (game.playerIsDead && isInFightMode && fightMusic && !fightMusic.paused) {
-    fightMusic.pause();
-    fightMusic.currentTime = 0;
-    isInFightMode = false;
-  }
-
-  // Crosshair targeting system
-  game.playerManager.camera.computeWorldMatrix();
-  const rayOrigin = game.playerManager.camera.globalPosition;
-  const forwardDirection = game.playerManager.camera.getDirection(
-    Vector3.Forward()
-  );
-  const ray = new Ray(rayOrigin, forwardDirection, crosshairMaxDistance);
-
-  if (isDebugModeEnabled) {
-    if (!debugRayHelper) {
-      debugRayHelper = RayHelper.CreateAndShow(ray, scene, new Color3(1, 1, 0));
-    } else {
-      debugRayHelper.ray = ray;
-    }
-  } else {
-    if (debugRayHelper) {
-      debugRayHelper.dispose();
-      debugRayHelper = null;
-    }
-  }
-
-  const pickInfo = scene.pickWithRay(
-    ray,
-    (mesh) =>
-      (mesh.metadata && mesh.metadata.enemyType === "spider") ||
-      (mesh.metadata && mesh.metadata.interactableType)
-  );
-  let crosshairSetForSpecificTarget = false;
-
-  if (pickInfo && pickInfo.hit && pickInfo.pickedMesh) {
-    const pickedMesh = pickInfo.pickedMesh;
-    if (pickedMesh.metadata && pickedMesh.metadata.enemyType === "spider") {
-      const spiderInstance = pickedMesh.metadata.instance as Spider;
-      if (
-        spiderInstance &&
-        (spiderInstance.getIsDying() || spiderInstance.currentHealth <= 0)
-      ) {
-        game.hudManager.setCrosshairText("✋");
-        game.hudManager.setCrosshairFocus(false);
-        game.hudManager.hideEnemyInfo();
-        crosshairSetForSpecificTarget = true;
-      } else if (spiderInstance) {
-        game.hudManager.showEnemyInfo(
-          spiderInstance.name,
-          spiderInstance.level,
-          spiderInstance.currentHealth,
-          spiderInstance.maxHealth
-        );
-        game.hudManager.setCrosshairText("💢");
-        game.hudManager.setCrosshairFocus(true);
-        crosshairSetForSpecificTarget = true;
-      }
-    } else if (
-      pickedMesh.metadata &&
-      pickedMesh.metadata.interactableType === "chest"
-    ) {
-      const chestInstance = pickedMesh.metadata.chestInstance as ClosedChest;
-      game.hudManager.setCrosshairText(chestInstance.getDisplayIcon());
-      game.hudManager.setCrosshairFocus(false);
-      game.hudManager.hideEnemyInfo();
-      crosshairSetForSpecificTarget = true;
-    }
-  }
-  if (!crosshairSetForSpecificTarget) {
-    game.hudManager.hideEnemyInfo();
-    game.hudManager.setCrosshairFocus(false);
-    game.hudManager.setCrosshairText("•");
-  }
-
-  scene.render();
-  game.hudManager.updateFPS();
-});
 
 window.addEventListener("resize", () => {
-  engine.resize();
+  game.engine.resize();
 });
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -364,7 +91,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (canvas) {
     canvas.addEventListener("click", () => {
-      if (!isTabMenuOpen && !engine.isPointerLock) engine.enterPointerlock();
+      if (!isTabMenuOpen && !game.engine.isPointerLock)
+        game.engine.enterPointerlock();
     });
   }
 
@@ -421,7 +149,7 @@ document.addEventListener("DOMContentLoaded", () => {
     isTabMenuOpen = true;
     tabMenu.classList.remove("hidden");
     game.hudManager.hideCoreHud();
-    if (engine.isPointerLock) engine.exitPointerlock();
+    if (game.engine.isPointerLock) game.engine.exitPointerlock();
     setActiveTab(
       tabIdToShow || currentActiveTab || TAB_MENU_CONFIG.INITIAL_ACTIVE_TAB
     );
@@ -451,7 +179,7 @@ document.addEventListener("DOMContentLoaded", () => {
       toggleTabMenu();
     }
     if (key === KEY_MAPPINGS.EXIT_POINTER_LOCK) {
-      if (engine.isPointerLock) engine.exitPointerlock();
+      if (game.engine.isPointerLock) game.engine.exitPointerlock();
     }
     if (!event.metaKey && !event.ctrlKey && !event.altKey) {
       switch (key) {
@@ -504,34 +232,7 @@ function handleConsoleCommand(command: string): void {
   } else if (lowerCommand === KEY_MAPPINGS.TOGGLE_INSPECTOR) {
     game.hudManager.toggleInspector();
   } else if (lowerCommand === KEY_MAPPINGS.TOGGLE_DEBUG) {
-    isDebugModeEnabled = !isDebugModeEnabled;
-    console.log(`Debug mode ${isDebugModeEnabled ? "enabled" : "disabled"}.`);
-    if (game.playerManager.playerBodyMesh)
-      game.playerManager.playerBodyMesh.isVisible = isDebugModeEnabled;
-    for (let i = 1; i <= 4; i++) {
-      const wall = scene.getMeshByName(`wall${i}`);
-      if (wall) wall.isVisible = isDebugModeEnabled;
-    }
-    scene.meshes.forEach((mesh) => {
-      let processedAsSpiderColliderParent = false;
-      if (
-        mesh.metadata &&
-        mesh.metadata.enemyType === "spider" &&
-        mesh.parent &&
-        mesh.parent instanceof AbstractMesh
-      ) {
-        (mesh.parent as AbstractMesh).isVisible = isDebugModeEnabled;
-        processedAsSpiderColliderParent = true;
-      }
-      if (
-        !processedAsSpiderColliderParent &&
-        mesh.name.toLowerCase().endsWith("collider") &&
-        mesh !== game.playerManager.playerBodyMesh &&
-        !mesh.name.startsWith("wall")
-      ) {
-        mesh.isVisible = isDebugModeEnabled;
-      }
-    });
+    console.log(`Debug mode toggled (handled in Game.update loop).`);
   } else {
     console.log(`Unknown command: ${command}`);
   }
@@ -545,184 +246,10 @@ window.addEventListener("keydown", (event) => {
   }
 });
 
-game.hudManager.hideDeathScreen();
-
-async function setupGameAndPhysics() {
-  console.log("Attempting to initialize Havok Physics...");
-  try {
-    havokInstance = await HavokPhysics({
-      locateFile: (file: string) =>
-        file.endsWith(".wasm") ? PHYSICS_CONFIG.HAVOK_WASM_PATH : file,
-    });
-  } catch (e) {
-    console.error(
-      "Havok physics engine failed to load or an error occurred during init:",
-      e
-    );
-    return;
-  }
-  if (!havokInstance) {
-    console.error("Havok physics engine could not be initialized.");
-    return;
-  }
-  const havokPlugin = new HavokPlugin(true, havokInstance);
-  scene.enablePhysics(new Vector3(0, PHYSICS_CONFIG.GRAVITY_Y, 0), havokPlugin);
-
-  const groundAggregate = new PhysicsAggregate(
-    ground,
-    PhysicsShapeType.BOX,
-    {
-      mass: 0,
-      friction: PHYSICS_CONFIG.GROUND_FRICTION,
-      restitution: PHYSICS_CONFIG.GROUND_RESTITUTION,
-    },
-    scene
-  );
-
-  wallPositions.forEach(
-    (props: [number, number, number, number], i: number) => {
-      const wall = MeshBuilder.CreateBox(
-        `wall${i + 1}`,
-        { width: props[2], height: wallHeight, depth: props[3] },
-        scene
-      );
-      wall.position = new Vector3(props[0], wallHeight / 2, props[1]);
-      wall.isVisible = GAME_SETTINGS.DEBUG_START_MODE;
-      new PhysicsAggregate(
-        wall,
-        PhysicsShapeType.BOX,
-        {
-          mass: 0,
-          friction: PHYSICS_CONFIG.WALL_FRICTION,
-          restitution: PHYSICS_CONFIG.WALL_RESTITUTION,
-        },
-        scene
-      );
-    }
-  );
-
-  const playerStartPos = new Vector3(0, 1.0, -5);
-
-  const playerBodyMeshInstance = MeshBuilder.CreateCapsule(
-    "playerBody",
-    {
-      radius: PLAYER_CONFIG.PLAYER_RADIUS,
-      height: PLAYER_CONFIG.PLAYER_HEIGHT,
-      tessellation: 20,
-    },
-    scene
-  );
-  playerBodyMeshInstance.position = playerStartPos.clone();
-  playerBodyMeshInstance.position.y =
-    playerStartPos.y + PLAYER_CONFIG.PLAYER_HEIGHT / 2;
-  playerBodyMeshInstance.isVisible = GAME_SETTINGS.DEBUG_START_MODE;
-
-  // Create physics aggregate for player
-  const playerBodyAggregate = new PhysicsAggregate(
-    playerBodyMeshInstance,
-    PhysicsShapeType.CAPSULE,
-    {
-      mass: PLAYER_CONFIG.PLAYER_MASS,
-      friction: PLAYER_CONFIG.PLAYER_FRICTION,
-      restitution: PLAYER_CONFIG.PLAYER_RESTITUTION,
-      pointA: new Vector3(
-        0,
-        -(PLAYER_CONFIG.PLAYER_HEIGHT / 2 - PLAYER_CONFIG.PLAYER_RADIUS),
-        0
-      ),
-      pointB: new Vector3(
-        0,
-        PLAYER_CONFIG.PLAYER_HEIGHT / 2 - PLAYER_CONFIG.PLAYER_RADIUS,
-        0
-      ),
-      radius: PLAYER_CONFIG.PLAYER_RADIUS,
-    },
-    scene
-  );
-
-  if (playerBodyAggregate.body) {
-    playerBodyAggregate.body.setMassProperties({
-      inertia: new Vector3(0, 0, 0),
-    });
-  } else {
-    console.error("Failed to create physics body for player.");
-  }
-
-  game.playerManager.initializePhysics(
-    playerBodyMeshInstance,
-    playerBodyAggregate
-  );
-
-  await loadAssetWithCollider(
-    "palmTree1",
-    "PIRATE_KIT_MODELS",
-    "PALM_TREE_1_GLB",
-    scene,
-    new Vector3(10, 0, 10),
-    new Vector3(2, 2, 2),
-    false,
-    undefined,
-    3.0,
-    undefined,
-    3.0
-  );
-  await loadAssetWithCollider(
-    "palmTree2",
-    "PIRATE_KIT_MODELS",
-    "PALM_TREE_2_GLB",
-    scene,
-    new Vector3(5, 0, 15),
-    new Vector3(1.8, 1.8, 1.8),
-    false,
-    undefined,
-    2.7,
-    undefined,
-    2.7
-  );
-  await loadAssetWithCollider(
-    "palmTree3",
-    "PIRATE_KIT_MODELS",
-    "PALM_TREE_3_GLB",
-    scene,
-    new Vector3(-5, 0, 15),
-    new Vector3(2.2, 2.2, 2.2),
-    false,
-    undefined,
-    3.3,
-    undefined,
-    3.3
-  );
-  await loadAssetWithCollider(
-    "chestClosed",
-    "PIRATE_KIT_MODELS",
-    "CHEST_CLOSED_GLB",
-    scene,
-    new Vector3(18, 0, 18),
-    new Vector3(1, 1, 1),
-    false,
-    (collider) => {
-      new ClosedChest(collider as Mesh, true, "key_old_chest", () => {
-        if (collider.metadata && collider.metadata.chestInstance) {
-          const ray = game.playerManager.camera.getForwardRay(
-            PLAYER_CONFIG.CROSSHAIR_MAX_DISTANCE
-          );
-          const pickInfo = scene.pickWithRay(ray, (mesh) => mesh === collider);
-          if (pickInfo && pickInfo.hit) {
-            game.hudManager.setCrosshairText(
-              (collider.metadata.chestInstance as ClosedChest).getDisplayIcon()
-            );
-          }
-        }
-      });
-    },
-    2.25,
-    2.25,
-    2.25
-  );
-
-  await initializeGameAssets();
+async function startApp() {
+  await game.start();
 }
 
-setupGameAndPhysics().catch((error) => {
-  console.error("Error during game and physics setup:", error);
+startApp().catch((error) => {
+  console.error("Failed to start the game:", error);
 });

@@ -18,8 +18,8 @@ You are designing a open-world browser-based first-person action RPG with Babylo
 
 - The game must run in browser with 60fps on low-end hardware
 - The graphics should be simple stylized low-poly
-- No real-time shadows, fog and LODs, sprites
-- All assets is are royalty-free
+- Fog, LODs, sprites, no real-time shadows
+- All assets are royalty-free
 - Only latest Chrome version needs to be supported
 
 ## Gameplay

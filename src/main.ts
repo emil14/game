@@ -1,41 +1,10 @@
-import { Engine } from "@babylonjs/core/Engines/engine";
-import { Scene } from "@babylonjs/core/scene";
-import { Vector3 } from "@babylonjs/core/Maths/math.vector";
-import { Color3 } from "@babylonjs/core/Maths/math.color";
-import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
-import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
-import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
-import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
-import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import "@babylonjs/core/Meshes/Builders/sphereBuilder";
 import "@babylonjs/core/Meshes/Builders/groundBuilder";
 import "@babylonjs/core/Meshes/Builders/boxBuilder";
 import "@babylonjs/core/Collisions/collisionCoordinator";
 import "@babylonjs/inspector";
-import { Ray } from "@babylonjs/core/Culling/ray";
-import { RayHelper } from "@babylonjs/core/Debug/rayHelper";
 
-import { HavokPlugin } from "@babylonjs/core/Physics";
-import HavokPhysics from "@babylonjs/havok";
-import { PhysicsAggregate, PhysicsShapeType } from "@babylonjs/core/Physics";
-import { Texture } from "@babylonjs/core/Materials/Textures/texture";
-
-import {
-  UI_ELEMENT_IDS,
-  PLAYER_CONFIG,
-  WORLD_CONFIG,
-  ASSET_PATHS,
-  PHYSICS_CONFIG,
-  KEY_MAPPINGS,
-  GAME_SETTINGS,
-  TAB_MENU_CONFIG,
-} from "./config";
-import { InputManager } from "./input_manager";
-import { SkyManager } from "./sky_manager";
-import { HUDManager } from "./hud_manager";
-import { PlayerManager } from "./player_manager";
-import { Spider } from "./enemies/spider";
-import { ClosedChest } from "./interactables";
+import { UI_ELEMENT_IDS, KEY_MAPPINGS, TAB_MENU_CONFIG } from "./config";
 import { Game } from "./game";
 
 const canvas = document.getElementById(
@@ -246,10 +215,4 @@ window.addEventListener("keydown", (event) => {
   }
 });
 
-async function startApp() {
-  await game.start();
-}
-
-startApp().catch((error) => {
-  console.error("Failed to start the game:", error);
-});
+await game.start();

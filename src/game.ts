@@ -16,6 +16,7 @@ import { PlayerManager } from "./player_manager";
 import { Spider } from "./enemies/spider";
 import { ClosedChest } from "./interactables";
 import * as config from "./config";
+import AssetManager from "./asset_manager";
 
 export class Game {
   public readonly engine: Engine;
@@ -41,7 +42,7 @@ export class Game {
   private wallPositions: [number, number, number, number][] = [];
   public gameState: "initializing" | "playing" | "paused" | "menu" =
     "initializing";
-  public readonly assetManager: any = null; // To be implemented in Iteration 9
+  public readonly assetManager: AssetManager;
   public readonly eventSystem: any = null; // To be implemented in Iteration 12
 
   constructor(canvas: HTMLCanvasElement) {
@@ -83,6 +84,7 @@ export class Game {
         this.config.WORLD_CONFIG.GROUND_SIZE,
       ],
     ];
+    this.assetManager = new AssetManager(this.scene);
   }
 
   private async _loadAssetWithCollider(
@@ -403,6 +405,7 @@ export class Game {
     this.hudManager.showCoreHud();
     this.hudManager.hideDeathScreen();
     this.gameState = "playing";
+    await this.assetManager.initialize();
   }
 
   public update(): void {

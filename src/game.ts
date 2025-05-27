@@ -39,6 +39,8 @@ export class Game {
   private havokInstance: any;
   private ground: Mesh | null = null;
   private wallPositions: [number, number, number, number][] = [];
+  public gameState: "initializing" | "playing" | "paused" | "menu" =
+    "initializing";
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -364,6 +366,7 @@ export class Game {
   }
 
   public async initialize(): Promise<void> {
+    this.gameState = "initializing";
     this.fightMusic = document.getElementById(
       this.config.UI_ELEMENT_IDS.FIGHT_MUSIC
     ) as HTMLAudioElement | null;
@@ -397,6 +400,7 @@ export class Game {
     await this._initializeGameAssets();
     this.hudManager.showCoreHud();
     this.hudManager.hideDeathScreen();
+    this.gameState = "playing";
   }
 
   public update(): void {

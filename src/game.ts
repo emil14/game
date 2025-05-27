@@ -41,6 +41,8 @@ export class Game {
   private wallPositions: [number, number, number, number][] = [];
   public gameState: "initializing" | "playing" | "paused" | "menu" =
     "initializing";
+  public readonly assetManager: any = null; // To be implemented in Iteration 9
+  public readonly eventSystem: any = null; // To be implemented in Iteration 12
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;

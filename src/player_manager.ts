@@ -15,14 +15,15 @@ import {
   PHYSICS_CONFIG,
 } from "./config";
 import { InputManager } from "./input_manager";
-import { Sword } from "./weapons/sword";
-import { Spider } from "./enemies/spider";
+import { IWeapon } from "./weapons/iweapon";
+import { IEnemy } from "./enemies/ienemy";
 import { HUDManager } from "./hud_manager";
+import { Sword } from "./weapons/sword";
 
 export class PlayerManager {
   public camera: FreeCamera;
   public playerLight: PointLight;
-  public playerSword!: Sword;
+  public playerSword!: IWeapon;
 
   private scene: Scene;
   private inputManager: InputManager;
@@ -128,14 +129,14 @@ export class PlayerManager {
         PLAYER_CONFIG.SWORD_ATTACK_DISTANCE,
         (mesh: AbstractMesh) =>
           mesh.metadata && mesh.metadata.enemyType === "spider",
-        (_targetMesh: AbstractMesh, instance: Spider) => {
-          const spiderInstance = instance as Spider;
+        (_targetMesh: AbstractMesh, instance: IEnemy) => {
+          const enemyInstance = instance as IEnemy;
           if (
-            spiderInstance &&
-            spiderInstance.currentHealth > 0 &&
+            enemyInstance &&
+            enemyInstance.currentHealth > 0 &&
             this.playerSword
           ) {
-            spiderInstance.takeDamage(this.playerSword.attackDamage);
+            enemyInstance.takeDamage(this.playerSword.attackDamage);
           }
         }
       );

@@ -9,8 +9,9 @@ import { FreeCamera } from "@babylonjs/core/Cameras/freeCamera";
 
 import { PhysicsAggregate, PhysicsShapeType } from "@babylonjs/core/Physics";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
+import { IEnemy } from "./ienemy";
 
-export class Spider {
+export class Spider implements IEnemy {
   /** The mesh used as the physics body's transform node and for raycast targeting. */
   public colliderMesh!: Mesh;
   /** The physics aggregate for the spider. */

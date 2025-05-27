@@ -19,7 +19,12 @@ export function playerHasKey(keyId: string): boolean {
   return playerInventory.keys.has(keyId);
 }
 
-export class ClosedChest {
+export interface IInteractable {
+  mesh: Mesh;
+  attemptOpen(): boolean;
+}
+
+export class ClosedChest implements IInteractable {
   public mesh: Mesh;
   public isLocked: boolean;
   public requiredKeyId: string | null; // null if no key is required (e.g., already unlocked or opens freely)

@@ -7,8 +7,9 @@ import { FreeCamera } from "@babylonjs/core/Cameras/freeCamera";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { Ray } from "@babylonjs/core/Culling/ray";
 import "@babylonjs/loaders/glTF";
+import { IWeapon } from "./iweapon";
 
-export class Sword {
+export class Sword implements IWeapon {
   public visualMesh!: AbstractMesh;
   private scene: Scene;
   private camera: FreeCamera; // Sword is parented to camera

@@ -17,6 +17,7 @@ import { Spider } from "./enemies/spider";
 import { ClosedChest } from "./interactables";
 import * as config from "./config";
 import AssetManager from "./asset_manager";
+import { TabMenuManager } from "./ui/tab_menu_manager";
 
 export class Game {
   public readonly engine: Engine;
@@ -26,6 +27,7 @@ export class Game {
   public readonly skyManager: SkyManager;
   public readonly hudManager: HUDManager;
   public readonly playerManager: PlayerManager;
+  public readonly tabMenuManager: TabMenuManager;
   private readonly canvas: HTMLCanvasElement;
 
   private _deltaTime: number = 0;
@@ -58,6 +60,7 @@ export class Game {
       this.hudManager,
       this.canvas
     );
+    this.tabMenuManager = new TabMenuManager(this, this.config);
     this.wallPositions = [
       [
         0,

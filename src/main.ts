@@ -4,7 +4,7 @@ import "@babylonjs/core/Meshes/Builders/boxBuilder";
 import "@babylonjs/core/Collisions/collisionCoordinator";
 import "@babylonjs/inspector";
 
-import { UI_ELEMENT_IDS, KEY_MAPPINGS, TAB_MENU_CONFIG } from "./config";
+import { UI_ELEMENT_IDS, KEY_MAPPINGS } from "./config";
 import { Game } from "./game";
 
 const canvas = document.getElementById(
@@ -15,10 +15,6 @@ const game = new Game(canvas);
 
 window.addEventListener("resize", () => {
   game.engine.resize();
-});
-
-document.addEventListener("DOMContentLoaded", () => {
-  // No tab menu logic here anymore; it will be managed by TabMenuManager inside Game.
 });
 
 function handleConsoleCommand(command: string): void {

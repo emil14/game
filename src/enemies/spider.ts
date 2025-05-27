@@ -6,9 +6,9 @@ import { AnimationGroup } from "@babylonjs/core/Animations/animationGroup";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
 import { FreeCamera } from "@babylonjs/core/Cameras/freeCamera";
-
 import { PhysicsAggregate, PhysicsShapeType } from "@babylonjs/core/Physics";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
+
 import { IEnemy } from "./ienemy";
 
 export class Spider implements IEnemy {

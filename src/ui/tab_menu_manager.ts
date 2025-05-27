@@ -3,7 +3,6 @@ import type { Game } from "../game";
 
 export class TabMenuManager {
   private game: Game;
-  private config: typeof import("../config");
 
   private tabMenu: HTMLElement;
   private tabNavigation: HTMLElement;
@@ -23,9 +22,8 @@ export class TabMenuManager {
     experienceToNextLevel: TAB_MENU_CONFIG.PLACEHOLDER_PLAYER_EXP_TO_NEXT_LEVEL,
   };
 
-  constructor(game: Game, config: typeof import("../config")) {
+  constructor(game: Game) {
     this.game = game;
-    this.config = config;
 
     this.tabMenu = document.getElementById(UI_ELEMENT_IDS.TAB_MENU)!;
     this.tabNavigation = document.getElementById(

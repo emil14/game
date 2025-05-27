@@ -9,13 +9,14 @@ import { HavokPlugin } from "@babylonjs/core/Physics";
 import HavokPhysics from "@babylonjs/havok";
 import { PhysicsAggregate, PhysicsShapeType } from "@babylonjs/core/Physics";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture";
+
+import * as config from "./config";
 import { InputManager } from "./input_manager";
 import { SkyManager } from "./sky_manager";
 import { HUDManager } from "./hud_manager";
 import { PlayerManager } from "./player_manager";
 import { Spider } from "./enemies/spider";
 import { ClosedChest } from "./interactables";
-import * as config from "./config";
 import AssetManager from "./asset_manager";
 import { TabMenuManager } from "./ui/tab_menu_manager";
 import { EventSystem } from "./event_system";
@@ -61,7 +62,7 @@ export class Game {
       this.hudManager,
       this.canvas
     );
-    this.tabMenuManager = new TabMenuManager(this, this.config);
+    this.tabMenuManager = new TabMenuManager(this);
     this.wallPositions = [
       [
         0,

@@ -1,6 +1,9 @@
 body {
   margin: 0;
   overflow: hidden; /* Prevents scrollbars if canvas is larger than viewport */
+  font-family: "Uncial Antiqua", system-ui;
+  font-weight: 400;
+  font-style: normal;
 }
 
 #renderCanvas {

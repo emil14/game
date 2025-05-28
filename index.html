@@ -6,6 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Babylon.js RPG</title>
     <link rel="stylesheet" href="src/style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Uncial+Antiqua&display=swap"
+      rel="stylesheet"
+    />
     <style>
       /* Basic styling for the stamina bar */
       .stamina-bar-container {
@@ -18,7 +24,7 @@
       }
       .stamina-bar-fill {
         height: 100%;
-        background-color: #4caf50;
+        background-color: #dfdf55;
         width: 100%;
         border-radius: 5px;
         transition: width 0.1s linear;
@@ -33,7 +39,6 @@
         color: white;
         background-color: rgba(0, 0, 0, 0.5);
         padding: 5px;
-        font-family: sans-serif;
         border-radius: 5px;
       }
       .fps-display {
@@ -43,7 +48,6 @@
         color: white;
         background-color: rgba(0, 0, 0, 0.5);
         padding: 5px;
-        font-family: sans-serif;
         border-radius: 5px;
       }
       .stamina-text {
@@ -210,7 +214,6 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        font-family: sans-serif;
         /* z-index: 2000; /* Ensure it's on top of other UI */
         text-align: center;
       }

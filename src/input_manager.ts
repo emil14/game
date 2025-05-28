@@ -1,12 +1,9 @@
 import { KEY_MAPPINGS } from "./config";
 
-export type KeyAction = (event: KeyboardEvent) => void;
-
 export class InputManager {
   private keysPressed: Set<string> = new Set();
   private mouseButtonsPressed: Set<number> = new Set();
   private mousePosition: { x: number; y: number } = { x: 0, y: 0 };
-  private keyActions: Map<string, KeyAction[]> = new Map(); // Stores actions for keys
 
   constructor(private canvas: HTMLCanvasElement) {
     window.addEventListener("keydown", this.handleKeyDown.bind(this));
@@ -22,39 +19,10 @@ export class InputManager {
     );
   }
 
-  public registerKeyAction(key: string, action: KeyAction): void {
-    const lowerKey = key.toLowerCase();
-    if (!this.keyActions.has(lowerKey)) {
-      this.keyActions.set(lowerKey, []);
-    }
-    this.keyActions.get(lowerKey)?.push(action);
-  }
-
-  public unregisterKeyAction(key: string, action: KeyAction): void {
-    const lowerKey = key.toLowerCase();
-    if (this.keyActions.has(lowerKey)) {
-      const actions = this.keyActions.get(lowerKey);
-      if (actions) {
-        const index = actions.indexOf(action);
-        if (index > -1) {
-          actions.splice(index, 1);
-        }
-        if (actions.length === 0) {
-          this.keyActions.delete(lowerKey);
-        }
-      }
-    }
-  }
-
   private handleKeyDown(event: KeyboardEvent): void {
     const key = event.key.toLowerCase();
     this.keysPressed.add(key);
     this.keysPressed.add(event.code); // Also store by event.code for physical key mapping if needed
-
-    // Execute registered actions for this key
-    if (this.keyActions.has(key)) {
-      this.keyActions.get(key)?.forEach((action) => action(event));
-    }
 
     // Prevent default browser action for specific game keys
     if (
@@ -117,6 +85,5 @@ export class InputManager {
     this.canvas.removeEventListener("contextmenu", (event) =>
       event.preventDefault()
     );
-    this.keyActions.clear(); // Clear actions on dispose
   }
 }

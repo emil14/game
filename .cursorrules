@@ -29,6 +29,19 @@ You are designing a open-world browser-based first-person action RPG with Babylo
 - Classic RPG progression: stats, gear with bonuses, and leveling up through experience from quests and combat.
 - Simple physics: running, jumping, stamina system.
 
+### Game Loops
+
+Core loop: `Exploration → Combat/Quest → Reward (XP/resources) → Level up → Access to new content`
+
+Supporting loops:
+
+- 💰 Economy: resource farming → crafting / purchases
+- 🎁 Loot: rare items → builds and loadouts
+- 🧪 Skills: unlocking new activities
+- 🗺️ Exploration: collecting knowledge / lore / mechanics
+
+
+
 ## Setting
 
 The protagonist awakens on the shore of a mysterious island, with no memory of who they are or how they got there. The only clue is the wreckage of a ship scattered along the beach.

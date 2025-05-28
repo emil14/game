@@ -116,7 +116,7 @@ export const KEY_MAPPINGS = {
   CROUCH: "c",
   JUMP: " ", // Space
   RESPAWN: "r",
-  TOGGLE_CONSOLE: "/", // or "~"
+  TOGGLE_CONSOLE: "/",
   TOGGLE_INSPECTOR: "inspect", // This is a console command, not a direct key
   TOGGLE_DEBUG: "debug", // Console command
   OPEN_TAB_MENU: "tab",

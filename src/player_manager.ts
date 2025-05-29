@@ -314,6 +314,18 @@ export class PlayerManager {
       this.playerBodyAggregate.body.setLinearVelocity(Vector3.Zero());
     }
 
+    // Health regeneration: only when stamina is full and health is not max
+    if (
+      !this.playerIsDead &&
+      this.currentStamina >= this.maxStamina &&
+      this.currentHealth < this.maxHealth
+    ) {
+      this.currentHealth += PLAYER_CONFIG.HEALTH_REGENERATION_RATE * deltaTime;
+      if (this.currentHealth > this.maxHealth) {
+        this.currentHealth = this.maxHealth;
+      }
+    }
+
     // Handle player death
     if (this.currentHealth <= 0 && !this.playerIsDead) {
       this.setDead();

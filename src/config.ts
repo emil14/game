@@ -44,6 +44,7 @@ export const PLAYER_CONFIG = {
   PLAYER_EYE_HEIGHT_OFFSET: 0.6, // From the center of the capsule
   SWORD_DAMAGE: 10, // Default sword damage
   SWORD_ATTACK_DISTANCE: 2.0, // Sword attack range (meters)
+  HEALTH_REGENERATION_RATE: 0.2, // Health regen per second when stamina is full (1 HP per 5s)
 };
 
 export const CAMERA_CONFIG = {

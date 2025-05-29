@@ -37,7 +37,7 @@
         top: 10px;
         left: 10px;
         color: white;
-        background-color: rgba(0, 0, 0, 0.5);
+        background-color: transparent;
         padding: 5px;
         border-radius: 5px;
       }
@@ -60,26 +60,86 @@
       .health-bar-container {
         width: 200px;
         height: 25px;
-        /* margin-top: 5px; */
         display: flex;
         align-items: center;
         justify-content: flex-start;
       }
+      .bar-content-wrapper {
+        position: relative;
+        flex-grow: 1;
+        height: 100%;
+        background: linear-gradient(180deg, #1a2330 0%, #232b3a 100%);
+        border-radius: 12px;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.28) inset,
+          0 0 6px 2px rgba(0, 0, 0, 0.18);
+      }
       .health-bar-fill {
         height: 100%;
-        background-color: #ff0000;
         width: 100%;
-        border-radius: 5px;
-        transition: width 0.1s linear;
+        border-radius: 12px;
         position: absolute;
         top: 0;
         left: 0;
+        background: linear-gradient(
+          90deg,
+          rgba(200, 30, 30, 0.92) 0%,
+          rgba(255, 60, 60, 0.85) 60%,
+          rgba(120, 0, 0, 0.85) 100%
+        );
+        box-shadow: 0 0 14px 0 rgba(255, 40, 40, 0.32) inset,
+          0 2px 8px 0 rgba(255, 255, 255, 0.13) inset;
+        opacity: 0.93;
+        transition: width 0.1s linear;
       }
-      .health-text {
-        font-size: 0.9em;
-        color: white;
-        z-index: 1;
+      .bar-content-wrapper::before {
+        /* Glossy highlight at the top */
+        content: "";
+        position: absolute;
+        left: 8px;
+        right: 8px;
+        top: 3px;
+        height: 35%;
+        border-radius: 10px 10px 30px 30px;
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.65) 0%,
+          rgba(255, 255, 255, 0.12) 100%
+        );
+        opacity: 0.7;
+        pointer-events: none;
+        z-index: 2;
+      }
+      .bar-content-wrapper::after {
+        /* Curved reflection overlay */
+        content: "";
+        position: absolute;
+        left: 18px;
+        right: 18px;
+        top: 55%;
+        height: 18%;
+        border-radius: 50% 50% 12px 12px / 60% 60% 12px 12px;
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.22) 0%,
+          rgba(255, 255, 255, 0.02) 100%
+        );
+        opacity: 0.5;
+        pointer-events: none;
+        z-index: 2;
+      }
+      .health-text,
+      .stamina-text {
+        font-size: 0.8em;
+        color: #fff;
+        z-index: 3;
         position: relative;
+        text-shadow: 0 1px 2px #000, 0 0px 4px #fff6;
+        font-weight: bold;
+        letter-spacing: 1px;
       }
       /* Styling for the blood screen effect */
       .blood-screen-effect {
@@ -99,18 +159,6 @@
         font-size: 1.2em;
         color: white;
         margin-right: 8px;
-      }
-
-      .bar-content-wrapper {
-        position: relative;
-        flex-grow: 1;
-        height: 100%;
-        background-color: #333;
-        border-radius: 5px;
-        overflow: hidden;
-        display: flex;
-        align-items: center;
-        justify-content: center;
       }
 
       /* Update existing bar containers */
@@ -253,14 +301,12 @@
     <div id="mainHudContainer" class="ui-container">
       <div>
         <div class="health-bar-container">
-          <span class="bar-emoji">❤️</span>
           <div class="bar-content-wrapper">
             <div id="healthBarFill" class="health-bar-fill"></div>
             <span id="healthText" class="health-text">100/100</span>
           </div>
         </div>
         <div class="stamina-bar-container">
-          <span class="bar-emoji">⚡️</span>
           <div class="bar-content-wrapper">
             <div id="staminaBarFill" class="stamina-bar-fill"></div>
             <span id="staminaText" class="stamina-text">100/100</span>

@@ -51,6 +51,8 @@ export class PlayerManager {
   private isSprinting: boolean = false;
   private jumpKeyPressedLastFrame: boolean = false;
 
+  public godmode: boolean = false;
+
   constructor(
     scene: Scene,
     inputManager: InputManager,
@@ -116,6 +118,13 @@ export class PlayerManager {
       this.inputManager.isKeyPressed(KEY_MAPPINGS.RESPAWN)
     ) {
       this.respawn();
+    }
+
+    // GODMODE: Always max health/stamina if enabled
+    if (this.godmode) {
+      this.currentHealth = this.maxHealth;
+      this.currentStamina = this.maxStamina;
+      this.playerIsDead = false;
     }
 
     // Handle sword attack input
@@ -334,6 +343,9 @@ export class PlayerManager {
   }
 
   public takeDamage(amount: number): void {
+    if (this.godmode) {
+      return;
+    }
     if (this.playerIsDead) return;
     this.currentHealth -= amount;
     if (this.currentHealth < 0) this.currentHealth = 0;
@@ -396,6 +408,9 @@ export class PlayerManager {
 
   // Methods for stamina modification (will be used by movement/actions)
   public depleteStamina(amount: number): void {
+    if (this.godmode) {
+      return;
+    }
     this.currentStamina -= amount;
     if (this.currentStamina < 0) this.currentStamina = 0;
   }
@@ -404,5 +419,14 @@ export class PlayerManager {
     this.currentStamina += amount;
     if (this.currentStamina > this.maxStamina)
       this.currentStamina = this.maxStamina;
+  }
+
+  public toggleGodmode(): void {
+    this.godmode = !this.godmode;
+    if (this.godmode) {
+      this.currentHealth = this.maxHealth;
+      this.currentStamina = this.maxStamina;
+      this.playerIsDead = false;
+    }
   }
 }

@@ -47,6 +47,8 @@ function handleConsoleCommand(command: string): void {
     game.hudManager.toggleInspector();
   } else if (lowerCommand === KEY_MAPPINGS.TOGGLE_DEBUG) {
     console.log(`Debug mode toggled (handled in Game.update loop).`);
+  } else if (lowerCommand === KEY_MAPPINGS.TOGGLE_GODMODE) {
+    game.playerManager.toggleGodmode();
   } else {
     console.log(`Unknown command: ${command}`);
   }

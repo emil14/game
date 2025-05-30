@@ -92,14 +92,16 @@ export class HUDManager {
 
   private updateBloodOverlay(currentHealth: number, maxHealth: number): void {
     const hpRatio = currentHealth / maxHealth;
-    if (hpRatio >= 0.5) {
-      this.bloodScreenEffect.style.opacity = "0";
-      return;
-    }
-    // 50% HP = 1% opacity, 0% HP = 100% opacity
-    const t = Math.max(0, Math.min(1, (0.5 - hpRatio) / 0.5));
-    const opacity = 0.01 + t * (1 - 0.01); // Linear fade from 0.01 to 1
+    const opacity = 1 - Math.max(0, Math.min(1, hpRatio));
     this.bloodScreenEffect.style.opacity = opacity.toString();
+
+    // Blur: 0px at full HP, 8px at 0 HP
+    const maxBlur = 8; // px
+    const blurAmount = (1 - hpRatio) * maxBlur;
+    this.bloodScreenEffect.style.setProperty(
+      "--blood-blur-amount",
+      `${blurAmount}px`
+    );
   }
 
   public updateFPS(): void {

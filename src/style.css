@@ -52,6 +52,7 @@ body {
   align-items: center;
   font-family: Arial, Helvetica, sans-serif; /* Standard sans-serif font */
   pointer-events: none;
+  z-index: 2000;
 }
 
 #tab-menu.hidden {
@@ -216,6 +217,9 @@ body {
   background-size: cover;
   background-repeat: no-repeat;
   background-position: center;
+  z-index: 1000;
+  --blood-blur-amount: 0px;
+  backdrop-filter: blur(var(--blood-blur-amount));
 }
 
 .hit-effect-overlay {
@@ -228,4 +232,14 @@ body {
   pointer-events: none;
   z-index: 1001;
   transition: background 0.2s ease-out;
+}
+
+#mainHudContainer,
+#fpsDisplay,
+#enemyInfoContainer,
+#crosshair,
+#deathScreen,
+#tab-menu {
+  z-index: 2000;
+  position: absolute;
 }

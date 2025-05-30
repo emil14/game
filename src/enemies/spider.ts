@@ -73,6 +73,7 @@ export class Spider implements IEnemy {
       { width: 256, height: 256 },
       scene
     );
+    Spider.bloodSplatManager.renderingGroupId = 1;
   }
 
   /**

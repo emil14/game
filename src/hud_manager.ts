@@ -15,6 +15,7 @@ export class HUDManager {
   private healthText: HTMLElement;
   private healthBarFill: HTMLElement;
   private bloodScreenEffect: HTMLElement;
+  private hitEffectOverlay: HTMLElement;
   private crosshairElement: HTMLElement;
   private deathScreen: HTMLElement;
 
@@ -42,6 +43,9 @@ export class HUDManager {
     )!;
     this.bloodScreenEffect = document.getElementById(
       UI_ELEMENT_IDS.BLOOD_SCREEN_EFFECT
+    )!;
+    this.hitEffectOverlay = document.getElementById(
+      UI_ELEMENT_IDS.HIT_EFFECT_OVERLAY
     )!;
     this.crosshairElement = document.getElementById(UI_ELEMENT_IDS.CROSSHAIR)!;
     this.deathScreen = document.getElementById(UI_ELEMENT_IDS.DEATH_SCREEN)!;
@@ -82,6 +86,20 @@ export class HUDManager {
       0
     )}/${maxStamina.toFixed(0)}`;
     this.staminaBarFill.style.width = `${(currentStamina / maxStamina) * 100}%`;
+
+    this.updateBloodOverlay(currentHealth, maxHealth);
+  }
+
+  private updateBloodOverlay(currentHealth: number, maxHealth: number): void {
+    const hpRatio = currentHealth / maxHealth;
+    if (hpRatio >= 0.5) {
+      this.bloodScreenEffect.style.opacity = "0";
+      return;
+    }
+    // 50% HP = 1% opacity, 0% HP = 100% opacity
+    const t = Math.max(0, Math.min(1, (0.5 - hpRatio) / 0.5));
+    const opacity = 0.01 + t * (1 - 0.01); // Linear fade from 0.01 to 1
+    this.bloodScreenEffect.style.opacity = opacity.toString();
   }
 
   public updateFPS(): void {
@@ -92,10 +110,9 @@ export class HUDManager {
     duration: number = 200,
     intensity: number = 0.3
   ): void {
-    this.bloodScreenEffect.style.backgroundColor = `rgba(255, 0, 0, ${intensity})`;
-    this.bloodScreenEffect.style.opacity = "1";
+    this.hitEffectOverlay.style.background = `rgba(255, 0, 0, ${intensity})`;
     setTimeout(() => {
-      this.bloodScreenEffect.style.opacity = "0";
+      this.hitEffectOverlay.style.background = "rgba(255, 0, 0, 0)";
     }, duration);
   }
 

@@ -6,6 +6,7 @@ export const UI_ELEMENT_IDS = {
   HEALTH_TEXT: "healthText",
   HEALTH_BAR_FILL: "healthBarFill",
   BLOOD_SCREEN_EFFECT: "bloodScreenEffect",
+  HIT_EFFECT_OVERLAY: "hitEffectOverlay",
   ENEMY_INFO_CONTAINER: "enemyInfoContainer",
   ENEMY_HEALTH_TEXT: "enemyHealthText",
   ENEMY_HEALTH_BAR_FILL: "enemyHealthBarFill",

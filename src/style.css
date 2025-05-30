@@ -200,3 +200,32 @@ body {
 .scene-explorer-host {
   z-index: 10;
 }
+
+.blood-screen-effect {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(255, 0, 0, 0);
+  opacity: 0;
+  pointer-events: none;
+  /* z-index: 1000; */
+  transition: opacity 0.2s ease-out;
+  background-image: url('/assets/blood_effects/overlay.png');
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.hit-effect-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(255, 0, 0, 0);
+  pointer-events: none;
+  z-index: 1001;
+  transition: background 0.2s ease-out;
+}

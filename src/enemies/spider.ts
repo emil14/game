@@ -8,6 +8,7 @@ import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
 import { FreeCamera } from "@babylonjs/core/Cameras/freeCamera";
 import { PhysicsAggregate, PhysicsShapeType } from "@babylonjs/core/Physics";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
+import { SpriteManager, Sprite } from "@babylonjs/core/Sprites";
 
 import { IEnemy } from "./ienemy";
 
@@ -33,6 +34,7 @@ export class Spider implements IEnemy {
   private static templateAnimationGroups: AnimationGroup[] = [];
   private static templateAttackAnimDuration: number = 0.75; // Default
   private static assetsLoadingPromise: Promise<void> | null = null;
+  public static bloodSplatManager: SpriteManager;
 
   public readonly name: string = "Spider";
   public readonly level: number = 1;
@@ -63,6 +65,14 @@ export class Spider implements IEnemy {
     this.currentHealth = this.maxHealth;
     this.timeSinceLastAttack = this.attackCooldown; // Ready to attack
     this.attackAnimationDurationSeconds = Spider.templateAttackAnimDuration;
+
+    Spider.bloodSplatManager = new SpriteManager(
+      "blood_splat_manager",
+      "assets/blood_effects/splat.png",
+      10, // max splats on screen at once
+      { width: 256, height: 256 },
+      scene
+    );
   }
 
   /**
@@ -494,9 +504,41 @@ export class Spider implements IEnemy {
    * @param amount The amount of damage to inflict.
    */
   public takeDamage(amount: number): void {
-    if (this.currentHealth <= 0 || this.isDying) return;
+    if (this.currentHealth <= 0 || this.isDying) {
+      return;
+    }
 
     this.currentHealth -= amount;
+
+    // --- BLOOD SPLAT EFFECT ---
+    const splat = new Sprite("blood_splat", Spider.bloodSplatManager);
+    // Place at the center of the colliderMesh, slightly above ground
+    const pos = this.colliderMesh.getAbsolutePosition().clone();
+    pos.y += 0.05; // Avoid z-fighting
+    splat.position = pos;
+    splat.size = 0.5 + Math.random() * 0.2;
+    splat.angle = Math.random() * Math.PI * 2; // Random rotation
+    splat.isPickable = false;
+    splat.invertU = Math.random() > 0.5;
+    splat.invertV = Math.random() > 0.5;
+    splat.color.a = 1;
+    // Fade out and dispose after 0.7s
+    setTimeout(() => {
+      const fadeDuration = 300;
+      const fadeStep = 30;
+      let alpha = 1;
+      const fade = () => {
+        alpha -= fadeStep / fadeDuration;
+        if (alpha <= 0) {
+          splat.dispose();
+          return;
+        }
+        splat.color.a = Math.max(0, alpha);
+        setTimeout(fade, fadeStep);
+      };
+      fade();
+    }, 700);
+    // --- END BLOOD SPLAT ---
     if (this.currentHealth <= 0) {
       this.currentHealth = 0;
       this.die();

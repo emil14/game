@@ -126,6 +126,7 @@ export const KEY_MAPPINGS = {
   OPEN_JOURNAL_TAB: "j",
   OPEN_MAP_TAB: "m",
   EXIT_POINTER_LOCK: "escape",
+  TOGGLE_GODMODE: "godmode", // This is a console command, not a direct key
 };
 
 export const TAB_MENU_CONFIG = {

@@ -94,21 +94,12 @@ export class HUDManager {
     const hpRatio = currentHealth / maxHealth;
     if (hpRatio >= 0.5) {
       this.bloodScreenEffect.style.opacity = "0";
-      this.bloodScreenEffect.style.setProperty("--blood-blur-amount", `0px`);
       return;
     }
     // Only show overlay below 50% HP, interpolate from 0 (at 50%) to 1 (at 0%)
     const t = 1 - hpRatio / 0.5; // t = 0 at 0.5, t = 1 at 0
     const opacity = t; // Linear, or tweak for curve if desired
     this.bloodScreenEffect.style.opacity = opacity.toString();
-
-    // Blur: 0px at 50% HP, 8px at 0 HP
-    const maxBlur = 8; // px
-    const blurAmount = t * maxBlur;
-    this.bloodScreenEffect.style.setProperty(
-      "--blood-blur-amount",
-      `${blurAmount}px`
-    );
   }
 
   public updateFPS(): void {

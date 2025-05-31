@@ -208,18 +208,15 @@ body {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(255, 0, 0, 0);
+  background-color: rgba(255, 0, 0, 0.5);
   opacity: 0;
   pointer-events: none;
-  /* z-index: 1000; */
   transition: opacity 0.2s ease-out;
   background-image: url('/assets/blood_effects/overlay.png');
   background-size: cover;
   background-repeat: no-repeat;
   background-position: center;
   z-index: 1000;
-  --blood-blur-amount: 0px;
-  backdrop-filter: blur(var(--blood-blur-amount));
 }
 
 .hit-effect-overlay {

@@ -19,6 +19,7 @@ import { IWeapon } from "./weapons/iweapon";
 import { IEnemy } from "./enemies/ienemy";
 import { HUDManager } from "./hud_manager";
 import { Sword } from "./weapons/sword";
+import { SoundManager } from "./managers/sound_manager";
 
 export class PlayerManager {
   public camera: FreeCamera;
@@ -29,6 +30,7 @@ export class PlayerManager {
   private inputManager: InputManager;
   private hudManager: HUDManager;
   private canvas: HTMLCanvasElement;
+  private soundManager: SoundManager;
 
   public maxHealth: number = PLAYER_CONFIG.MAX_HEALTH;
   public currentHealth: number = PLAYER_CONFIG.MAX_HEALTH;
@@ -57,12 +59,14 @@ export class PlayerManager {
     scene: Scene,
     inputManager: InputManager,
     hudManager: HUDManager,
-    canvas: HTMLCanvasElement
+    canvas: HTMLCanvasElement,
+    soundManager: SoundManager
   ) {
     this.scene = scene;
     this.inputManager = inputManager;
     this.hudManager = hudManager;
     this.canvas = canvas;
+    this.soundManager = soundManager;
 
     this.camera = new FreeCamera(
       "playerCamera",
@@ -107,6 +111,7 @@ export class PlayerManager {
     this.playerSword = await Sword.Create(
       this.scene,
       this.camera,
+      this.soundManager,
       PLAYER_CONFIG.SWORD_DAMAGE
     );
   }

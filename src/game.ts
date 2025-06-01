@@ -20,6 +20,7 @@ import { ClosedChest } from "./interactables";
 import AssetManager from "./asset_manager";
 import { TabMenuManager } from "./tab_menu_manager";
 import { EventSystem } from "./event_system";
+import { SoundManager } from "./managers/sound_manager";
 
 export class Game {
   public readonly engine: Engine;
@@ -30,6 +31,7 @@ export class Game {
   public readonly hudManager: HUDManager;
   public readonly playerManager: PlayerManager;
   public readonly tabMenuManager: TabMenuManager;
+  public readonly soundManager: SoundManager;
   private readonly canvas: HTMLCanvasElement;
 
   private _deltaTime: number = 0;
@@ -48,18 +50,20 @@ export class Game {
   public readonly assetManager: AssetManager;
   public readonly eventSystem: EventSystem;
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, soundManager: SoundManager) {
     this.canvas = canvas;
     this.engine = new Engine(canvas, true);
     this.scene = new Scene(this.engine);
     this.inputManager = new InputManager(this.canvas);
     this.skyManager = new SkyManager(this.scene);
     this.hudManager = new HUDManager(this.engine, this.scene);
+    this.soundManager = soundManager;
     this.playerManager = new PlayerManager(
       this.scene,
       this.inputManager,
       this.hudManager,
-      this.canvas
+      this.canvas,
+      this.soundManager
     );
     this.tabMenuManager = new TabMenuManager(
       this.engine,
@@ -294,21 +298,19 @@ export class Game {
 
   private async _initializeGameAssets() {
     // Spiders
-    try {
-      const spiderInstance = await Spider.Create(
-        this.scene,
-        new Vector3(20, 0, 20),
-        this.config.PLAYER_CONFIG.DEFAULT_SPEED
-      );
-      this.spiders.push(spiderInstance);
-      spiderInstance.setOnPlayerDamaged((damage: number) => {
-        if (this.playerManager.playerIsDead) return;
-        this.playerManager.takeDamage(damage);
-      });
-    } catch (error) {
-      console.error("Failed to create spider:", error);
-    }
+    const spiderInstance = await Spider.Create(
+      this.scene,
+      new Vector3(20, 0, 20),
+      this.config.PLAYER_CONFIG.DEFAULT_SPEED
+    );
+    this.spiders.push(spiderInstance);
+    spiderInstance.setOnPlayerDamaged((damage: number) => {
+      if (this.playerManager.playerIsDead) return;
+      this.playerManager.takeDamage(damage);
+    });
+
     await this.playerManager.initializeSword();
+
     // Palm trees
     await this._loadAssetWithCollider(
       "palmTree1",
@@ -381,28 +383,14 @@ export class Game {
 
   public async initialize(): Promise<void> {
     this.gameState = "initializing";
-    this.fightMusic = document.getElementById(
-      this.config.UI_ELEMENT_IDS.FIGHT_MUSIC
-    ) as HTMLAudioElement | null;
+
     // Physics
-    try {
-      this.havokInstance = await HavokPhysics({
-        locateFile: (file: string) =>
-          file.endsWith(".wasm")
-            ? this.config.PHYSICS_CONFIG.HAVOK_WASM_PATH
-            : file,
-      });
-    } catch (e) {
-      console.error(
-        "Havok physics engine failed to load or an error occurred during init:",
-        e
-      );
-      return;
-    }
-    if (!this.havokInstance) {
-      console.error("Havok physics engine could not be initialized.");
-      return;
-    }
+    this.havokInstance = await HavokPhysics({
+      locateFile: (file: string) =>
+        file.endsWith(".wasm")
+          ? this.config.PHYSICS_CONFIG.HAVOK_WASM_PATH
+          : file,
+    });
     const havokPlugin = new HavokPlugin(true, this.havokInstance);
     this.scene.enablePhysics(
       new Vector3(0, this.config.PHYSICS_CONFIG.GRAVITY_Y, 0),
@@ -412,8 +400,10 @@ export class Game {
     this._createWalls();
     this._initializePlayerPhysics();
     await this._initializeGameAssets();
+
     this.hudManager.showCoreHud();
     this.hudManager.hideDeathScreen();
+
     this.gameState = "playing";
     await this.assetManager.initialize();
   }
@@ -534,6 +524,9 @@ export class Game {
 
   public async start(): Promise<void> {
     await this.initialize();
+    window.addEventListener("resize", () => {
+      this.engine.resize();
+    });
     this.engine.runRenderLoop(() => {
       if (this.scene.isReady() && this.engine.getDeltaTime() > 0) {
         this.update();

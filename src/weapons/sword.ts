@@ -9,11 +9,13 @@ import { Ray } from "@babylonjs/core/Culling/ray";
 import "@babylonjs/loaders/glTF";
 
 import { IWeapon } from "./iweapon";
+import { SoundManager } from "../managers/sound_manager";
 
 export class Sword implements IWeapon {
   public visualMesh!: AbstractMesh;
   private scene: Scene;
   private camera: FreeCamera; // Sword is parented to camera
+  private soundManager: SoundManager;
 
   private swingAnimation: Animation | null = null;
   private isSwinging: boolean = false;
@@ -23,9 +25,14 @@ export class Sword implements IWeapon {
   private static templateMesh: AbstractMesh | null = null;
   private static assetsLoadingPromise: Promise<void> | null = null;
 
-  private constructor(scene: Scene, camera: FreeCamera) {
+  private constructor(
+    scene: Scene,
+    camera: FreeCamera,
+    soundManager: SoundManager
+  ) {
     this.scene = scene;
     this.camera = camera;
+    this.soundManager = soundManager;
   }
 
   private static async _loadAndCacheTemplateAssets(
@@ -65,6 +72,7 @@ export class Sword implements IWeapon {
   public static async Create(
     scene: Scene,
     camera: FreeCamera,
+    soundManager: SoundManager,
     attackDamage: number = 15
   ): Promise<Sword> {
     await Sword._loadAndCacheTemplateAssets(scene);
@@ -74,7 +82,9 @@ export class Sword implements IWeapon {
       );
     }
 
-    const swordInstance = new Sword(scene, camera);
+    soundManager.loadSound("melee", "assets/sounds/melee.wav");
+
+    const swordInstance = new Sword(scene, camera, soundManager);
     swordInstance.attackDamage = attackDamage;
     swordInstance.initializeInstanceAssets();
     swordInstance._setupSwingAnimation();
@@ -142,6 +152,7 @@ export class Sword implements IWeapon {
       return; // Already swinging, or mesh/animation not ready
     }
     this.isSwinging = true;
+    this.soundManager.playSound("melee");
 
     const initialRotationZ = this.visualMesh.rotation.z;
     const swingAngle = Math.PI / 3; // How far the sword swings

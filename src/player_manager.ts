@@ -19,6 +19,7 @@ import { IWeapon } from "./weapons/iweapon";
 import { IEnemy } from "./enemies/ienemy";
 import { HUDManager } from "./hud_manager";
 import { Sword } from "./weapons/sword";
+import { world } from "./ecs/world";
 
 export class PlayerManager {
   public camera: UniversalCamera;
@@ -30,10 +31,6 @@ export class PlayerManager {
   private hudManager: HUDManager;
   private canvas: HTMLCanvasElement;
 
-  public maxHealth: number = PLAYER_CONFIG.MAX_HEALTH;
-  public currentHealth: number = PLAYER_CONFIG.MAX_HEALTH;
-  public maxStamina: number = PLAYER_CONFIG.MAX_STAMINA;
-  public currentStamina: number = PLAYER_CONFIG.MAX_STAMINA;
   public playerIsDead: boolean = false;
 
   public isCrouching: boolean = false;
@@ -41,7 +38,6 @@ export class PlayerManager {
 
   // Physics & Movement
   public playerBodyMesh!: Mesh;
-  // public playerBodyAggregate!: PhysicsAggregate; // Removed in favor of CharacterController
   private characterController!: CharacterController;
 
   // Movement state
@@ -53,6 +49,9 @@ export class PlayerManager {
   private jumpKeyPressedLastFrame: boolean = false;
 
   public godmode: boolean = false;
+
+  // ECS Query
+  private playerQuery = world.with("player", "health", "stamina");
 
   constructor(
     scene: Scene,
@@ -76,7 +75,6 @@ export class PlayerManager {
     this.camera.inputs.remove(this.camera.inputs.attached.keyboard); // We handle movement
     this.camera.angularSensibility = CAMERA_CONFIG.ANGULAR_SENSIBILITY;
     this.camera.inertia = CAMERA_CONFIG.INERTIA;
-    // this.camera.checkCollisions = true; // Optional for camera clipping
 
     // Player light
     this.playerLight = new PointLight(
@@ -88,6 +86,10 @@ export class PlayerManager {
     this.playerLight.range = CAMERA_CONFIG.PLAYER_LIGHT_RANGE;
     this.playerLight.diffuse = new Color3(1, 0.9, 0.7);
     this.playerLight.parent = this.camera; // Light follows the camera
+  }
+
+  private get playerEntity() {
+    return this.playerQuery.first;
   }
 
   public initializeCharacterController(playerBodyMesh: Mesh) {
@@ -124,6 +126,9 @@ export class PlayerManager {
   }
 
   public update(deltaTime: number): void {
+    const player = this.playerEntity;
+    if (!player) return; // Wait for ECS initialization
+
     // Handle respawn
     if (
       this.playerIsDead &&
@@ -134,8 +139,8 @@ export class PlayerManager {
 
     // GODMODE: Always max health/stamina if enabled
     if (this.godmode) {
-      this.currentHealth = this.maxHealth;
-      this.currentStamina = this.maxStamina;
+      player.health.current = player.health.max;
+      player.stamina.current = player.stamina.max;
       this.playerIsDead = false;
     }
 
@@ -173,7 +178,7 @@ export class PlayerManager {
 
     // Handle sprinting
     const shiftPressed = this.inputManager.isKeyCodePressed("ShiftLeft");
-    if (shiftPressed && this.currentStamina > 0 && !this.playerIsDead) {
+    if (shiftPressed && player.stamina.current > 0 && !this.playerIsDead) {
       this.isSprinting = true;
     } else {
       this.isSprinting = false;
@@ -230,10 +235,8 @@ export class PlayerManager {
         jumpKeyCurrentlyPressed &&
         !this.jumpKeyPressedLastFrame
       ) {
-        if (this.currentStamina >= PLAYER_CONFIG.JUMP_STAMINA_COST) {
+        if (player.stamina.current >= PLAYER_CONFIG.JUMP_STAMINA_COST) {
              this.characterController.jump();
-             // Assume jump success if we called it (CC checks ground internally)
-             // Ideally we'd check if we actually left ground but that's hard to poll instantly
              this.depleteStamina(PLAYER_CONFIG.JUMP_STAMINA_COST);
         }
       }
@@ -241,16 +244,16 @@ export class PlayerManager {
 
       // Stamina depletion for running
       if (this.isSprinting && (this.isMovingForward || this.isMovingBackward || this.isMovingLeft || this.isMovingRight)) {
-        if (this.currentStamina > 0) {
+        if (player.stamina.current > 0) {
           this.depleteStamina(PLAYER_CONFIG.STAMINA_DEPLETION_RATE * deltaTime);
         }
-        if (this.currentStamina <= 0) {
-          this.currentStamina = 0;
+        if (player.stamina.current <= 0) {
+          player.stamina.current = 0;
           this.isSprinting = false;
           this.characterController.run(false);
         }
       } else {
-        if (this.currentStamina < this.maxStamina) {
+        if (player.stamina.current < player.stamina.max) {
            // Regen logic
           let currentRegenRate = PLAYER_CONFIG.STAMINA_REGENERATION_RATE;
           if (
@@ -275,22 +278,21 @@ export class PlayerManager {
       this.characterController.stop(); 
     }
 
-    // Health regeneration: only when stamina is full and health is not max
+    // Health regeneration
     if (
       !this.playerIsDead &&
-      this.currentStamina >= this.maxStamina &&
-      this.currentHealth < this.maxHealth
+      player.stamina.current >= player.stamina.max &&
+      player.health.current < player.health.max
     ) {
-      this.currentHealth += PLAYER_CONFIG.HEALTH_REGENERATION_RATE * deltaTime;
-      if (this.currentHealth > this.maxHealth) {
-        this.currentHealth = this.maxHealth;
+      player.health.current += PLAYER_CONFIG.HEALTH_REGENERATION_RATE * deltaTime;
+      if (player.health.current > player.health.max) {
+        player.health.current = player.health.max;
       }
     }
 
     // Handle player death
-    if (this.currentHealth <= 0 && !this.playerIsDead) {
+    if (player.health.current <= 0 && !this.playerIsDead) {
       this.setDead();
-      // Note: Fight music pause is handled in main.ts based on isInFightMode
     }
   }
 
@@ -299,8 +301,13 @@ export class PlayerManager {
       return;
     }
     if (this.playerIsDead) return;
-    this.currentHealth -= amount;
-    if (this.currentHealth < 0) this.currentHealth = 0;
+    
+    const player = this.playerEntity;
+    if (player) {
+        player.health.current -= amount;
+        if (player.health.current < 0) player.health.current = 0;
+    }
+
     this.hudManager.showBloodScreenEffect(); // Notify HUDManager
   }
 
@@ -308,11 +315,9 @@ export class PlayerManager {
     this.playerIsDead = true;
     this.hudManager.showDeathScreen(); // Notify HUDManager
     console.log("Player has died.");
-    // Potentially stop fight music here or emit an event
   }
 
   public respawn(): void {
-    // For now, a simple page reload. This will be improved later.
     window.location.reload();
   }
 
@@ -337,38 +342,47 @@ export class PlayerManager {
 
   // Getters for stats
   public getCurrentHealth(): number {
-    return this.currentHealth;
+    return this.playerEntity?.health.current ?? 0;
   }
   public getMaxHealth(): number {
-    return this.maxHealth;
+    return this.playerEntity?.health.max ?? 100;
   }
   public getCurrentStamina(): number {
-    return this.currentStamina;
+    return this.playerEntity?.stamina.current ?? 0;
   }
   public getMaxStamina(): number {
-    return this.maxStamina;
+    return this.playerEntity?.stamina.max ?? 100;
   }
 
-  // Methods for stamina modification (will be used by movement/actions)
+  // Methods for stamina modification
   public depleteStamina(amount: number): void {
     if (this.godmode) {
       return;
     }
-    this.currentStamina -= amount;
-    if (this.currentStamina < 0) this.currentStamina = 0;
+    const player = this.playerEntity;
+    if (player) {
+        player.stamina.current -= amount;
+        if (player.stamina.current < 0) player.stamina.current = 0;
+    }
   }
 
   public regenerateStamina(amount: number): void {
-    this.currentStamina += amount;
-    if (this.currentStamina > this.maxStamina)
-      this.currentStamina = this.maxStamina;
+    const player = this.playerEntity;
+    if (player) {
+        player.stamina.current += amount;
+        if (player.stamina.current > player.stamina.max)
+            player.stamina.current = player.stamina.max;
+    }
   }
 
   public toggleGodmode(): void {
     this.godmode = !this.godmode;
     if (this.godmode) {
-      this.currentHealth = this.maxHealth;
-      this.currentStamina = this.maxStamina;
+      const player = this.playerEntity;
+      if (player) {
+          player.health.current = player.health.max;
+          player.stamina.current = player.stamina.max;
+      }
       this.playerIsDead = false;
     }
   }

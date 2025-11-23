@@ -8,13 +8,13 @@ export class HealthSystem {
     // Entities with health + player tag
     const players = world.with("health", "player");
     for (const entity of players) {
-        // Player regeneration logic is currently in PlayerManager, 
-        // but we can sync or move it here. 
-        // For now, let's sync ECS state <-> PlayerManager state
+        // We no longer sync from Manager to ECS.
+        // ECS is the source of truth.
         
-        // Write: Manager -> ECS (Source of truth is currently Manager)
-        entity.health.current = this.playerManager.getCurrentHealth();
-        entity.health.max = this.playerManager.getMaxHealth();
+        // Eventually, death logic should happen here
+        // if (entity.health.current <= 0) {
+        //     // Trigger death event
+        // }
     }
 
     // Enemies
@@ -30,4 +30,3 @@ export class HealthSystem {
     }
   }
 }
-

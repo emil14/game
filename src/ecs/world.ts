@@ -25,6 +25,13 @@ export type HealthComponent = {
   max: number;
 };
 
+export type StaminaComponent = {
+  current: number;
+  max: number;
+  regenRate: number;
+  depletionRate: number;
+};
+
 export type CombatComponent = {
   damage: number;
   cooldown: number;
@@ -49,6 +56,7 @@ export type Entity = {
   player?: PlayerComponent;
   enemy?: EnemyComponent;
   health?: HealthComponent;
+  stamina?: StaminaComponent;
   combat?: CombatComponent;
   physics?: PhysicsComponent;
   ai?: AIComponent;
@@ -57,4 +65,3 @@ export type Entity = {
 // --- World ---
 
 export const world = new World<Entity>();
-

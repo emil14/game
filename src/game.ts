@@ -286,6 +286,12 @@ export class Game {
         current: this.config.PLAYER_CONFIG.MAX_HEALTH, 
         max: this.config.PLAYER_CONFIG.MAX_HEALTH 
       },
+      stamina: {
+        current: this.config.PLAYER_CONFIG.MAX_STAMINA,
+        max: this.config.PLAYER_CONFIG.MAX_STAMINA,
+        regenRate: this.config.PLAYER_CONFIG.STAMINA_REGENERATION_RATE,
+        depletionRate: this.config.PLAYER_CONFIG.STAMINA_DEPLETION_RATE
+      },
       player: { id: "p1" } // Tag it as player
     });
   }

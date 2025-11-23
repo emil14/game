@@ -1,6 +1,6 @@
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
-import { FreeCamera } from "@babylonjs/core/Cameras/freeCamera";
+import { Camera } from "@babylonjs/core/Cameras/camera";
 
 export interface IEnemy {
   name: string;
@@ -10,7 +10,7 @@ export interface IEnemy {
   colliderMesh: Mesh;
   visualMesh: AbstractMesh;
   setOnPlayerDamaged(callback: (damage: number) => void): void;
-  update(deltaTime: number, playerCamera: FreeCamera): void;
+  update(deltaTime: number, playerCamera: Camera): void;
   takeDamage(amount: number): void;
   getIsAggro(): boolean;
   getIsDying(): boolean;

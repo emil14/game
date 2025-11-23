@@ -5,7 +5,7 @@ import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import { AnimationGroup } from "@babylonjs/core/Animations/animationGroup";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
-import { FreeCamera } from "@babylonjs/core/Cameras/freeCamera";
+import { Camera } from "@babylonjs/core/Cameras/camera";
 import { PhysicsAggregate, PhysicsShapeType } from "@babylonjs/core/Physics";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import { SpriteManager, Sprite } from "@babylonjs/core/Sprites";
@@ -357,7 +357,7 @@ export class Spider implements IEnemy {
    * @param deltaTime The time in seconds since the last frame.
    * @param playerCamera The player's camera, used to determine player position.
    */
-  public update(deltaTime: number, playerCamera: FreeCamera): void {
+  public update(deltaTime: number, playerCamera: Camera): void {
     if (
       this.currentHealth <= 0 ||
       this.isDying ||

@@ -1,12 +1,12 @@
-import { FreeCamera } from "@babylonjs/core/Cameras/freeCamera";
+import { UniversalCamera } from "@babylonjs/core/Cameras/universalCamera";
 import { Scene } from "@babylonjs/core/scene";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { PointLight } from "@babylonjs/core/Lights/pointLight";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { Ray } from "@babylonjs/core/Culling/ray";
-import { PhysicsAggregate } from "@babylonjs/core/Physics";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
+import { CharacterController } from "./lib/character_controller";
 
 import {
   CAMERA_CONFIG,
@@ -19,10 +19,9 @@ import { IWeapon } from "./weapons/iweapon";
 import { IEnemy } from "./enemies/ienemy";
 import { HUDManager } from "./hud_manager";
 import { Sword } from "./weapons/sword";
-import { SoundManager } from "./managers/sound_manager";
 
 export class PlayerManager {
-  public camera: FreeCamera;
+  public camera: UniversalCamera;
   public playerLight: PointLight;
   public playerSword!: IWeapon;
 
@@ -30,7 +29,6 @@ export class PlayerManager {
   private inputManager: InputManager;
   private hudManager: HUDManager;
   private canvas: HTMLCanvasElement;
-  private soundManager: SoundManager;
 
   public maxHealth: number = PLAYER_CONFIG.MAX_HEALTH;
   public currentHealth: number = PLAYER_CONFIG.MAX_HEALTH;
@@ -43,7 +41,8 @@ export class PlayerManager {
 
   // Physics & Movement
   public playerBodyMesh!: Mesh;
-  public playerBodyAggregate!: PhysicsAggregate;
+  // public playerBodyAggregate!: PhysicsAggregate; // Removed in favor of CharacterController
+  private characterController!: CharacterController;
 
   // Movement state
   private isMovingForward: boolean = false;
@@ -59,26 +58,25 @@ export class PlayerManager {
     scene: Scene,
     inputManager: InputManager,
     hudManager: HUDManager,
-    canvas: HTMLCanvasElement,
-    soundManager: SoundManager
+    canvas: HTMLCanvasElement
   ) {
     this.scene = scene;
     this.inputManager = inputManager;
     this.hudManager = hudManager;
     this.canvas = canvas;
-    this.soundManager = soundManager;
 
-    this.camera = new FreeCamera(
+    this.camera = new UniversalCamera(
       "playerCamera",
       new Vector3(0, CAMERA_CONFIG.STAND_CAMERA_Y, -5),
       this.scene
     );
     this.camera.maxZ = CAMERA_CONFIG.MAX_Z;
-    this.camera.setTarget(Vector3.Zero()); // Target will be relative to parent
+    this.camera.setTarget(Vector3.Zero()); 
     this.camera.attachControl(this.canvas, true);
-    this.camera.inputs.remove(this.camera.inputs.attached.keyboard);
+    this.camera.inputs.remove(this.camera.inputs.attached.keyboard); // We handle movement
     this.camera.angularSensibility = CAMERA_CONFIG.ANGULAR_SENSIBILITY;
     this.camera.inertia = CAMERA_CONFIG.INERTIA;
+    // this.camera.checkCollisions = true; // Optional for camera clipping
 
     // Player light
     this.playerLight = new PointLight(
@@ -92,12 +90,8 @@ export class PlayerManager {
     this.playerLight.parent = this.camera; // Light follows the camera
   }
 
-  public initializePhysics(
-    playerBodyMesh: Mesh,
-    playerBodyAggregate: PhysicsAggregate
-  ) {
+  public initializeCharacterController(playerBodyMesh: Mesh) {
     this.playerBodyMesh = playerBodyMesh;
-    this.playerBodyAggregate = playerBodyAggregate;
     this.camera.parent = this.playerBodyMesh;
     // Adjust camera position relative to the player body mesh (capsule center)
     this.camera.position = new Vector3(
@@ -105,13 +99,26 @@ export class PlayerManager {
       PLAYER_CONFIG.PLAYER_EYE_HEIGHT_OFFSET,
       0
     );
+    
+    this.characterController = new CharacterController(
+      this.playerBodyMesh,
+      this.camera,
+      this.scene
+    );
+    
+    // We'll drive it via update()
+    this.characterController.enableKeyBoard(false);
+    
+    // Sync config
+    this.characterController.setJumpSpeed(PLAYER_CONFIG.JUMP_FORCE); 
+    this.characterController.setWalkSpeed(PLAYER_CONFIG.DEFAULT_SPEED);
+    this.characterController.setRunSpeed(PLAYER_CONFIG.DEFAULT_SPEED * PLAYER_CONFIG.RUN_SPEED_MULTIPLIER);
   }
 
   public async initializeSword() {
     this.playerSword = await Sword.Create(
       this.scene,
       this.camera,
-      this.soundManager,
       PLAYER_CONFIG.SWORD_DAMAGE
     );
   }
@@ -202,72 +209,18 @@ export class PlayerManager {
       Math.min(1, crouchLerpSpeed * deltaTime);
 
     // Handle physics movement
-    if (
-      !this.playerIsDead &&
-      this.playerBodyAggregate &&
-      this.playerBodyAggregate.body
-    ) {
-      const currentPhysicsVelocity =
-        this.playerBodyAggregate.body.getLinearVelocity();
-      let finalVelocity = new Vector3(0, currentPhysicsVelocity.y, 0);
-
-      // Calculate movement direction
-      let targetVelocityXZ = Vector3.Zero();
-      const forward = this.camera.getDirection(Vector3.Forward());
-      const right = this.camera.getDirection(Vector3.Right());
-      forward.y = 0;
-      right.y = 0;
-      forward.normalize();
-      right.normalize();
-
-      if (this.isMovingForward) targetVelocityXZ.addInPlace(forward);
-      if (this.isMovingBackward) targetVelocityXZ.subtractInPlace(forward);
-      if (this.isMovingLeft) targetVelocityXZ.subtractInPlace(right);
-      if (this.isMovingRight) targetVelocityXZ.addInPlace(right);
-
-      // Apply speed modifiers
-      let actualSpeed = PLAYER_CONFIG.DEFAULT_SPEED;
-      if (this.isSprinting) {
-        actualSpeed *= PLAYER_CONFIG.RUN_SPEED_MULTIPLIER;
-      }
+    if (!this.playerIsDead && this.characterController) {
+      this.characterController.walk(this.isMovingForward);
+      this.characterController.walkBack(this.isMovingBackward);
+      this.characterController.strafeLeft(this.isMovingLeft);
+      this.characterController.strafeRight(this.isMovingRight);
+      // Crouching logic - speed modification
       if (this.isCrouching) {
-        actualSpeed *= PLAYER_CONFIG.CROUCH_SPEED_MULTIPLIER;
-      }
-
-      // --- Direction-based speed multiplier ---
-      let directionMultiplier = 1.0;
-      const movingForward = this.isMovingForward && !this.isMovingBackward;
-      const movingBackward = this.isMovingBackward && !this.isMovingForward;
-      const movingSide =
-        (this.isMovingLeft || this.isMovingRight) &&
-        !this.isMovingForward &&
-        !this.isMovingBackward;
-      // Diagonal: forward+side = forward dominates, back+side = backward dominates
-      if (movingForward) {
-        directionMultiplier = 1.0;
-      } else if (movingBackward) {
-        directionMultiplier = 0.5;
-      } else if (movingSide) {
-        directionMultiplier = 0.75;
-      }
-      // If moving diagonally (forward+side), forward dominates (already handled by movingForward)
-      // If moving diagonally (back+side), backward dominates (already handled by movingBackward)
-      actualSpeed *= directionMultiplier;
-      // --- End direction-based speed multiplier ---
-
-      // --- Camera FOV based on sprinting ---
-      this.camera.fov = CAMERA_CONFIG.BASE_FOV;
-      // --- End Camera FOV ---
-
-      // Apply movement
-      if (targetVelocityXZ.lengthSquared() > 0.001) {
-        targetVelocityXZ.normalize().scaleInPlace(actualSpeed);
-        finalVelocity.x = targetVelocityXZ.x;
-        finalVelocity.z = targetVelocityXZ.z;
+          this.characterController.setWalkSpeed(PLAYER_CONFIG.DEFAULT_SPEED * PLAYER_CONFIG.CROUCH_SPEED_MULTIPLIER);
       } else {
-        finalVelocity.x = 0;
-        finalVelocity.z = 0;
+          this.characterController.setWalkSpeed(PLAYER_CONFIG.DEFAULT_SPEED);
       }
+      this.characterController.run(this.isSprinting);
 
       // Handle jumping
       const jumpKeyCurrentlyPressed = this.inputManager.isKeyPressed(
@@ -275,36 +228,31 @@ export class PlayerManager {
       );
       if (
         jumpKeyCurrentlyPressed &&
-        !this.jumpKeyPressedLastFrame &&
-        !this.playerIsDead
+        !this.jumpKeyPressedLastFrame
       ) {
-        const isOnGround = this.isPlayerOnGround();
-        if (
-          this.currentStamina >= PLAYER_CONFIG.JUMP_STAMINA_COST &&
-          isOnGround
-        ) {
-          finalVelocity.y = PLAYER_CONFIG.JUMP_FORCE;
-          this.depleteStamina(PLAYER_CONFIG.JUMP_STAMINA_COST);
+        if (this.currentStamina >= PLAYER_CONFIG.JUMP_STAMINA_COST) {
+             this.characterController.jump();
+             // Assume jump success if we called it (CC checks ground internally)
+             // Ideally we'd check if we actually left ground but that's hard to poll instantly
+             this.depleteStamina(PLAYER_CONFIG.JUMP_STAMINA_COST);
         }
       }
       this.jumpKeyPressedLastFrame = jumpKeyCurrentlyPressed;
 
-      // Apply final velocity
-      this.playerBodyAggregate.body.setLinearVelocity(finalVelocity);
-
-      // Handle stamina depletion/regeneration
-      if (this.isSprinting && targetVelocityXZ.lengthSquared() > 0.001) {
+      // Stamina depletion for running
+      if (this.isSprinting && (this.isMovingForward || this.isMovingBackward || this.isMovingLeft || this.isMovingRight)) {
         if (this.currentStamina > 0) {
           this.depleteStamina(PLAYER_CONFIG.STAMINA_DEPLETION_RATE * deltaTime);
         }
         if (this.currentStamina <= 0) {
           this.currentStamina = 0;
           this.isSprinting = false;
+          this.characterController.run(false);
         }
       } else {
         if (this.currentStamina < this.maxStamina) {
+           // Regen logic
           let currentRegenRate = PLAYER_CONFIG.STAMINA_REGENERATION_RATE;
-          // No regen while moving (but not sprinting)
           if (
             !this.isSprinting &&
             (this.isMovingForward ||
@@ -319,13 +267,12 @@ export class PlayerManager {
           }
         }
       }
+
     } else if (
-      this.playerIsDead &&
-      this.playerBodyAggregate &&
-      this.playerBodyAggregate.body
+      this.playerIsDead && this.characterController
     ) {
       // Stop all movement when dead
-      this.playerBodyAggregate.body.setLinearVelocity(Vector3.Zero());
+      this.characterController.stop(); 
     }
 
     // Health regeneration: only when stamina is full and health is not max
@@ -372,8 +319,8 @@ export class PlayerManager {
   public isPlayerOnGround(): boolean {
     if (
       !this.playerBodyMesh ||
-      !this.playerBodyAggregate ||
-      !this.playerBodyAggregate.body ||
+      // !this.playerBodyAggregate || // Removed
+      // !this.playerBodyAggregate.body || // Removed
       !this.scene
     ) {
       return false;
@@ -391,7 +338,7 @@ export class PlayerManager {
         mesh !== this.playerBodyMesh &&
         mesh.isPickable &&
         mesh.isEnabled() &&
-        !mesh.name.toLowerCase().includes("spider") && // TODO: Make this more generic
+        !mesh.name.toLowerCase().includes("spider") && 
         mesh.getTotalVertices() > 0
     );
     return pickInfo?.hit || false;

@@ -9,6 +9,7 @@ export default class AssetManager {
 
   public async initialize(): Promise<void> {
     // Placeholder for preloading assets
+    if (!this.scene) return;
   }
 
   public async loadAssetWithCollider(/* params TBD */): Promise<void> {

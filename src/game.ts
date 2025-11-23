@@ -20,7 +20,8 @@ import { ClosedChest } from "./interactables";
 import AssetManager from "./asset_manager";
 import { TabMenuManager } from "./tab_menu_manager";
 import { EventSystem } from "./event_system";
-import { SoundManager } from "./managers/sound_manager";
+import { GameSystems } from "./ecs/game_systems";
+import { world } from "./ecs/world"; // Miniplex world
 
 export class Game {
   public readonly engine: Engine;
@@ -31,12 +32,10 @@ export class Game {
   public readonly hudManager: HUDManager;
   public readonly playerManager: PlayerManager;
   public readonly tabMenuManager: TabMenuManager;
-  public readonly soundManager: SoundManager;
   private readonly canvas: HTMLCanvasElement;
 
   private _deltaTime: number = 0;
   private spiders: Spider[] = [];
-  private fightMusic: HTMLAudioElement | null = null;
   private isInFightMode: boolean = this.config.GAME_SETTINGS.DEBUG_START_MODE;
   private isDebugModeEnabled: boolean =
     this.config.GAME_SETTINGS.DEBUG_START_MODE;
@@ -49,21 +48,20 @@ export class Game {
     "initializing";
   public readonly assetManager: AssetManager;
   public readonly eventSystem: EventSystem;
+  public readonly gameSystems: GameSystems;
 
-  constructor(canvas: HTMLCanvasElement, soundManager: SoundManager) {
+  constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.engine = new Engine(canvas, true);
     this.scene = new Scene(this.engine);
     this.inputManager = new InputManager(this.canvas);
     this.skyManager = new SkyManager(this.scene);
     this.hudManager = new HUDManager(this.engine, this.scene);
-    this.soundManager = soundManager;
     this.playerManager = new PlayerManager(
       this.scene,
       this.inputManager,
       this.hudManager,
-      this.canvas,
-      this.soundManager
+      this.canvas
     );
     this.tabMenuManager = new TabMenuManager(
       this.engine,
@@ -100,6 +98,7 @@ export class Game {
     ];
     this.assetManager = new AssetManager(this.scene);
     this.eventSystem = new EventSystem();
+    this.gameSystems = new GameSystems(this.scene, this.playerManager);
   }
 
   private async _loadAssetWithCollider(
@@ -164,6 +163,7 @@ export class Game {
       );
 
       collider.isVisible = this.isDebugModeEnabled;
+      collider.checkCollisions = true;
 
       visualMesh.parent = collider;
       visualMesh.position = Vector3.Zero();
@@ -208,6 +208,7 @@ export class Game {
     (groundMaterial.diffuseTexture as Texture).uScale = 8;
     (groundMaterial.diffuseTexture as Texture).vScale = 8;
     ground.material = groundMaterial;
+    ground.checkCollisions = true;
     new PhysicsAggregate(
       ground,
       PhysicsShapeType.BOX,
@@ -230,6 +231,7 @@ export class Game {
       );
       wall.position = new Vector3(props[0], wallHeight / 2, props[1]);
       wall.isVisible = this.isDebugModeEnabled;
+      wall.checkCollisions = true;
       new PhysicsAggregate(
         wall,
         PhysicsShapeType.BOX,
@@ -258,42 +260,31 @@ export class Game {
     playerBodyMeshInstance.position.y =
       playerStartPos.y + this.config.PLAYER_CONFIG.PLAYER_HEIGHT / 2;
     playerBodyMeshInstance.isVisible = this.isDebugModeEnabled;
-    const playerBodyAggregate = new PhysicsAggregate(
-      playerBodyMeshInstance,
-      PhysicsShapeType.CAPSULE,
-      {
-        mass: this.config.PLAYER_CONFIG.PLAYER_MASS,
-        friction: this.config.PLAYER_CONFIG.PLAYER_FRICTION,
-        restitution: this.config.PLAYER_CONFIG.PLAYER_RESTITUTION,
-        pointA: new Vector3(
-          0,
-          -(
-            this.config.PLAYER_CONFIG.PLAYER_HEIGHT / 2 -
-            this.config.PLAYER_CONFIG.PLAYER_RADIUS
-          ),
-          0
-        ),
-        pointB: new Vector3(
-          0,
-          this.config.PLAYER_CONFIG.PLAYER_HEIGHT / 2 -
-            this.config.PLAYER_CONFIG.PLAYER_RADIUS,
-          0
-        ),
-        radius: this.config.PLAYER_CONFIG.PLAYER_RADIUS,
+    
+    // CharacterController requires the mesh to have checkCollisions enabled
+    // and handles movement/gravity itself, so we don't attach a PhysicsAggregate here.
+    playerBodyMeshInstance.checkCollisions = true;
+    playerBodyMeshInstance.ellipsoid = new Vector3(
+        this.config.PLAYER_CONFIG.PLAYER_RADIUS,
+        this.config.PLAYER_CONFIG.PLAYER_HEIGHT / 2,
+        this.config.PLAYER_CONFIG.PLAYER_RADIUS
+    );
+    // Capsule pivot is at center, so (0,0,0) offset matches the visual mesh
+    playerBodyMeshInstance.ellipsoidOffset = new Vector3(0, 0, 0);
+
+    this.playerManager.initializeCharacterController(
+      playerBodyMeshInstance
+    );
+
+    // Create Player Entity in ECS
+    world.add({
+      transform: { mesh: playerBodyMeshInstance },
+      health: { 
+        current: this.config.PLAYER_CONFIG.MAX_HEALTH, 
+        max: this.config.PLAYER_CONFIG.MAX_HEALTH 
       },
-      this.scene
-    );
-    if (playerBodyAggregate.body) {
-      playerBodyAggregate.body.setMassProperties({
-        inertia: new Vector3(0, 0, 0),
-      });
-    } else {
-      console.error("Failed to create physics body for player.");
-    }
-    this.playerManager.initializePhysics(
-      playerBodyMeshInstance,
-      playerBodyAggregate
-    );
+      player: { id: "p1" } // Tag it as player
+    });
   }
 
   private async _initializeGameAssets() {
@@ -411,6 +402,7 @@ export class Game {
   public update(): void {
     this._deltaTime = this.engine.getDeltaTime() / 1000;
     this.playerManager.update(this._deltaTime);
+    this.gameSystems.update(this._deltaTime); // Update ECS systems
     this.skyManager.update(this._deltaTime);
     let isAnyEnemyAggro = false;
     if (!this.playerManager.playerIsDead) {
@@ -423,16 +415,8 @@ export class Game {
     }
     if (isAnyEnemyAggro && !this.isInFightMode) {
       this.isInFightMode = true;
-      if (this.fightMusic)
-        this.fightMusic
-          .play()
-          .catch((e) => console.warn("Fight music play failed:", e));
     } else if (!isAnyEnemyAggro && this.isInFightMode) {
       this.isInFightMode = false;
-      if (this.fightMusic) {
-        this.fightMusic.pause();
-        this.fightMusic.currentTime = 0;
-      }
     }
     this.hudManager.updatePlayerStats(
       this.playerManager.getCurrentHealth(),
@@ -442,12 +426,8 @@ export class Game {
     );
     if (
       this.playerManager.playerIsDead &&
-      this.isInFightMode &&
-      this.fightMusic &&
-      !this.fightMusic.paused
+      this.isInFightMode
     ) {
-      this.fightMusic.pause();
-      this.fightMusic.currentTime = 0;
       this.isInFightMode = false;
     }
     // Crosshair targeting system

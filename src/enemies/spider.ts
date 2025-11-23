@@ -9,6 +9,7 @@ import { Camera } from "@babylonjs/core/Cameras/camera";
 import { PhysicsAggregate, PhysicsShapeType } from "@babylonjs/core/Physics";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import { SpriteManager, Sprite } from "@babylonjs/core/Sprites";
+import * as YUKA from "yuka";
 
 import { IEnemy } from "./ienemy";
 
@@ -20,6 +21,13 @@ export class Spider implements IEnemy {
   /** The visual representation (3D model) of the spider. */
   public visualMesh!: AbstractMesh;
   private scene: Scene;
+
+  // AI
+  private vehicle: YUKA.Vehicle;
+  private entityManager: YUKA.EntityManager;
+  private seekBehavior: YUKA.SeekBehavior;
+  private wanderBehavior: YUKA.WanderBehavior;
+  private target: YUKA.Vector3;
 
   // Instance-specific animation players
   private walkAnimation: AnimationGroup | null = null;
@@ -48,7 +56,6 @@ export class Spider implements IEnemy {
   private aggroRadius: number = 20.0;
   private stoppingDistance: number = 2.5;
 
-  private isCurrentlyAggro: boolean = false;
   private isCurrentlyAttacking: boolean = false;
   private isDying: boolean = false;
 
@@ -59,12 +66,25 @@ export class Spider implements IEnemy {
    * @param scene The BabylonJS scene.
    * @param speed The movement speed of the spider.
    */
-  private constructor(scene: Scene, speed: number) {
+  private constructor(scene: Scene, speed: number, entityManager: YUKA.EntityManager) {
     this.scene = scene;
     this.speed = speed;
+    this.entityManager = entityManager;
     this.currentHealth = this.maxHealth;
     this.timeSinceLastAttack = this.attackCooldown; // Ready to attack
     this.attackAnimationDurationSeconds = Spider.templateAttackAnimDuration;
+
+    // AI Setup
+    this.vehicle = new YUKA.Vehicle();
+    this.vehicle.maxSpeed = this.speed;
+    this.target = new YUKA.Vector3();
+    
+    this.seekBehavior = new YUKA.SeekBehavior(this.target);
+    this.wanderBehavior = new YUKA.WanderBehavior();
+    
+    // Default to wandering
+    this.vehicle.steering.add(this.wanderBehavior);
+    this.entityManager.add(this.vehicle);
 
     Spider.bloodSplatManager = new SpriteManager(
       "blood_splat_manager",
@@ -161,7 +181,8 @@ export class Spider implements IEnemy {
   public static async Create(
     scene: Scene,
     initialWorldPosition: Vector3,
-    speed: number
+    speed: number,
+    entityManager: YUKA.EntityManager
   ): Promise<Spider> {
     await Spider._loadAndCacheTemplateAssets(scene);
     if (!Spider.templateRootMesh) {
@@ -170,7 +191,7 @@ export class Spider implements IEnemy {
       );
     }
 
-    const spiderInstance = new Spider(scene, speed);
+    const spiderInstance = new Spider(scene, speed, entityManager);
     spiderInstance.initializeInstanceAssets(initialWorldPosition);
     // Start with idle animation if available and not already playing (e.g. from a previous state)
     if (
@@ -340,6 +361,13 @@ export class Spider implements IEnemy {
       this.colliderMesh.getAbsolutePosition()
     );
 
+    // Sync AI vehicle to initial position
+    this.vehicle.position.set(
+      initialWorldPosition.x,
+      initialWorldPosition.y,
+      initialWorldPosition.z
+    );
+
     this.attackAnimationDurationSeconds = Spider.templateAttackAnimDuration;
   }
 
@@ -380,29 +408,41 @@ export class Spider implements IEnemy {
     directionToPlayerXZ.y = 0;
     const distanceToPlayer = directionToPlayerXZ.length();
 
-    this.isCurrentlyAggro = false;
+    // AI Logic: Update Target
+    this.target.set(playerPosition.x, playerPosition.y, playerPosition.z);
 
-    let isMovingThisFrame = false;
-    if (
-      distanceToPlayer < this.aggroRadius &&
-      distanceToPlayer > this.stoppingDistance
-    ) {
-      directionToPlayerXZ.normalize();
-      // const moveVector = directionToPlayerXZ.scale(this.speed * deltaTime);
-      // this.collider.moveWithCollisions(moveVector); // Old movement
-      const targetVelocity = directionToPlayerXZ.scale(this.speed);
-      this.physicsAggregate.body.setLinearVelocity(
-        new Vector3(
-          targetVelocity.x,
-          this.physicsAggregate.body.getLinearVelocity().y,
-          targetVelocity.z
-        )
-      );
-      isMovingThisFrame = true;
-      this.isCurrentlyAggro = true;
+    // State Machine logic (simplified)
+    if (distanceToPlayer < this.aggroRadius) {
+      // Switch to Seek
+      if (!this.vehicle.steering.behaviors.includes(this.seekBehavior)) {
+        this.vehicle.steering.clear();
+        this.vehicle.steering.add(this.seekBehavior);
+      }
+    } else {
+      // Switch to Wander
+      if (!this.vehicle.steering.behaviors.includes(this.wanderBehavior)) {
+        this.vehicle.steering.clear();
+        this.vehicle.steering.add(this.wanderBehavior);
+      }
     }
 
-    if (distanceToPlayer < this.aggroRadius) {
+    // Apply movement from YUKA vehicle to Babylon Physics
+    const velocity = this.vehicle.velocity;
+    // Yuka velocity -> Babylon linear velocity
+    this.physicsAggregate.body.setLinearVelocity(
+      new Vector3(velocity.x, this.physicsAggregate.body.getLinearVelocity().y, velocity.z)
+    );
+    
+    // Sync YUKA position with Physics Body (Physics is authority)
+    this.vehicle.position.set(myPosition.x, myPosition.y, myPosition.z);
+
+    // Face direction of movement
+    if (velocity.squaredLength() > 0.1) {
+      const lookAtTarget = myPosition.add(new Vector3(velocity.x, 0, velocity.z));
+      (this.physicsAggregate.transformNode as Mesh).lookAt(lookAtTarget);
+    }
+
+    if (this.getIsAggro()) {
       // Ensure no other physics-based rotation is happening
       if (this.physicsAggregate.body) {
         this.physicsAggregate.body.setAngularVelocity(Vector3.Zero());
@@ -419,12 +459,11 @@ export class Spider implements IEnemy {
         lookAtTarget
         // Math.PI // Temporarily removed for testing
       );
-      this.isCurrentlyAggro = true;
     }
 
     this.timeSinceLastAttack += deltaTime;
 
-    if (distanceToPlayer <= this.stoppingDistance && this.isCurrentlyAggro) {
+    if (distanceToPlayer <= this.stoppingDistance && this.getIsAggro()) {
       if (
         this.timeSinceLastAttack >= this.attackCooldown &&
         !this.isCurrentlyAttacking
@@ -475,7 +514,7 @@ export class Spider implements IEnemy {
     // Animation State Machine
     if (this.attackAnimation?.isPlaying) {
       // Let attack animation play out
-    } else if (isMovingThisFrame) {
+    } else if (this.vehicle.velocity.squaredLength() > 0.1) {
       this.idleAnimation?.stop();
       if (!this.walkAnimation?.isPlaying) {
         this.walkAnimation?.start(
@@ -552,7 +591,6 @@ export class Spider implements IEnemy {
   private die(): void {
     if (this.isDying) return;
     this.isDying = true;
-    this.isCurrentlyAggro = false;
     this.isCurrentlyAttacking = false;
 
     this.walkAnimation?.stop();
@@ -560,6 +598,9 @@ export class Spider implements IEnemy {
     this.attackAnimation?.stop();
 
     this.physicsAggregate?.dispose(); // Dispose of the physics body from the simulation
+
+    // Remove from YUKA AI
+    this.entityManager.remove(this.vehicle);
 
     const cleanupInstanceAnimations = () => {
       this.walkAnimation?.dispose();
@@ -624,7 +665,7 @@ export class Spider implements IEnemy {
    * @returns True if the spider is alive and aggroed, false otherwise.
    */
   public getIsAggro(): boolean {
-    return this.currentHealth > 0 && !this.isDying && this.isCurrentlyAggro;
+    return this.currentHealth > 0 && !this.isDying && this.vehicle.steering.behaviors.includes(this.seekBehavior);
   }
 
   /**

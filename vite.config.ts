@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   server: {
-    port: 3000, // You can choose any port
+    port: 3001, // You can choose any port
   },
   build: {
     target: "esnext", // Target latest JS features, minimal transpilation

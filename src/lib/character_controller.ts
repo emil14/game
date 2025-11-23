@@ -78,8 +78,16 @@ export class CharacterController {
   // --- Internal Logic ---
 
   private checkGround(): boolean {
-      // Simple raycast down
-      const ray = new Ray(this.mesh.position.add(new Vector3(0, 0.1, 0)), Vector3.Down(), 0.2);
+      // Raycast from slightly above the bottom of the mesh
+      const bounds = this.mesh.getBoundingInfo().boundingBox;
+      // extendSize is half-extents. height/2.
+      const halfHeight = bounds.extendSize.y;
+      
+      // Start ray 0.1 units above the bottom
+      const rayOrigin = this.mesh.position.clone();
+      rayOrigin.y -= (halfHeight - 0.1);
+      
+      const ray = new Ray(rayOrigin, Vector3.Down(), 0.2);
       const pick = this.scene.pickWithRay(ray, (m) => m.isPickable && m.checkCollisions && m !== this.mesh);
       return pick?.hit || false;
   }

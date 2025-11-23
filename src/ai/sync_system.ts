@@ -1,6 +1,6 @@
 import { Vehicle } from "yuka";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
-import { Vector3, Quaternion } from "@babylonjs/core/Maths";
+import { Quaternion } from "@babylonjs/core/Maths";
 
 export class SyncSystem {
   private entity: Vehicle;

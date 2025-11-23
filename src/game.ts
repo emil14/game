@@ -22,6 +22,7 @@ import { TabMenuManager } from "./tab_menu_manager";
 import { EventSystem } from "./event_system";
 import { GameSystems } from "./ecs/game_systems";
 import { world } from "./ecs/world"; // Miniplex world
+import { AIManager } from "./ai/ai_manager";
 
 export class Game {
   public readonly engine: Engine;
@@ -49,6 +50,7 @@ export class Game {
   public readonly assetManager: AssetManager;
   public readonly eventSystem: EventSystem;
   public readonly gameSystems: GameSystems;
+  public readonly aiManager: AIManager;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -99,6 +101,7 @@ export class Game {
     this.assetManager = new AssetManager(this.scene);
     this.eventSystem = new EventSystem();
     this.gameSystems = new GameSystems(this.scene, this.playerManager);
+    this.aiManager = new AIManager();
   }
 
   private async _loadAssetWithCollider(
@@ -403,6 +406,7 @@ export class Game {
     this._deltaTime = this.engine.getDeltaTime() / 1000;
     this.playerManager.update(this._deltaTime);
     this.gameSystems.update(this._deltaTime); // Update ECS systems
+    this.aiManager.update();
     this.skyManager.update(this._deltaTime);
     let isAnyEnemyAggro = false;
     if (!this.playerManager.playerIsDead) {

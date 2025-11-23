@@ -1,6 +1,9 @@
 import { World } from "miniplex";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { Camera } from "@babylonjs/core/Cameras/camera";
+import { PhysicsAggregate } from "@babylonjs/core/Physics";
+import { AnimationGroup } from "@babylonjs/core/Animations/animationGroup";
+import * as YUKA from "yuka";
 import { CharacterController } from "../lib/character_controller";
 
 // --- Components ---
@@ -37,11 +40,23 @@ export type CombatComponent = {
   cooldown: number;
   lastAttackTime: number;
   range: number;
+  attackDuration: number;
 };
 
-export type PhysicsComponent = {
-  // Reserved for future specialized physics state if not on Mesh
-  mass: number;
+export type PhysicsAggregateComponent = {
+  aggregate: PhysicsAggregate;
+};
+
+export type YukaComponent = {
+  vehicle: YUKA.Vehicle;
+};
+
+export type AnimationComponent = {
+  idle: AnimationGroup | null;
+  walk: AnimationGroup | null;
+  attack: AnimationGroup | null;
+  death: AnimationGroup | null;
+  current?: AnimationGroup;
 };
 
 export type AIComponent = {
@@ -58,8 +73,10 @@ export type Entity = {
   health?: HealthComponent;
   stamina?: StaminaComponent;
   combat?: CombatComponent;
-  physics?: PhysicsComponent;
+  physics?: PhysicsAggregateComponent;
   ai?: AIComponent;
+  yuka?: YukaComponent;
+  animations?: AnimationComponent;
 };
 
 // --- World ---

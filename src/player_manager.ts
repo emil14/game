@@ -317,15 +317,6 @@ export class PlayerManager {
   }
 
   public isPlayerOnGround(): boolean {
-    if (
-      !this.playerBodyMesh ||
-      // !this.playerBodyAggregate || // Removed
-      // !this.playerBodyAggregate.body || // Removed
-      !this.scene
-    ) {
-      return false;
-    }
-
     const rayOrigin = this.playerBodyMesh.getAbsolutePosition().clone();
     // Ray needs to start from bottom of player model
     rayOrigin.y -= PLAYER_CONFIG.PLAYER_HEIGHT / 2;

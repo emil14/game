@@ -22,7 +22,6 @@ import { TabMenuManager } from "./tab_menu_manager";
 import { EventSystem } from "./event_system";
 import { GameSystems } from "./ecs/game_systems";
 import { world } from "./ecs/world"; // Miniplex world
-import { AIManager } from "./ai/ai_manager";
 
 export class Game {
   public readonly engine: Engine;
@@ -50,7 +49,6 @@ export class Game {
   public readonly assetManager: AssetManager;
   public readonly eventSystem: EventSystem;
   public readonly gameSystems: GameSystems;
-  public readonly aiManager: AIManager;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -101,7 +99,6 @@ export class Game {
     this.assetManager = new AssetManager(this.scene);
     this.eventSystem = new EventSystem();
     this.gameSystems = new GameSystems(this.scene, this.playerManager);
-    this.aiManager = new AIManager();
   }
 
   private async _loadAssetWithCollider(
@@ -402,38 +399,7 @@ export class Game {
     await this.assetManager.initialize();
   }
 
-  public update(): void {
-    this._deltaTime = this.engine.getDeltaTime() / 1000;
-    this.playerManager.update(this._deltaTime);
-    this.gameSystems.update(this._deltaTime); // Update ECS systems
-    this.aiManager.update();
-    this.skyManager.update(this._deltaTime);
-    let isAnyEnemyAggro = false;
-    if (!this.playerManager.playerIsDead) {
-      this.spiders.forEach((spider) => {
-        if (spider.currentHealth > 0) {
-          spider.update(this._deltaTime, this.playerManager.camera);
-          if (spider.getIsAggro()) isAnyEnemyAggro = true;
-        }
-      });
-    }
-    if (isAnyEnemyAggro && !this.isInFightMode) {
-      this.isInFightMode = true;
-    } else if (!isAnyEnemyAggro && this.isInFightMode) {
-      this.isInFightMode = false;
-    }
-    this.hudManager.updatePlayerStats(
-      this.playerManager.getCurrentHealth(),
-      this.playerManager.getMaxHealth(),
-      this.playerManager.getCurrentStamina(),
-      this.playerManager.getMaxStamina()
-    );
-    if (
-      this.playerManager.playerIsDead &&
-      this.isInFightMode
-    ) {
-      this.isInFightMode = false;
-    }
+  private updateCrosshair(): void {
     // Crosshair targeting system
     this.playerManager.camera.computeWorldMatrix();
     const rayOrigin = this.playerManager.camera.globalPosition;
@@ -503,6 +469,42 @@ export class Game {
       this.hudManager.setCrosshairFocus(false);
       this.hudManager.setCrosshairText("•");
     }
+  }
+
+  public update(): void {
+    this._deltaTime = this.engine.getDeltaTime() / 1000;
+    this.playerManager.update(this._deltaTime);
+    this.gameSystems.update(this._deltaTime); // Update ECS systems
+    this.skyManager.update(this._deltaTime);
+
+    let isAnyEnemyAggro = false;
+    if (!this.playerManager.playerIsDead) {
+      this.spiders.forEach((spider) => {
+        if (spider.currentHealth > 0) {
+          spider.update(this._deltaTime, this.playerManager.camera);
+          if (spider.getIsAggro()) isAnyEnemyAggro = true;
+        }
+      });
+    }
+
+    switch (true) {
+      case isAnyEnemyAggro && !this.isInFightMode:
+        this.isInFightMode = true;
+        break;
+      case !isAnyEnemyAggro && this.isInFightMode:
+      case this.playerManager.playerIsDead && this.isInFightMode:
+        this.isInFightMode = false;
+        break;
+    }
+
+    this.hudManager.updatePlayerStats(
+      this.playerManager.getCurrentHealth(),
+      this.playerManager.getMaxHealth(),
+      this.playerManager.getCurrentStamina(),
+      this.playerManager.getMaxStamina()
+    );
+
+    this.updateCrosshair();
     this.hudManager.updateFPS();
   }
 

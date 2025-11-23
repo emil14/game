@@ -94,7 +94,6 @@ export class CharacterController {
 
   private update() {
     const dt = this.scene.getEngine().getDeltaTime() / 1000;
-    if (dt === 0) return;
 
     // 1. Calculate input velocity
     const cameraForward = this.camera.getDirection(Vector3.Forward());

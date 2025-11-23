@@ -11,16 +11,10 @@ export class EventSystem {
   }
 
   off<T = any>(event: string, handler: EventHandler<T>): void {
-    if (!this.listeners.has(event)) {
-      return;
-    }
     this.listeners.get(event)!.delete(handler as EventHandler);
   }
 
   emit<T = any>(event: string, payload: T): void {
-    if (!this.listeners.has(event)) {
-      return;
-    }
     for (const handler of this.listeners.get(event)!) {
       handler(payload);
     }

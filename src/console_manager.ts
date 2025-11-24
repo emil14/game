@@ -1,5 +1,6 @@
 import { KEY_MAPPINGS } from "./config";
 import { Game } from "./game";
+import { world } from "./ecs/world";
 
 function handleConsoleCommand(command: string, game: Game): void {
   if (!command) {
@@ -32,7 +33,17 @@ function handleConsoleCommand(command: string, game: Game): void {
   } else if (lowerCommand === KEY_MAPPINGS.TOGGLE_DEBUG) {
     console.log(`Debug mode toggled (handled in Game.update loop).`);
   } else if (lowerCommand === KEY_MAPPINGS.TOGGLE_GODMODE) {
-    game.playerManager.toggleGodmode();
+    const player = world.with("player", "health", "stamina").first;
+    if (player) {
+        player.health.isInvincible = !player.health.isInvincible;
+        if (player.health.isInvincible) {
+             player.health.current = player.health.max;
+             player.stamina.current = player.stamina.max;
+             console.log("Godmode ON");
+        } else {
+             console.log("Godmode OFF");
+        }
+    }
   } else {
     console.log(`Unknown command: ${command}`);
   }

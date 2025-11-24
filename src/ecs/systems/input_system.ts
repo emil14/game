@@ -2,25 +2,28 @@ import { world } from "../world";
 import { InputManager } from "../../input_manager";
 import { KEY_MAPPINGS } from "../../config";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
-import { Camera } from "@babylonjs/core/Cameras/camera";
 
 export class InputSystem {
   private crouchPressedLastFrame = false;
 
-  constructor(private inputManager: InputManager, private camera: Camera) {}
+  constructor(private inputManager: InputManager) {}
 
   public update() {
-    const players = world.with("input");
+    const players = world.with("input", "player");
 
     for (const entity of players) {
+        if (!entity.player.camera) continue;
+
+        const camera = entity.player.camera;
+
         // --- MOVEMENT MAPPING ---
         const isForward = this.inputManager.isKeyPressed(KEY_MAPPINGS.FORWARD);
         const isBackward = this.inputManager.isKeyPressed(KEY_MAPPINGS.BACKWARD);
         const isLeft = this.inputManager.isKeyPressed(KEY_MAPPINGS.LEFT);
         const isRight = this.inputManager.isKeyPressed(KEY_MAPPINGS.RIGHT);
 
-        const cameraForward = this.camera.getDirection(Vector3.Forward());
-        const cameraRight = this.camera.getDirection(Vector3.Right());
+        const cameraForward = camera.getDirection(Vector3.Forward());
+        const cameraRight = camera.getDirection(Vector3.Right());
         cameraForward.y = 0;
         cameraRight.y = 0;
         cameraForward.normalize();

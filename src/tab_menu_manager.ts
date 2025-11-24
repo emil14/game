@@ -2,13 +2,12 @@ import { Engine } from "@babylonjs/core/Engines/engine";
 
 import { UI_ELEMENT_IDS, KEY_MAPPINGS, TAB_MENU_CONFIG } from "./config";
 import { HUDManager } from "./hud_manager";
-import { PlayerManager } from "./player_manager";
 import { SkyManager } from "./sky_manager";
+import { world } from "./ecs/world";
 
 export class TabMenuManager {
   private engine: Engine;
   private canvas: HTMLCanvasElement;
-  private playerManager: PlayerManager;
   private hudManager: HUDManager;
   private skyManager: SkyManager;
 
@@ -33,13 +32,11 @@ export class TabMenuManager {
   constructor(
     engine: Engine,
     canvas: HTMLCanvasElement,
-    playerManager: PlayerManager,
     hudManager: HUDManager,
     skyManager: SkyManager
   ) {
     this.engine = engine;
     this.canvas = canvas;
-    this.playerManager = playerManager;
     this.hudManager = hudManager;
     this.skyManager = skyManager;
 
@@ -132,10 +129,11 @@ export class TabMenuManager {
       return;
     }
 
-    const currentHealthGame = this.playerManager.getCurrentHealth();
-    const maxHealthGame = this.playerManager.getMaxHealth();
-    const currentStaminaGame = this.playerManager.getCurrentStamina();
-    const maxStaminaGame = this.playerManager.getMaxStamina();
+    const player = world.with("player", "health", "stamina").first;
+    const currentHealthGame = player?.health.current ?? 0;
+    const maxHealthGame = player?.health.max ?? 100;
+    const currentStaminaGame = player?.stamina.current ?? 0;
+    const maxStaminaGame = player?.stamina.max ?? 100;
     const placeholderCurrentExp =
       TAB_MENU_CONFIG.PLACEHOLDER_PLAYER_CURRENT_EXP;
 

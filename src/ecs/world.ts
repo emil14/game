@@ -33,6 +33,7 @@ export type EnemyComponent = {
 export type HealthComponent = {
   current: number;
   max: number;
+  isInvincible?: boolean;
 };
 
 export type StaminaComponent = {

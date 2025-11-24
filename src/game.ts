@@ -9,12 +9,13 @@ import HavokPhysics from "@babylonjs/havok";
 import { PhysicsAggregate, PhysicsShapeType } from "@babylonjs/core/Physics";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture";
 import { PhysicsRegistry } from "./ecs/physics_registry";
+import { UniversalCamera } from "@babylonjs/core/Cameras/universalCamera";
+import { PointLight } from "@babylonjs/core/Lights/pointLight";
 
 import * as config from "./config";
 import { InputManager } from "./input_manager";
 import { SkyManager } from "./sky_manager";
 import { HUDManager } from "./hud_manager";
-import { PlayerManager } from "./player_manager";
 import { ClosedChest } from "./interactables";
 import AssetManager from "./asset_manager";
 import { TabMenuManager } from "./tab_menu_manager";
@@ -23,7 +24,7 @@ import { GameSystems } from "./ecs/game_systems";
 import { world } from "./ecs/world";
 import { AIManager } from "./ai/ai_manager";
 import { EntityFactory } from "./ecs/entity_factory";
-import { Vector3 } from "@babylonjs/core/Maths/math.vector"; // Added import
+import { Sword } from "./weapons/sword";
 
 export class Game {
   public readonly engine: Engine;
@@ -32,8 +33,9 @@ export class Game {
   public readonly inputManager: InputManager;
   public readonly skyManager: SkyManager;
   public readonly hudManager: HUDManager;
-  public readonly playerManager: PlayerManager;
   public readonly tabMenuManager: TabMenuManager;
+  public readonly camera: UniversalCamera;
+  public readonly playerLight: PointLight;
   private readonly canvas: HTMLCanvasElement;
 
   private _deltaTime: number = 0;
@@ -57,16 +59,33 @@ export class Game {
     this.inputManager = new InputManager(this.canvas);
     this.skyManager = new SkyManager(this.scene);
     this.hudManager = new HUDManager(this.engine, this.scene);
-    this.playerManager = new PlayerManager(
-      this.scene,
-      this.inputManager,
-      this.hudManager,
-      this.canvas
+    
+    // --- Camera Setup ---
+    this.camera = new UniversalCamera(
+      "playerCamera",
+      new Vector3(0, this.config.CAMERA_CONFIG.STAND_CAMERA_Y, -5),
+      this.scene
     );
+    this.camera.maxZ = this.config.CAMERA_CONFIG.MAX_Z;
+    this.camera.setTarget(Vector3.Zero()); 
+    this.camera.attachControl(this.canvas, true);
+    this.camera.inputs.remove(this.camera.inputs.attached.keyboard);
+    this.camera.angularSensibility = this.config.CAMERA_CONFIG.ANGULAR_SENSIBILITY;
+    this.camera.inertia = this.config.CAMERA_CONFIG.INERTIA;
+
+    this.playerLight = new PointLight(
+      "playerLight",
+      new Vector3(0, 0.5, 0),
+      this.scene
+    );
+    this.playerLight.intensity = this.config.CAMERA_CONFIG.PLAYER_LIGHT_INTENSITY;
+    this.playerLight.range = this.config.CAMERA_CONFIG.PLAYER_LIGHT_RANGE;
+    this.playerLight.diffuse = new Color3(1, 0.9, 0.7);
+    this.playerLight.parent = this.camera;
+    
     this.tabMenuManager = new TabMenuManager(
       this.engine,
       this.canvas,
-      this.playerManager,
       this.hudManager,
       this.skyManager
     );
@@ -98,9 +117,13 @@ export class Game {
     ];
     this.assetManager = new AssetManager(this.scene);
     this.eventSystem = new EventSystem();
-    this.gameSystems = new GameSystems(this.scene, this.playerManager, this.hudManager);
+    this.gameSystems = new GameSystems(this.scene, this.inputManager, this.hudManager);
     this.aiManager = new AIManager();
-    this.entityFactory = new EntityFactory(this.scene, this.aiManager.getEntityManager());
+    this.entityFactory = new EntityFactory(
+      this.scene, 
+      this.aiManager.getEntityManager(),
+      this.camera
+    );
   }
 
   private async _loadAssetWithCollider(
@@ -247,91 +270,21 @@ export class Game {
     });
   }
 
-  private _initializePlayerPhysics() {
-    const playerStartPos = new Vector3(0, 1.0, -5);
-    const playerBodyMeshInstance = MeshBuilder.CreateCapsule(
-      "playerBody",
-      {
-        radius: this.config.PLAYER_CONFIG.PLAYER_RADIUS,
-        height: this.config.PLAYER_CONFIG.PLAYER_HEIGHT,
-        tessellation: 20,
-      },
-      this.scene
-    );
-    playerBodyMeshInstance.position = playerStartPos.clone();
-    playerBodyMeshInstance.position.y =
-      playerStartPos.y + this.config.PLAYER_CONFIG.PLAYER_HEIGHT / 2;
-    playerBodyMeshInstance.isVisible = this.isDebugModeEnabled;
-    
-    // CharacterController requires the mesh to have checkCollisions enabled
-    // and handles movement/gravity itself, so we don't attach a PhysicsAggregate here.
-    playerBodyMeshInstance.checkCollisions = true;
-    playerBodyMeshInstance.ellipsoid = new Vector3(
-        this.config.PLAYER_CONFIG.PLAYER_RADIUS,
-        this.config.PLAYER_CONFIG.PLAYER_HEIGHT / 2,
-        this.config.PLAYER_CONFIG.PLAYER_RADIUS
-    );
-    // Capsule pivot is at center, so (0,0,0) offset matches the visual mesh
-    playerBodyMeshInstance.ellipsoidOffset = new Vector3(0, 0, 0);
-
-    this.playerManager.initializePlayerMesh(
-      playerBodyMeshInstance
-    );
-
-    // Create Player Entity in ECS
-    // Attach Havok Physics Aggregate
-    const playerAggregate = new PhysicsAggregate(
-        playerBodyMeshInstance,
-        PhysicsShapeType.CAPSULE,
-        {
-            mass: 1.0,
-            friction: 0.0,
-            restitution: 0.0,
-        },
-        this.scene
-    );
-    playerAggregate.body.setMassProperties({
-        inertia: new Vector3(0, 0, 0) // Lock rotation
-    });
-    
-    const playerEntity = world.add({
-      transform: { mesh: playerBodyMeshInstance },
-      physics: { aggregate: playerAggregate },
-      health: { 
-        current: this.config.PLAYER_CONFIG.MAX_HEALTH, 
-        max: this.config.PLAYER_CONFIG.MAX_HEALTH 
-      },
-      input: {
-        moveDir: new Vector3(0, 0, 0),
-        isJumping: false,
-        isCrouching: false,
-        isSprinting: false,
-        isAttacking: false
-      },
-      sensor: {
-          checkRange: 50.0,
-          hitDistance: Infinity
-      },
-      stamina: {
-        current: this.config.PLAYER_CONFIG.MAX_STAMINA,
-        max: this.config.PLAYER_CONFIG.MAX_STAMINA,
-        regenRate: this.config.PLAYER_CONFIG.STAMINA_REGENERATION_RATE,
-        depletionRate: this.config.PLAYER_CONFIG.STAMINA_DEPLETION_RATE
-      },
-      player: { 
-          id: "p1", 
-          camera: this.playerManager.camera,
-      } 
-    });
-    
-    PhysicsRegistry.register(playerAggregate, playerEntity);
-  }
-
   private async _initializeGameAssets() {
     // Spiders via ECS Factory
     await this.entityFactory.createSpider(new Vector3(20, 0, 20));
 
-    await this.playerManager.initializeSword();
+    // Initialize Sword
+    const playerSword = await Sword.Create(
+      this.scene,
+      this.camera,
+      this.config.PLAYER_CONFIG.SWORD_DAMAGE
+    );
+    // Attach to Entity
+    const playerEntity = world.with("player").first;
+    if (playerEntity && playerEntity.player) {
+        playerEntity.player.weapon = playerSword;
+    }
 
     // Palm trees
     await this._loadAssetWithCollider(
@@ -406,7 +359,7 @@ export class Game {
     );
     this._createGround();
     this._createWalls();
-    this._initializePlayerPhysics();
+    await this.entityFactory.createPlayer();
     await this._initializeGameAssets();
 
     this.hudManager.showCoreHud();
@@ -428,7 +381,7 @@ export class Game {
     this.gameSystems.update(this._deltaTime, this.isDebugModeEnabled);
 
     // 3. Visual / Legacy Managers
-    this.playerManager.updateVisuals(this._deltaTime); 
+    // Camera moved to ECS
     
     // 4. Game Flow Logic (Aggro check)
     // Could move to a "GameFlowSystem"

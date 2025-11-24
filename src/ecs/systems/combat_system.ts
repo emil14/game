@@ -160,7 +160,9 @@ export class CombatSystem {
       );
 
       if (dist <= enemy.combat.range + 1.0) { // Slight buffer
-         player.health.current -= enemy.combat.damage;
+         if (!player.health.isInvincible) {
+             player.health.current -= enemy.combat.damage;
+         }
       }
       
       // Reset state after attack finishes

@@ -22,7 +22,10 @@ export class CombatSystem {
     const enemies = world.with("enemy", "combat", "ai", "transform");
     const player = world.with("player", "transform", "health", "input").first;
 
-    if (!player) return;
+    // Zero Tolerance: We expect player to always be present in a running game.
+    // If not, we let it throw or simple skip (but given the directive, let's assume it exists if we are in 'playing' state)
+    // However, Miniplex returns undefined if no entity matches.
+    if (!player) return; 
     
     // Death Check: If player is dead, no attacks allowed (player or enemy on player)
     const isPlayerDead = player.health.current <= 0;
@@ -85,9 +88,9 @@ export class CombatSystem {
   }
 
   private performPlayerAttackRaycast(player: PlayerEntity, range: number, damage: number) {
-      if (!player.player.camera) return;
+      // Zero Tolerance: Player must have a camera.
+      const camera = player.player.camera!; 
       
-      const camera = player.player.camera;
       const rayOrigin = camera.globalPosition;
       const forwardDirection = camera.getDirection(Vector3.Forward());
       const ray = new Ray(rayOrigin, forwardDirection, range);
@@ -160,9 +163,7 @@ export class CombatSystem {
       );
 
       if (dist <= enemy.combat.range + 1.0) { // Slight buffer
-         if (!player.health.isInvincible) {
-             player.health.current -= enemy.combat.damage;
-         }
+         player.health.current -= enemy.combat.damage;
       }
       
       // Reset state after attack finishes

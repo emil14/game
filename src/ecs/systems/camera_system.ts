@@ -6,11 +6,13 @@ export class CameraSystem {
     // We assume there is only one active player with a camera for now
     const player = world.with("player", "input").first;
 
-    if (player && player.player.camera) {
-      const camera = player.player.camera;
-      const input = player.input;
+    if (!player) return;
 
-      // 1. Crouch Logic
+    // Zero Tolerance: Camera must exist.
+    const camera = player.player.camera!;
+    const input = player.input;
+
+    // 1. Crouch Logic
       const isCrouching = input.isCrouching;
 
       const standEyePositionRelToParent = PLAYER_CONFIG.PLAYER_EYE_HEIGHT_OFFSET;
@@ -23,7 +25,6 @@ export class CameraSystem {
       // Lerp camera position
       // Using 10 as lerp speed from original code
       camera.position.y += (targetLocalCameraY - camera.position.y) * Math.min(1, 10 * dt);
-    }
   }
 }
 

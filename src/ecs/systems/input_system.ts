@@ -12,9 +12,9 @@ export class InputSystem {
     const players = world.with("input", "player");
 
     for (const entity of players) {
-        if (!entity.player.camera) continue;
-
-        const camera = entity.player.camera;
+        // Zero Tolerance: We assume the player entity ALWAYS has a camera attached.
+        // If not, this will throw, which is preferred over silent failure.
+        const camera = entity.player.camera!;
 
         // --- MOVEMENT MAPPING ---
         const isForward = this.inputManager.isKeyPressed(KEY_MAPPINGS.FORWARD);

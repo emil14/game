@@ -392,24 +392,30 @@ export class Game {
         break;
     }
 
+    // Zero Tolerance: We expect player entity to exist if we are calculating game flow involving player health.
+    const player = world.with("player", "health", "stamina").first;
+    // However, if we are in a 'game over' state, player might be dead/removed? 
+    // In this codebase, player entity persists but health goes to 0. 
+    // If player is missing, something is critically wrong -> Let it crash or assume 0 health safely?
+    // "Zero tolerance" implies we fix the root cause if player is missing, so assuming it exists is valid if initialization is guaranteed.
+    // But safely defaulting to 0 health avoids crash during shutdown/init.
+    const currentHealth = player?.health.current ?? 0;
+
     switch (true) {
       case isAnyEnemyAggro && !this.isInFightMode:
         this.isInFightMode = true;
         break;
       case !isAnyEnemyAggro && this.isInFightMode:
-      case (world.with("player", "health").first?.health.current ?? 0) <= 0 && this.isInFightMode:
+      case currentHealth <= 0 && this.isInFightMode:
         this.isInFightMode = false;
         break;
     }
 
     // 5. HUD Updates (Reactive where possible, polling for now)
     // Deprecated: Moving to HUDSystem? 
-    // For now we keep it, but it reads from PlayerManager getters which read from ECS.
-    // Ideally HUDManager should just read from World directly.
     
     // Let's rely on HUDManager.update() if we create one, or just keep this bridge for now 
     // but ensure it reads from ECS.
-    const player = world.with("player", "health", "stamina").first;
     if (player) {
         this.hudManager.updatePlayerStats(
           player.health.current,

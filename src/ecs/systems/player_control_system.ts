@@ -8,17 +8,16 @@ export class PlayerControlSystem {
   constructor(private scene: Scene) {}
 
   public update(dt: number) {
-    const players = world.with("input", "player", "stamina", "physics", "transform", "health");
+    const players = world.with("input", "player", "stamina", "movement", "transform", "health");
 
     for (const entity of players) {
         // Death Check
         if (entity.health.current <= 0) {
-            // Ensure no lingering velocity from inputs (optional: apply friction/drag)
-            // But let physics/gravity continue.
+            // Stop movement
+            entity.movement.velocity.set(0, 0, 0);
             return;
         }
 
-        const body = entity.physics.aggregate.body;
         const input = entity.input;
 
         // 1. Ground Check
@@ -45,19 +44,14 @@ export class PlayerControlSystem {
         const targetVelX = input.moveDir.x * speed;
         const targetVelZ = input.moveDir.z * speed;
 
-        // 3. Apply Velocity
-        const currentVel = body.getLinearVelocity();
-        
-        // Preserve Y velocity (Gravity), Override X/Z
-        // Note: Ideally we lerp to target velocity for momentum, but direct set is snappier for FPS
-        body.setLinearVelocity(new Vector3(targetVelX, currentVel.y, targetVelZ));
+        // 3. Output Velocity to Component (X/Z only)
+        entity.movement.velocity.set(targetVelX, 0, targetVelZ);
 
         // 4. Jump Logic
         if (input.isJumping && isGrounded) {
              if (entity.stamina.current >= PLAYER_CONFIG.JUMP_STAMINA_COST) {
-                 // Apply precise jump velocity
-                 const jumpVel = new Vector3(currentVel.x, PLAYER_CONFIG.JUMP_FORCE, currentVel.z);
-                 body.setLinearVelocity(jumpVel);
+                 // Signal Jump to KinematicControlSystem
+                 entity.movement.jumpVelocity = PLAYER_CONFIG.JUMP_FORCE;
                  
                  entity.stamina.current -= PLAYER_CONFIG.JUMP_STAMINA_COST;
                  if (entity.stamina.current < 0) entity.stamina.current = 0;

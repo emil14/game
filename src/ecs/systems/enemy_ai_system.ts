@@ -1,4 +1,4 @@
-import { world } from "../world";
+import { world, getPosition } from "../world";
 import * as YUKA from "yuka";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 
@@ -10,7 +10,7 @@ export class EnemyAISystem {
     const playerEntity = world.with("player", "transform").first;
     if (!playerEntity) return;
 
-    const playerPos = playerEntity.transform.mesh.getAbsolutePosition();
+    const playerPos = getPosition(playerEntity);
     const AGGRO_RADIUS = 20;
 
     const enemies = world.with("enemy", "yuka", "ai", "transform", "health");
@@ -30,7 +30,7 @@ export class EnemyAISystem {
           continue;
       }
 
-      const enemyPos = entity.transform.mesh.getAbsolutePosition();
+      const enemyPos = getPosition(entity);
       const distToPlayer = Vector3.Distance(playerPos, enemyPos);
 
       // Determine State

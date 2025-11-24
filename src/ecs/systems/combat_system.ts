@@ -58,19 +58,30 @@ export class CombatSystem {
                 );
             } else {
                  // Fallback if no animation: reset state after delay
-                 setTimeout(() => { weapon.state = "idle"; }, 300);
+                 world.add({
+                    timer: {
+                        timeRemaining: 0.3, // 300ms
+                        duration: 0.3,
+                        label: "weapon_reset",
+                        autoDestroy: true,
+                        onComplete: () => {
+                            weapon.state = "idle";
+                        }
+                    }
+                 });
             }
 
             // 3. Schedule Damage Logic via ECS Timer
             world.add({
-                timer: {
-                    timeRemaining: damageDelaySeconds,
-                    duration: damageDelaySeconds,
-                    label: "player_attack_delay",
-                    onComplete: () => {
-                        this.performPlayerAttackRaycast(player, weapon.range, weapon.damage);
+                    timer: {
+                        timeRemaining: damageDelaySeconds,
+                        duration: damageDelaySeconds,
+                        label: "player_attack_delay",
+                        autoDestroy: true,
+                        onComplete: () => {
+                            this.performPlayerAttackRaycast(player, weapon.range, weapon.damage);
+                        }
                     }
-                }
             });
         }
     }
@@ -165,6 +176,7 @@ export class CombatSystem {
               timeRemaining: damageDelay,
               duration: damageDelay,
               label: "enemy_attack_delay",
+              autoDestroy: true,
               onComplete: () => {
                   this.resolveEnemyAttack(enemy, player);
               }

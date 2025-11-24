@@ -78,6 +78,9 @@ export class PlayerAssembler {
         isSprinting: false,
         isAttacking: false
       },
+      movement: {
+        velocity: new Vector3(0, 0, 0)
+      },
       weapon: {
         mesh: swordData.mesh,
         damage: PLAYER_CONFIG.SWORD_DAMAGE || 15,

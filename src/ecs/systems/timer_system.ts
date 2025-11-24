@@ -13,8 +13,12 @@ export class TimerSystem {
             entity.timer.onComplete(entity);
         }
         
-        // Remove timer component
-        world.removeComponent(entity, "timer");
+        // Handle cleanup
+        if (entity.timer.autoDestroy) {
+            world.remove(entity);
+        } else {
+            world.removeComponent(entity, "timer");
+        }
       }
     }
   }

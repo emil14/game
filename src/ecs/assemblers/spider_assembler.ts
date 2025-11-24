@@ -218,7 +218,10 @@ export class SpiderAssembler {
           death: deathAnimation,
           current: idleAnimation
       },
-      ai: { state: "idle" }
+      ai: { state: "idle" },
+      movement: {
+        velocity: new Vector3(0, 0, 0)
+      }
     });
 
     PhysicsRegistry.register(physicsAggregate, entity);

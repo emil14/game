@@ -35,6 +35,7 @@ export type PlayerComponent = {
 
 export type EnemyComponent = {
   type: string;
+  // Intention: This will be used to identify enemy types for spawning/logic
 };
 
 export type HealthComponent = {
@@ -92,11 +93,17 @@ export type InputComponent = {
   isAttacking: boolean;
 };
 
+export type MovementComponent = {
+  velocity: Vector3; // Desired velocity (usually X/Z)
+  jumpVelocity?: number; // One-shot jump impulse (Y axis)
+};
+
 export type TimerComponent = {
   timeRemaining: number;
   duration: number;
   onComplete: (entity: Entity) => void;
   label?: string;
+  autoDestroy?: boolean; // If true, the entity is destroyed after timer completes
 };
 
 export type WorldStateComponent = {
@@ -118,6 +125,7 @@ export type Entity = {
   player?: PlayerComponent;
   weapon?: WeaponComponent; // <--- Replaced IWeapon
   input?: InputComponent;
+  movement?: MovementComponent; // <--- New Component
   enemy?: EnemyComponent;
   health?: HealthComponent;
   stamina?: StaminaComponent;
@@ -132,3 +140,12 @@ export type Entity = {
 // --- World ---
 
 export const world = new World<Entity>();
+
+// --- Helper Utils ---
+
+export function getPosition(entity: Entity): Vector3 {
+  if (entity.transform?.mesh) {
+    return entity.transform.mesh.getAbsolutePosition();
+  }
+  return Vector3.Zero();
+}

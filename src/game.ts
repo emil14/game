@@ -8,6 +8,7 @@ import { HavokPlugin } from "@babylonjs/core/Physics";
 import HavokPhysics from "@babylonjs/havok";
 import { PhysicsAggregate, PhysicsShapeType } from "@babylonjs/core/Physics";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture";
+import { PhysicsRegistry } from "./ecs/physics_registry";
 
 import * as config from "./config";
 import { InputManager } from "./input_manager";
@@ -273,19 +274,29 @@ export class Game {
     // Capsule pivot is at center, so (0,0,0) offset matches the visual mesh
     playerBodyMeshInstance.ellipsoidOffset = new Vector3(0, 0, 0);
 
-    this.playerManager.initializeCharacterController(
+    this.playerManager.initializePlayerMesh(
       playerBodyMeshInstance
     );
 
     // Create Player Entity in ECS
-    // Note: We MUST create the entity after initializing controller, 
-    // AND we must attach the controller to the entity immediately 
-    // because PlayerManager.initializeCharacterController tries to attach it 
-    // BUT the entity doesn't exist yet inside that method call.
-    // So we manually attach it here to be safe.
+    // Attach Havok Physics Aggregate
+    const playerAggregate = new PhysicsAggregate(
+        playerBodyMeshInstance,
+        PhysicsShapeType.CAPSULE,
+        {
+            mass: 1.0,
+            friction: 0.0,
+            restitution: 0.0,
+        },
+        this.scene
+    );
+    playerAggregate.body.setMassProperties({
+        inertia: new Vector3(0, 0, 0) // Lock rotation
+    });
     
     const playerEntity = world.add({
       transform: { mesh: playerBodyMeshInstance },
+      physics: { aggregate: playerAggregate },
       health: { 
         current: this.config.PLAYER_CONFIG.MAX_HEALTH, 
         max: this.config.PLAYER_CONFIG.MAX_HEALTH 
@@ -297,6 +308,10 @@ export class Game {
         isSprinting: false,
         isAttacking: false
       },
+      sensor: {
+          checkRange: 50.0,
+          hitDistance: Infinity
+      },
       stamina: {
         current: this.config.PLAYER_CONFIG.MAX_STAMINA,
         max: this.config.PLAYER_CONFIG.MAX_STAMINA,
@@ -306,9 +321,10 @@ export class Game {
       player: { 
           id: "p1", 
           camera: this.playerManager.camera,
-          controller: this.playerManager.characterController // Explicitly attach here
       } 
     });
+    
+    PhysicsRegistry.register(playerAggregate, playerEntity);
   }
 
   private async _initializeGameAssets() {
@@ -403,16 +419,17 @@ export class Game {
   public update(): void {
     this._deltaTime = this.engine.getDeltaTime() / 1000;
     
-    // 1. Input & Player Control
-    this.playerManager.update(this._deltaTime);
-    
-    // 2. Logic Systems (ECS) - Includes AI, Physics Sync, Combat, Interaction, Animation
-    this.gameSystems.update(this._deltaTime, this.isDebugModeEnabled);
-    
-    // 3. Independent Managers
-    this.aiManager.update(); // Updates Yuka's internal time/entities
+    // 1. Independent Managers (Time, Sky, AI Decisions)
     this.skyManager.update(this._deltaTime);
+    this.aiManager.update(); // Update Yuka first so it sets Desired Velocity
 
+    // 2. Logic Systems (ECS)
+    // Runs: Timers -> Input -> Player Control -> AI Steering -> Combat -> Physics Sync -> Animation
+    this.gameSystems.update(this._deltaTime, this.isDebugModeEnabled);
+
+    // 3. Visual / Legacy Managers
+    this.playerManager.updateVisuals(this._deltaTime); 
+    
     // 4. Game Flow Logic (Aggro check)
     // Could move to a "GameFlowSystem"
     const aggroEnemies = world.with("enemy").where(e => e.enemy.isAggro);
@@ -427,18 +444,27 @@ export class Game {
         this.isInFightMode = true;
         break;
       case !isAnyEnemyAggro && this.isInFightMode:
-      case this.playerManager.playerIsDead && this.isInFightMode:
+      case (world.with("player", "health").first?.health.current ?? 0) <= 0 && this.isInFightMode:
         this.isInFightMode = false;
         break;
     }
 
     // 5. HUD Updates (Reactive where possible, polling for now)
-    this.hudManager.updatePlayerStats(
-      this.playerManager.getCurrentHealth(),
-      this.playerManager.getMaxHealth(),
-      this.playerManager.getCurrentStamina(),
-      this.playerManager.getMaxStamina()
-    );
+    // Deprecated: Moving to HUDSystem? 
+    // For now we keep it, but it reads from PlayerManager getters which read from ECS.
+    // Ideally HUDManager should just read from World directly.
+    
+    // Let's rely on HUDManager.update() if we create one, or just keep this bridge for now 
+    // but ensure it reads from ECS.
+    const player = world.with("player", "health", "stamina").first;
+    if (player) {
+        this.hudManager.updatePlayerStats(
+          player.health.current,
+          player.health.max,
+          player.stamina.current,
+          player.stamina.max
+        );
+    }
 
     this.hudManager.updateFPS();
   }

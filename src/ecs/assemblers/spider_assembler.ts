@@ -7,7 +7,8 @@ import { PhysicsAggregate, PhysicsShapeType, PhysicsMotionType } from "@babylonj
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { AnimationGroup } from "@babylonjs/core/Animations/animationGroup";
 import * as YUKA from "yuka";
-import { world } from "./world";
+import { world } from "../world";
+import { PhysicsRegistry } from "../physics_registry";
 
 export class SpiderAssembler {
   private static templateRootMesh: AbstractMesh | null = null;
@@ -84,7 +85,10 @@ export class SpiderAssembler {
       false
     )!;
     visualMesh.setEnabled(true);
-    visualMesh.scaling = new Vector3(0.5, 0.5, 0.5);
+    
+    // FIX: Multiply existing scale instead of overwriting (preserves import scale)
+    visualMesh.scaling.multiplyInPlace(new Vector3(0.5, 0.5, 0.5));
+    
     visualMesh.checkCollisions = false;
     visualMesh.getChildMeshes().forEach((m) => {
       m.checkCollisions = false;
@@ -178,10 +182,13 @@ export class SpiderAssembler {
         entityId: entityId 
     };
 
-    world.add({
+    const entity = world.add({
       enemy: { type: "spider", isAggro: false },
       transform: { mesh: colliderMesh }, 
-      visual: { mesh: visualMesh },
+      visual: { 
+          mesh: visualMesh, 
+          rotationOffset: new Vector3(0, Math.PI, 0) 
+      },
       health: { current: 50, max: 50 },
       combat: { 
           damage: 10, 
@@ -201,6 +208,7 @@ export class SpiderAssembler {
       },
       ai: { state: "idle" }
     });
+
+    PhysicsRegistry.register(physicsAggregate, entity);
   }
 }
-

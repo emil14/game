@@ -158,29 +158,12 @@ export class Sword implements IWeapon {
     ];
     this.swingAnimation.setKeys(swingKeys);
 
-    const damageApplicationDelayMs = 150; // When to check for a hit during the swing
-
-    // Schedule hit detection
-    setTimeout(() => {
-      if (!this.visualMesh || !this.camera) {
-        // Ensure sword is still valid
-        this.isSwinging = false; // Reset if sword became invalid
-        return;
-      }
-      this.camera.computeWorldMatrix(); // Force update of camera's world matrix
-      const rayOrigin = this.camera.globalPosition; // Get the camera's absolute position
-      const forwardDirection = this.camera.getDirection(Vector3.Forward()); // Get the camera's forward direction
-      const ray = new Ray(rayOrigin, forwardDirection, crosshairMaxDistance); // Create the ray
-      const pickInfo = this.scene.pickWithRay(ray, targetFilter);
-
-      if (pickInfo && pickInfo.hit && pickInfo.pickedMesh) {
-        onTargetHit(
-          pickInfo.pickedMesh,
-          pickInfo.pickedMesh.metadata?.instance
-        );
-      }
-    }, damageApplicationDelayMs);
-
+    // --- REMOVED setTimeout LOGIC ---
+    // The CombatSystem now handles the "Damage Application Delay" using ECS Timers.
+    // The Weapon class is now purely Visual + Animation.
+    // The "onTargetHit" callback is no longer called internally by the Sword.
+    // Instead, the CombatSystem calculates when to raycast.
+    
     // Start the animation
     this.scene.beginDirectAnimation(
       this.visualMesh,

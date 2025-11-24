@@ -6,7 +6,7 @@ import { PointLight } from "@babylonjs/core/Lights/pointLight";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { Ray } from "@babylonjs/core/Culling/ray";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
-import { CharacterController } from "./lib/character_controller";
+// CharacterController import removed
 
 import {
   CAMERA_CONFIG,
@@ -31,13 +31,12 @@ export class PlayerManager {
   private hudManager: HUDManager;
   private canvas: HTMLCanvasElement;
 
-  public playerIsDead: boolean = false;
+  // public playerIsDead: boolean = false; // REMOVED - State is in ECS
 
   public isCrouching: boolean = false;
   private crouchKeyPressedLastFrame: boolean = false;
 
   public playerBodyMesh!: Mesh;
-  private characterController!: CharacterController;
 
   // Input flags removed from class state as they are now ECS-driven or local to Update
   // Kept some for internal camera logic if needed
@@ -84,7 +83,7 @@ export class PlayerManager {
     return this.playerQuery.first;
   }
 
-  public initializeCharacterController(playerBodyMesh: Mesh) {
+  public initializePlayerMesh(playerBodyMesh: Mesh) {
     this.playerBodyMesh = playerBodyMesh;
     this.camera.parent = this.playerBodyMesh;
     this.camera.position = new Vector3(
@@ -92,24 +91,6 @@ export class PlayerManager {
       PLAYER_CONFIG.PLAYER_EYE_HEIGHT_OFFSET,
       0
     );
-    
-    this.characterController = new CharacterController(
-      this.playerBodyMesh,
-      this.camera,
-      this.scene
-    );
-    
-    this.characterController.enableKeyBoard(false);
-    
-    this.characterController.setJumpSpeed(PLAYER_CONFIG.JUMP_FORCE); 
-    this.characterController.setWalkSpeed(PLAYER_CONFIG.DEFAULT_SPEED);
-    this.characterController.setRunSpeed(PLAYER_CONFIG.DEFAULT_SPEED * PLAYER_CONFIG.RUN_SPEED_MULTIPLIER);
-
-    // Attach Controller to Entity for ECS Systems
-    const playerEntity = this.playerEntity;
-    if (playerEntity && playerEntity.player) {
-        playerEntity.player.controller = this.characterController;
-    }
   }
 
   public async initializeSword() {
@@ -126,83 +107,37 @@ export class PlayerManager {
     }
   }
 
-  public update(deltaTime: number): void {
+  public updateVisuals(deltaTime: number): void {
     const player = this.playerEntity;
     if (!player) return;
 
-    if (
-      this.playerIsDead &&
-      this.inputManager.isKeyPressed(KEY_MAPPINGS.RESPAWN)
-    ) {
-      this.respawn();
-    }
+    // Camera Crouch Lerp (Visual Only)
+    // We read the state from the Entity, which is the Source of Truth
+    const isCrouching = player.input?.isCrouching ?? false;
 
-    if (this.godmode) {
-      player.health.current = player.health.max;
-      player.stamina.current = player.stamina.max;
-      this.playerIsDead = false;
-    }
-
-    // SWORD ATTACK - MOVED TO COMBAT SYSTEM
-    // Input is captured by InputSystem, CombatSystem reads it and executes swing.
-    // Visuals are handled by the Weapon class itself (triggered by CombatSystem).
-
-    // CROUCH INTENT (Visual Sync)
-    const crouchKeyCurrentlyPressed = this.inputManager.isKeyPressed(KEY_MAPPINGS.CROUCH);
-    if (crouchKeyCurrentlyPressed && !this.crouchKeyPressedLastFrame && !this.playerIsDead) {
-      this.isCrouching = !this.isCrouching;
-    }
-    this.crouchKeyPressedLastFrame = crouchKeyCurrentlyPressed;
-
-    if (player.input) {
-        this.isCrouching = player.input.isCrouching;
-    }
-
-    // Camera Crouch Lerp
-    const crouchLerpSpeed = 10;
     const standEyePositionRelToParent = PLAYER_CONFIG.PLAYER_EYE_HEIGHT_OFFSET;
     const crouchHeightDelta = CAMERA_CONFIG.STAND_CAMERA_Y - CAMERA_CONFIG.CROUCH_CAMERA_Y;
     const crouchEyePositionRelToParent = PLAYER_CONFIG.PLAYER_EYE_HEIGHT_OFFSET - crouchHeightDelta;
-    const targetLocalCameraY = this.isCrouching ? crouchEyePositionRelToParent : standEyePositionRelToParent;
-    this.camera.position.y += (targetLocalCameraY - this.camera.position.y) * Math.min(1, crouchLerpSpeed * deltaTime);
-
-    // Stop physics if dead
-    if (this.playerIsDead && this.characterController) {
-      this.characterController.stop(); 
-    }
-
-    // Health Regen (Logic ideally moves to HealthSystem but keeping regen here for now or duplicate safe)
-    // Actually, let's trust HealthSystem isn't doing regen yet, so we keep this?
-    // The HealthSystem only clamps. So regen logic here is "fine" for now, or move to HealthSystem later.
-    if (!this.playerIsDead && player.stamina.current >= player.stamina.max && player.health.current < player.health.max) {
-      player.health.current += PLAYER_CONFIG.HEALTH_REGENERATION_RATE * deltaTime;
-    }
-
-    // DEATH CHECK
-    if (player.health.current <= 0 && !this.playerIsDead) {
-      this.setDead();
-    }
+    
+    const targetLocalCameraY = isCrouching ? crouchEyePositionRelToParent : standEyePositionRelToParent;
+    
+    this.camera.position.y += (targetLocalCameraY - this.camera.position.y) * Math.min(1, 10 * deltaTime);
   }
 
   // dealDamageToEntity moved to CombatSystem
 
   public takeDamage(amount: number): void {
     if (this.godmode) return;
-    if (this.playerIsDead) return;
     
+    // Check if dead logic handled by PlayerStateSystem
     const player = this.playerEntity;
-    if (player) {
+    if (player && player.health.current > 0) {
         player.health.current -= amount;
+        this.hudManager.showBloodScreenEffect();
     }
-
-    this.hudManager.showBloodScreenEffect();
   }
 
-  public setDead(): void {
-    this.playerIsDead = true;
-    this.hudManager.showDeathScreen();
-    console.log("Player has died.");
-  }
+  // setDead removed - handled by PlayerStateSystem
 
   public respawn(): void {
     window.location.reload();
@@ -231,24 +166,6 @@ export class PlayerManager {
   public getCurrentStamina(): number { return this.playerEntity?.stamina.current ?? 0; }
   public getMaxStamina(): number { return this.playerEntity?.stamina.max ?? 100; }
 
-  public depleteStamina(amount: number): void {
-    if (this.godmode) return;
-    const player = this.playerEntity;
-    if (player) {
-        player.stamina.current -= amount;
-        if (player.stamina.current < 0) player.stamina.current = 0;
-    }
-  }
-
-  public regenerateStamina(amount: number): void {
-    const player = this.playerEntity;
-    if (player) {
-        player.stamina.current += amount;
-        if (player.stamina.current > player.stamina.max)
-            player.stamina.current = player.stamina.max;
-    }
-  }
-
   public toggleGodmode(): void {
     this.godmode = !this.godmode;
     if (this.godmode) {
@@ -257,7 +174,7 @@ export class PlayerManager {
           player.health.current = player.health.max;
           player.stamina.current = player.stamina.max;
       }
-      this.playerIsDead = false;
+      // this.playerIsDead = false; // Deprecated
     }
   }
 }

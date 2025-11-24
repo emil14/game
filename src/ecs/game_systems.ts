@@ -9,6 +9,9 @@ import { CombatSystem } from "./systems/combat_system";
 import { InteractionSystem, TargetEvent } from "./systems/interaction_system";
 import { InputSystem } from "./systems/input_system";
 import { PlayerControlSystem } from "./systems/player_control_system";
+import { TimerSystem } from "./systems/timer_system";
+import { PlayerStateSystem } from "./systems/player_state_system";
+import { SensorSystem } from "./systems/sensor_system";
 
 export class GameSystems {
     private healthSystem: HealthSystem;
@@ -19,6 +22,9 @@ export class GameSystems {
     private interactionSystem: InteractionSystem;
     private inputSystem: InputSystem;
     private playerControlSystem: PlayerControlSystem;
+    private timerSystem: TimerSystem;
+    private playerStateSystem: PlayerStateSystem;
+    private sensorSystem: SensorSystem;
 
     constructor(scene: Scene, playerManager: PlayerManager, hudManager: HUDManager) {
         this.healthSystem = new HealthSystem();
@@ -27,7 +33,10 @@ export class GameSystems {
         this.animationSystem = new AnimationSystem();
         this.combatSystem = new CombatSystem();
         this.inputSystem = new InputSystem(playerManager.inputManager, playerManager.camera); 
-        this.playerControlSystem = new PlayerControlSystem(playerManager);
+        this.playerControlSystem = new PlayerControlSystem(scene);
+        this.timerSystem = new TimerSystem();
+        this.playerStateSystem = new PlayerStateSystem(hudManager);
+        this.sensorSystem = new SensorSystem();
         
         // Wire Interaction -> HUD
         this.interactionSystem = new InteractionSystem(scene, (event: TargetEvent) => {
@@ -59,9 +68,12 @@ export class GameSystems {
     }
     
     public update(dt: number, isDebugMode: boolean) {
+        this.timerSystem.update(dt); // Run timers first (resolves delayed actions)
         this.inputSystem.update();
+        this.sensorSystem.update(); // Update sensors before logic that relies on them
         this.playerControlSystem.update(dt);
         this.healthSystem.update();
+        this.playerStateSystem.update(dt); // Regen logic
         this.enemyAISystem.update();
         this.combatSystem.update(dt);
         this.physicsSyncSystem.update();

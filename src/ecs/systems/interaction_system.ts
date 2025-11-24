@@ -30,83 +30,52 @@ export class InteractionSystem {
   }
 
   public update(isDebugMode: boolean) {
-      const player = world.with("player", "transform").first;
+      const player = world.with("player", "sensor").first;
       
-      if (!player || !player.player?.camera) return;
-      const camera = player.player.camera;
+      if (!player || !player.sensor) return;
 
-      // Raycast
-      const origin = camera.globalPosition;
-      const direction = camera.getDirection(Vector3.Forward());
-      const length = 50; // Config variable ideally
-      const ray = new Ray(origin, direction, length);
+      const sensor = player.sensor;
 
       // Debug Visuals
       if (isDebugMode) {
-          if (!this.debugRayHelper) {
-              this.debugRayHelper = RayHelper.CreateAndShow(ray, this.scene, new Color3(1, 1, 0));
-          } else {
-              this.debugRayHelper.ray = ray;
+          const camera = player.player?.camera;
+          if (camera) {
+              // Visualizing the sensor ray is complex since it's calculated elsewhere.
+              // We can skip it or re-calculate for debug only.
           }
-      } else {
-          this.debugRayHelper?.dispose();
-          this.debugRayHelper = null;
       }
 
-      // Perform Pick
-      const pickInfo = this.scene.pickWithRay(ray, (mesh) => {
-          // Filter logic: Must have metadata with entityId OR be interactable type
-          return (mesh.metadata && (mesh.metadata.entityId || mesh.metadata.interactableType));
-      });
-
-      if (pickInfo && pickInfo.hit && pickInfo.pickedMesh) {
-          this.handleHit(pickInfo.pickedMesh);
-      } else {
-          this.clearTarget();
-      }
-  }
-
-  private handleHit(mesh: AbstractMesh) {
-      // 1. Entity Hit (Enemy)
-      if (mesh.metadata?.entityId) {
-          const enemies = world.with("enemy", "health", "transform");
-          let targetEntity = null;
-          for (const e of enemies) {
-              if (!e.transform) continue;
-              // Check if this entity's transform mesh matches hit mesh
-              if (e.transform.mesh === mesh || e.transform.mesh.getChildMeshes().includes(mesh as Mesh)) {
-                  targetEntity = e;
-                  break;
-              }
-          }
-
-          if (targetEntity) {
-             const isDead = targetEntity.health.current <= 0;
+      // Check Sensor Result
+      if (sensor.hitEntity) {
+          const entity = sensor.hitEntity;
+          if (entity.enemy && entity.health) {
+             const isDead = entity.health.current <= 0;
              this.notify({
                  type: "enemy",
-                 name: targetEntity.enemy.type,
-                 health: targetEntity.health.current,
-                 maxHealth: targetEntity.health.max,
+                 name: entity.enemy.type,
+                 health: entity.health.current,
+                 maxHealth: entity.health.max,
                  level: 1,
                  isDead: isDead
              });
              return;
           }
+      } else if (sensor.hitMetadata?.interactableType === "chest") {
+           // Legacy support using passed metadata
+           const chest = sensor.hitMetadata.chestInstance;
+           if (chest) {
+               this.notify({
+                   type: "interactable",
+                   icon: chest.getDisplayIcon()
+               });
+               return;
+           }
       }
-
-      // 2. Interactable Hit (Chest)
-      if (mesh.metadata?.interactableType === "chest") {
-           // Existing logic preserved for chests (they aren't entities yet)
-           const chest = mesh.metadata.chestInstance;
-           this.notify({
-               type: "interactable",
-               icon: chest.getDisplayIcon()
-           });
-           return;
-      }
-
+      
       this.clearTarget();
   }
+
+  // Legacy handleHit method removed as logic is now inline above.
 
   private clearTarget() {
       if (this.lastTargetId !== "none") {

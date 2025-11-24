@@ -1,6 +1,8 @@
 import { world } from "../world";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
+import { Ray } from "@babylonjs/core/Culling/ray";
+import { PhysicsRegistry } from "../physics_registry";
 
 // Helper type for an entity with specific components
 type EnemyEntity = typeof world.entities[number] & {
@@ -22,29 +24,44 @@ export class CombatSystem {
 
     if (!player) return;
     
+    // Death Check: If player is dead, no attacks allowed (player or enemy on player)
+    const isPlayerDead = player.health.current <= 0;
+
     // --- PLAYER ATTACK LOGIC ---
-    if (player.input.isAttacking && player.player.weapon) {
+    if (!isPlayerDead && player.input.isAttacking && player.player.weapon) {
         const weapon = player.player.weapon;
         
         if (!weapon.getIsSwinging()) { 
-            // Ideally we get range from weapon or stats
             const range = 3.0; 
-            
-            weapon.swing(
-                range, 
-                (mesh: AbstractMesh) => !!(mesh.metadata && mesh.metadata.entityId),
-                (targetMesh: AbstractMesh) => {
-                     if (targetMesh.metadata?.entityId) {
-                         this.dealDamage(targetMesh.metadata.entityId, weapon.attackDamage);
-                     }
+            const damageDelaySeconds = 0.15; // 150ms synced
+
+            // 1. Trigger Visuals
+            weapon.swing(range, () => false, () => {}); 
+
+            // 2. Schedule Damage Logic via ECS Timer
+            world.add({
+                timer: {
+                    timeRemaining: damageDelaySeconds,
+                    duration: damageDelaySeconds,
+                    label: "player_attack_delay",
+                    onComplete: () => {
+                        this.performPlayerAttackRaycast(player, range, weapon.attackDamage);
+                    }
                 }
-            );
+            });
         }
     }
 
     // --- ENEMY ATTACK LOGIC ---
     for (const entity of enemies) {
         if (entity.ai.state === "dead") continue;
+        
+        // If player is dead, enemies stop aggro/attack
+        if (isPlayerDead) {
+            entity.enemy.isAggro = false;
+            entity.ai.state = "idle"; // Or victory?
+            continue;
+        }
 
         // Update Timers
         entity.combat.lastAttackTime += deltaTime;
@@ -67,18 +84,46 @@ export class CombatSystem {
     }
   }
 
-  private dealDamage(targetId: string, amount: number) {
-      // Find ECS entity by ID
-      // Slow linear search again. Ideally we'd have an ID map.
-      const targets = world.with("health", "transform"); // Could be enemy OR player technically
+  private performPlayerAttackRaycast(player: PlayerEntity, range: number, damage: number) {
+      if (!player.player.camera) return;
       
-      for (const t of targets) {
-          if (t.transform.mesh.metadata?.entityId === targetId) {
-             t.health.current -= amount;
-             console.log(`Damage dealt to ${targetId}: ${amount}. Remaining: ${t.health.current}`);
-             
-             // HealthSystem handles death logic
-             return;
+      const camera = player.player.camera;
+      const rayOrigin = camera.globalPosition;
+      const forwardDirection = camera.getDirection(Vector3.Forward());
+      const ray = new Ray(rayOrigin, forwardDirection, range);
+
+      // We need scene access. Ideally passed in constructor, 
+      // but for now accessing via mesh.getScene() is safe enough.
+      const scene = player.transform.mesh.getScene();
+
+      const pickInfo = scene.pickWithRay(ray, (mesh) => {
+          // Check if mesh is registered in PhysicsRegistry (traverse up)
+          let current: AbstractMesh | null = mesh;
+          while (current) {
+              const entity = PhysicsRegistry.getEntityFromMeshId(current.uniqueId);
+              if (entity) {
+                  // Ignore self (player)
+                  if (entity === player) return false;
+                  return true;
+              }
+              current = current.parent as AbstractMesh;
+          }
+          return false;
+      });
+
+      if (pickInfo && pickInfo.hit && pickInfo.pickedMesh) {
+          // Resolve entity from hit mesh (traverse up)
+          let targetEntity = undefined;
+          let current: AbstractMesh | null = pickInfo.pickedMesh;
+          while (current) {
+              targetEntity = PhysicsRegistry.getEntityFromMeshId(current.uniqueId);
+              if (targetEntity) break;
+              current = current.parent as AbstractMesh;
+          }
+
+          if (targetEntity && targetEntity !== player && targetEntity.health) {
+             targetEntity.health.current -= damage;
+             console.log(`Damage dealt to entity. Remaining: ${targetEntity.health.current}`);
           }
       }
   }
@@ -88,29 +133,39 @@ export class CombatSystem {
       enemy.ai.state = "attack";
       enemy.combat.lastAttackTime = 0;
 
-      // 2. Schedule Damage (Simple delay for now, ideally tied to animation event)
-      const damageDelay = enemy.combat.attackDuration * 0.6 * 1000; // 60% through anim
+      // 2. Schedule Damage via ECS Timer
+      const damageDelay = enemy.combat.attackDuration * 0.6; // Seconds
       
-      setTimeout(() => {
-          // Verify conditions are still met
-          if (!enemy.ai || enemy.ai.state === "dead") return;
-          if (!player.health || !player.transform) return;
-          if (!enemy.transform || !enemy.combat) return;
-          
-          const dist = Vector3.Distance(
-              player.transform.mesh.getAbsolutePosition(), 
-              enemy.transform.mesh.getAbsolutePosition()
-          );
+      world.add({
+          timer: {
+              timeRemaining: damageDelay,
+              duration: damageDelay,
+              label: "enemy_attack_delay",
+              onComplete: () => {
+                  this.resolveEnemyAttack(enemy, player);
+              }
+          }
+      });
+  }
 
-          if (dist <= enemy.combat.range + 1.0) { // Slight buffer
-             player.health.current -= enemy.combat.damage;
-             // HealthSystem handles clamping
-          }
-          
-          // Reset state after attack finishes
-          if (enemy.ai.state === "attack") {
-             enemy.ai.state = "chase"; // Return to chase
-          }
-      }, damageDelay);
+  private resolveEnemyAttack(enemy: EnemyEntity, player: PlayerEntity) {
+      // Verify conditions are still met
+      if (!enemy.ai || enemy.ai.state === "dead") return;
+      if (!player.health || !player.transform) return;
+      if (!enemy.transform || !enemy.combat) return;
+      
+      const dist = Vector3.Distance(
+          player.transform.mesh.getAbsolutePosition(), 
+          enemy.transform.mesh.getAbsolutePosition()
+      );
+
+      if (dist <= enemy.combat.range + 1.0) { // Slight buffer
+         player.health.current -= enemy.combat.damage;
+      }
+      
+      // Reset state after attack finishes
+      if (enemy.ai.state === "attack") {
+         enemy.ai.state = "chase"; // Return to chase
+      }
   }
 }

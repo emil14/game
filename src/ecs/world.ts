@@ -4,7 +4,7 @@ import { Camera } from "@babylonjs/core/Cameras/camera";
 import { PhysicsAggregate } from "@babylonjs/core/Physics";
 import { AnimationGroup } from "@babylonjs/core/Animations/animationGroup";
 import * as YUKA from "yuka";
-import { CharacterController } from "../lib/character_controller";
+// CharacterController import removed
 
 // --- Components ---
 
@@ -14,13 +14,13 @@ export type TransformComponent = {
 
 export type VisualComponent = {
   mesh: AbstractMesh; // The Visual Child (Model)
+  rotationOffset?: Vector3; // Euler angles to offset rotation (e.g. for glb models facing -Z)
 };
 
 import { IWeapon } from "../weapons/iweapon";
 
 export type PlayerComponent = {
   id: string;
-  controller?: CharacterController;
   camera?: Camera;
   weapon?: IWeapon;
 };
@@ -81,9 +81,17 @@ export type InputComponent = {
   isAttacking: boolean;
 };
 
+export type TimerComponent = {
+  timeRemaining: number;
+  duration: number;
+  onComplete: (entity: Entity) => void;
+  label?: string;
+};
+
 // --- Entity Definition ---
 
 export type Entity = {
+  timer?: TimerComponent;
   transform?: TransformComponent;
   visual?: VisualComponent;
   player?: PlayerComponent;

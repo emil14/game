@@ -5,11 +5,11 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Camera } from "@babylonjs/core/Cameras/camera";
 
 export class InputSystem {
+  private crouchPressedLastFrame = false;
+
   constructor(private inputManager: InputManager, private camera: Camera) {}
 
   public update() {
-    // 1. Fetch the player entity that has Input
-    // Ideally this component is on the player
     const players = world.with("input");
 
     for (const entity of players) {
@@ -41,21 +41,17 @@ export class InputSystem {
         entity.input.moveDir.copyFrom(moveDir);
 
         // --- ACTION MAPPING ---
-        // Jump: Pulse check handled by Physics/CharacterController, 
-        // but here we register the *intent*.
-        // Note: For now we just map the boolean state.
         entity.input.isJumping = this.inputManager.isKeyPressed(KEY_MAPPINGS.JUMP);
         entity.input.isSprinting = this.inputManager.isKeyCodePressed("ShiftLeft");
-        
-        // Toggle Crouch Logic (Basic implementation: toggle on press)
-        // Ideally this logic of "toggle" lives in a State System, but for raw input mapping:
-        // We will just map the KEY STATE here. The consumer decides if it's toggle or hold.
-        // But PlayerManager used Toggle. Let's support Hold for "isCrouching" intent in ECS for simplicity first?
-        // Actually, let's map the RAW intent. 
-        entity.input.isCrouching = this.inputManager.isKeyPressed(KEY_MAPPINGS.CROUCH);
-
         entity.input.isAttacking = this.inputManager.isMouseButtonPressed(0);
+        
+        // --- CROUCH TOGGLE LOGIC ---
+        // We handle the toggle logic here so the Component state is "sticky"
+        const crouchPressed = this.inputManager.isKeyPressed(KEY_MAPPINGS.CROUCH);
+        if (crouchPressed && !this.crouchPressedLastFrame) {
+             entity.input.isCrouching = !entity.input.isCrouching;
+        }
+        this.crouchPressedLastFrame = crouchPressed;
     }
   }
 }
-

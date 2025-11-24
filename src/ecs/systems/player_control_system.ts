@@ -1,83 +1,81 @@
 import { world } from "../world";
-import { PlayerManager } from "../../player_manager";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector";
+import { Ray } from "@babylonjs/core/Culling/ray";
+import { Scene } from "@babylonjs/core/scene";
 import { PLAYER_CONFIG } from "../../config";
 
 export class PlayerControlSystem {
-  constructor(private playerManager: PlayerManager) {}
+  constructor(private scene: Scene) {}
 
   public update(dt: number) {
-    const players = world.with("input", "player", "stamina");
+    const players = world.with("input", "player", "stamina", "physics", "transform", "health");
 
     for (const entity of players) {
-        // We still access playerManager.characterController because that class instance 
-        // wraps the Babylon Mesh and Physics. Ideally, the CharacterController instance 
-        // should be on the Entity (in a component), not on the Manager.
-        // For this step, we proxy through the manager or entity if we added it?
-        
-        // Entity Definition says: player?: PlayerComponent { controller?: CharacterController }
-        // Let's use THAT if available, otherwise fallback.
-        
-        let controller = entity.player.controller;
-        
-        // Fallback to manager's controller if not on entity yet (Migration safety)
-        if (!controller) {
-            // We can't easily access private property of Manager unless we expose it 
-            // or if we rely on the Entity having it.
-            // Let's assume for this step we MUST have it on the entity.
-            // In Game.ts or PlayerManager.init, we should ensure it's attached.
-            continue; 
+        // Death Check
+        if (entity.health.current <= 0) {
+            // Ensure no lingering velocity from inputs (optional: apply friction/drag)
+            // But let physics/gravity continue.
+            return;
         }
 
-        // --- APPLY INPUT TO CONTROLLER ---
-        controller.setMoveDirection(entity.input.moveDir);
-        controller.run(entity.input.isSprinting);
+        const body = entity.physics.aggregate.body;
+        const input = entity.input;
 
-        // Crouch Speed Mod
-        if (entity.input.isCrouching) {
-             controller.setWalkSpeed(PLAYER_CONFIG.DEFAULT_SPEED * PLAYER_CONFIG.CROUCH_SPEED_MULTIPLIER);
-        } else {
-             controller.setWalkSpeed(PLAYER_CONFIG.DEFAULT_SPEED);
-        }
+        // 1. Ground Check
+        const rayOrigin = entity.transform.mesh.position.clone();
+        // Adjust ray length based on player height. 
+        // Pivot is center, so check from center down.
+        // Height = 2 (approx), so 1.0 down is feet. Add 0.1 buffer.
+        const rayLength = (PLAYER_CONFIG.PLAYER_HEIGHT / 2) + 0.1;
+        
+        const ray = new Ray(rayOrigin, Vector3.Down(), rayLength);
+        
+        // Pick with filter: check collisions enabled, ignore self
+        const pick = this.scene.pickWithRay(ray, (mesh) => {
+            return mesh.checkCollisions && mesh !== entity.transform.mesh;
+        });
+        const isGrounded = pick?.hit || false;
 
-        // Jump
-        // We need state tracking for "Jump Pressed Last Frame" to avoid spam-jumping 
-        // if the system runs faster than input releases? 
-        // InputSystem handles "isJumping" as "Is Key Pressed".
-        // CharacterController.jump() checks isGrounded internally.
-        // But we need to dedup the stamina cost application.
+        // 2. Calculate Target Velocity
+        let speed = PLAYER_CONFIG.DEFAULT_SPEED;
+        if (input.isSprinting) speed *= PLAYER_CONFIG.RUN_SPEED_MULTIPLIER;
+        if (input.isCrouching) speed *= PLAYER_CONFIG.CROUCH_SPEED_MULTIPLIER;
+
+        // Input moveDir is normalized world direction
+        const targetVelX = input.moveDir.x * speed;
+        const targetVelZ = input.moveDir.z * speed;
+
+        // 3. Apply Velocity
+        const currentVel = body.getLinearVelocity();
         
-        // ISSUE: If I hold space, Input is true.
-        // Frame 1: Jump() -> Velocity Y. Stamina Deduct.
-        // Frame 2: In Air. Jump() -> Ignored by CC. Stamina Deduct? -> BUG.
-        
-        // Fix: We need "JustPressed" logic or check grounded state before deducting cost.
-        if (entity.input.isJumping) {
-             // Only attempt jump if grounded (to prevent stamina drain in air)
-             if (controller.isGrounded() && entity.stamina.current >= PLAYER_CONFIG.JUMP_STAMINA_COST) {
-                 controller.jump();
-                 // Deduct Stamina
+        // Preserve Y velocity (Gravity), Override X/Z
+        // Note: Ideally we lerp to target velocity for momentum, but direct set is snappier for FPS
+        body.setLinearVelocity(new Vector3(targetVelX, currentVel.y, targetVelZ));
+
+        // 4. Jump Logic
+        if (input.isJumping && isGrounded) {
+             if (entity.stamina.current >= PLAYER_CONFIG.JUMP_STAMINA_COST) {
+                 // Apply precise jump velocity
+                 const jumpVel = new Vector3(currentVel.x, PLAYER_CONFIG.JUMP_FORCE, currentVel.z);
+                 body.setLinearVelocity(jumpVel);
+                 
                  entity.stamina.current -= PLAYER_CONFIG.JUMP_STAMINA_COST;
                  if (entity.stamina.current < 0) entity.stamina.current = 0;
              }
         }
 
-        // --- STAMINA LOGIC (Sprint Depletion / Regen) ---
-        const isMoving = entity.input.moveDir.lengthSquared() > 0;
+        // 5. Stamina Regen / Depletion (Simplified)
+        const isMoving = input.moveDir.lengthSquared() > 0;
         
-        if (entity.input.isSprinting && isMoving) {
+        if (input.isSprinting && isMoving) {
              if (entity.stamina.current > 0) {
                   entity.stamina.current -= PLAYER_CONFIG.STAMINA_DEPLETION_RATE * dt;
-                  if (entity.stamina.current < 0) {
-                      entity.stamina.current = 0;
-                      controller.run(false); // Force stop running
-                  }
+                  if (entity.stamina.current < 0) entity.stamina.current = 0;
              }
         } else {
-             // Regen
              if (entity.stamina.current < entity.stamina.max) {
-                 let regen = PLAYER_CONFIG.STAMINA_REGENERATION_RATE;
-                 if (isMoving) regen = 0; // No regen while walking (optional design choice, matches previous)
-                 
+                 // No regen while moving? Matching old logic
+                 const regen = isMoving ? 0 : PLAYER_CONFIG.STAMINA_REGENERATION_RATE;
                  entity.stamina.current += regen * dt;
                  if (entity.stamina.current > entity.stamina.max) entity.stamina.current = entity.stamina.max;
              }
@@ -85,4 +83,3 @@ export class PlayerControlSystem {
     }
   }
 }
-

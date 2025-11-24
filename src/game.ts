@@ -1,10 +1,9 @@
-import { Engine, Scene, Vector3, Color3, Ray } from "@babylonjs/core";
+import { Engine, Scene, Vector3, Color3 } from "@babylonjs/core";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
-import { RayHelper } from "@babylonjs/core/Debug/rayHelper";
 import { HavokPlugin } from "@babylonjs/core/Physics";
 import HavokPhysics from "@babylonjs/havok";
 import { PhysicsAggregate, PhysicsShapeType } from "@babylonjs/core/Physics";
@@ -15,14 +14,14 @@ import { InputManager } from "./input_manager";
 import { SkyManager } from "./sky_manager";
 import { HUDManager } from "./hud_manager";
 import { PlayerManager } from "./player_manager";
-import { Spider } from "./enemies/spider";
 import { ClosedChest } from "./interactables";
 import AssetManager from "./asset_manager";
 import { TabMenuManager } from "./tab_menu_manager";
 import { EventSystem } from "./event_system";
 import { GameSystems } from "./ecs/game_systems";
-import { world } from "./ecs/world"; // Miniplex world
+import { world } from "./ecs/world";
 import { AIManager } from "./ai/ai_manager";
+import { EntityFactory } from "./ecs/entity_factory";
 
 export class Game {
   public readonly engine: Engine;
@@ -36,13 +35,9 @@ export class Game {
   private readonly canvas: HTMLCanvasElement;
 
   private _deltaTime: number = 0;
-  private spiders: Spider[] = [];
   private isInFightMode: boolean = this.config.GAME_SETTINGS.DEBUG_START_MODE;
   private isDebugModeEnabled: boolean =
     this.config.GAME_SETTINGS.DEBUG_START_MODE;
-  private debugRayHelper: RayHelper | null = null;
-  private crosshairMaxDistance: number =
-    this.config.PLAYER_CONFIG.CROSSHAIR_MAX_DISTANCE;
   private havokInstance: any;
   private wallPositions: [number, number, number, number][] = [];
   public gameState: "initializing" | "playing" | "paused" | "menu" =
@@ -51,6 +46,7 @@ export class Game {
   public readonly eventSystem: EventSystem;
   public readonly gameSystems: GameSystems;
   public readonly aiManager: AIManager;
+  private entityFactory: EntityFactory;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -100,8 +96,9 @@ export class Game {
     ];
     this.assetManager = new AssetManager(this.scene);
     this.eventSystem = new EventSystem();
-    this.gameSystems = new GameSystems(this.scene, this.playerManager);
+    this.gameSystems = new GameSystems(this.scene, this.playerManager, this.hudManager);
     this.aiManager = new AIManager();
+    this.entityFactory = new EntityFactory(this.scene, this.aiManager.getEntityManager());
   }
 
   private async _loadAssetWithCollider(
@@ -292,23 +289,13 @@ export class Game {
         regenRate: this.config.PLAYER_CONFIG.STAMINA_REGENERATION_RATE,
         depletionRate: this.config.PLAYER_CONFIG.STAMINA_DEPLETION_RATE
       },
-      player: { id: "p1" } // Tag it as player
+      player: { id: "p1", camera: this.playerManager.camera } // Pass camera to ECS for InteractionSystem
     });
   }
 
   private async _initializeGameAssets() {
-    // Spiders
-    const spiderInstance = await Spider.Create(
-      this.scene,
-      new Vector3(20, 0, 20),
-      this.config.PLAYER_CONFIG.DEFAULT_SPEED,
-      this.aiManager.getEntityManager()
-    );
-    this.spiders.push(spiderInstance);
-    spiderInstance.setOnPlayerDamaged((damage: number) => {
-      if (this.playerManager.playerIsDead) return;
-      this.playerManager.takeDamage(damage);
-    });
+    // Spiders via ECS Factory
+    await this.entityFactory.createSpider(new Vector3(20, 0, 20));
 
     await this.playerManager.initializeSword();
 
@@ -358,22 +345,8 @@ export class Game {
       false,
       (collider) => {
         new ClosedChest(collider as Mesh, true, "key_old_chest", () => {
-          if (collider.metadata && collider.metadata.chestInstance) {
-            const ray = this.playerManager.camera.getForwardRay(
-              this.config.PLAYER_CONFIG.CROSSHAIR_MAX_DISTANCE
-            );
-            const pickInfo = this.scene.pickWithRay(
-              ray,
-              (mesh) => mesh === collider
-            );
-            if (pickInfo && pickInfo.hit) {
-              this.hudManager.setCrosshairText(
-                (
-                  collider.metadata.chestInstance as ClosedChest
-                ).getDisplayIcon()
-              );
-            }
-          }
+          // Interaction system handles crosshair, this handles logic for now
+          // Ideally chest logic also moves to ECS InteractionSystem eventually
         });
       },
       2.25,
@@ -409,93 +382,26 @@ export class Game {
     await this.assetManager.initialize();
   }
 
-  private updateCrosshair(): void {
-    // Crosshair targeting system
-    this.playerManager.camera.computeWorldMatrix();
-    const rayOrigin = this.playerManager.camera.globalPosition;
-    const forwardDirection = this.playerManager.camera.getDirection(
-      Vector3.Forward()
-    );
-    const ray = new Ray(rayOrigin, forwardDirection, this.crosshairMaxDistance);
-    if (this.isDebugModeEnabled) {
-      if (!this.debugRayHelper) {
-        this.debugRayHelper = RayHelper.CreateAndShow(
-          ray,
-          this.scene,
-          new Color3(1, 1, 0)
-        );
-      } else {
-        this.debugRayHelper.ray = ray;
-      }
-    } else {
-      if (this.debugRayHelper) {
-        this.debugRayHelper.dispose();
-        this.debugRayHelper = null;
-      }
-    }
-    const pickInfo = this.scene.pickWithRay(
-      ray,
-      (mesh) =>
-        (mesh.metadata && mesh.metadata.enemyType === "spider") ||
-        (mesh.metadata && mesh.metadata.interactableType)
-    );
-    let crosshairSetForSpecificTarget = false;
-    if (pickInfo && pickInfo.hit && pickInfo.pickedMesh) {
-      const pickedMesh = pickInfo.pickedMesh;
-      if (pickedMesh.metadata && pickedMesh.metadata.enemyType === "spider") {
-        const spiderInstance = pickedMesh.metadata.instance as Spider;
-        if (
-          spiderInstance &&
-          (spiderInstance.getIsDying() || spiderInstance.currentHealth <= 0)
-        ) {
-          this.hudManager.setCrosshairText("✋");
-          this.hudManager.setCrosshairFocus(false);
-          this.hudManager.hideEnemyInfo();
-          crosshairSetForSpecificTarget = true;
-        } else if (spiderInstance) {
-          this.hudManager.showEnemyInfo(
-            spiderInstance.name,
-            spiderInstance.level,
-            spiderInstance.currentHealth,
-            spiderInstance.maxHealth
-          );
-          this.hudManager.setCrosshairText("💢");
-          this.hudManager.setCrosshairFocus(true);
-          crosshairSetForSpecificTarget = true;
-        }
-      } else if (
-        pickedMesh.metadata &&
-        pickedMesh.metadata.interactableType === "chest"
-      ) {
-        const chestInstance = pickedMesh.metadata.chestInstance as ClosedChest;
-        this.hudManager.setCrosshairText(chestInstance.getDisplayIcon());
-        this.hudManager.setCrosshairFocus(false);
-        this.hudManager.hideEnemyInfo();
-        crosshairSetForSpecificTarget = true;
-      }
-    }
-    if (!crosshairSetForSpecificTarget) {
-      this.hudManager.hideEnemyInfo();
-      this.hudManager.setCrosshairFocus(false);
-      this.hudManager.setCrosshairText("•");
-    }
-  }
-
   public update(): void {
     this._deltaTime = this.engine.getDeltaTime() / 1000;
+    
+    // 1. Input & Player Control
     this.playerManager.update(this._deltaTime);
-    this.gameSystems.update(this._deltaTime); // Update ECS systems
-    this.aiManager.update();
+    
+    // 2. Logic Systems (ECS) - Includes AI, Physics Sync, Combat, Interaction, Animation
+    this.gameSystems.update(this._deltaTime, this.isDebugModeEnabled);
+    
+    // 3. Independent Managers
+    this.aiManager.update(); // Updates Yuka's internal time/entities
     this.skyManager.update(this._deltaTime);
 
+    // 4. Game Flow Logic (Aggro check)
+    // Could move to a "GameFlowSystem"
+    const aggroEnemies = world.with("enemy").where(e => e.enemy.isAggro);
     let isAnyEnemyAggro = false;
-    if (!this.playerManager.playerIsDead) {
-      this.spiders.forEach((spider) => {
-        if (spider.currentHealth > 0) {
-          spider.update(this._deltaTime, this.playerManager.camera);
-          if (spider.getIsAggro()) isAnyEnemyAggro = true;
-        }
-      });
+    for (const _e of aggroEnemies) {
+        isAnyEnemyAggro = true;
+        break;
     }
 
     switch (true) {
@@ -508,6 +414,7 @@ export class Game {
         break;
     }
 
+    // 5. HUD Updates (Reactive where possible, polling for now)
     this.hudManager.updatePlayerStats(
       this.playerManager.getCurrentHealth(),
       this.playerManager.getMaxHealth(),
@@ -515,7 +422,6 @@ export class Game {
       this.playerManager.getMaxStamina()
     );
 
-    this.updateCrosshair();
     this.hudManager.updateFPS();
   }
 

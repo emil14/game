@@ -3,7 +3,7 @@ import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
-import { PhysicsAggregate, PhysicsShapeType } from "@babylonjs/core/Physics";
+import { PhysicsAggregate, PhysicsShapeType, PhysicsMotionType } from "@babylonjs/core/Physics";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { AnimationGroup } from "@babylonjs/core/Animations/animationGroup";
 import * as YUKA from "yuka";
@@ -28,6 +28,7 @@ export class EntityFactory {
       return EntityFactory.assetsLoadingPromise;
     }
 
+    console.log("EntityFactory: Starting to load spider assets...");
     EntityFactory.assetsLoadingPromise = (async () => {
       try {
         const result = await SceneLoader.ImportMeshAsync(
@@ -36,6 +37,8 @@ export class EntityFactory {
           "spider.glb",
           this.scene
         );
+
+        console.log("EntityFactory: Spider assets loaded.", result.meshes.length, "meshes");
 
         EntityFactory.templateRootMesh = result.meshes[0];
         EntityFactory.templateRootMesh.name = "spiderTemplateRoot";
@@ -72,6 +75,7 @@ export class EntityFactory {
   }
 
   public async createSpider(initialPosition: Vector3): Promise<void> {
+    console.log("EntityFactory: Creating spider at", initialPosition.toString());
     await this.loadSpiderAssets();
 
     if (!EntityFactory.templateRootMesh) {
@@ -126,42 +130,53 @@ export class EntityFactory {
     visualMesh.computeWorldMatrix(true);
     const boundingInfo = visualMesh.getHierarchyBoundingVectors(true);
     const dimensions = boundingInfo.max.subtract(boundingInfo.min);
+    
+    const width = Math.max(0.5, dimensions.x);
+    const height = Math.max(0.5, dimensions.y);
+    const depth = Math.max(0.5, dimensions.z);
 
     const colliderMesh = MeshBuilder.CreateBox(
       "spiderCollider_" + uniqueId,
-      {
-        width: Math.max(0.1, dimensions.x),
-        height: Math.max(0.1, dimensions.y),
-        depth: Math.max(0.1, dimensions.z),
-      },
+      { width, height, depth },
       this.scene
     );
-    colliderMesh.isVisible = false;
-    colliderMesh.position = boundingInfo.min.add(dimensions.scale(0.5));
-    // Apply initial position offset
-    const offset = colliderMesh.position.clone();
-    colliderMesh.position = initialPosition.clone();
+    colliderMesh.isVisible = false; 
+    // Enable collisions for Legacy system (Player moveWithCollisions)
+    colliderMesh.checkCollisions = true;
+    
+    // Positioning Logic:
+    const spawnPos = initialPosition.clone();
+    spawnPos.y += 2.0; 
+
+    colliderMesh.position = spawnPos.add(new Vector3(0, height / 2, 0));
     
     // Parent visual to collider
     visualMesh.parent = colliderMesh;
-    visualMesh.position = offset.scale(-1); // Center visual relative to collider
+    visualMesh.position = new Vector3(0, -height / 2, 0);
+    visualMesh.rotationQuaternion = null;
+    visualMesh.rotation = Vector3.Zero();
 
+    // PHYSICS SETUP
     const physicsAggregate = new PhysicsAggregate(
       colliderMesh,
       PhysicsShapeType.BOX,
-      { mass: 1, friction: 0.5, restitution: 0.2 },
+      { 
+          mass: 10, 
+          friction: 0.0, 
+          restitution: 0.0 
+      },
       this.scene
     );
+    physicsAggregate.body.setMotionType(PhysicsMotionType.DYNAMIC);
     physicsAggregate.body.setMassProperties({
-        inertia: new Vector3(0, 0, 0),
+        inertia: new Vector3(0, 0, 0), // Lock rotation
     });
 
     // 4. Yuka AI
     const vehicle = new YUKA.Vehicle();
-    vehicle.maxSpeed = 3.0; // Default speed
-    vehicle.position.set(initialPosition.x, initialPosition.y, initialPosition.z);
+    vehicle.maxSpeed = 3.0; 
+    vehicle.position.set(colliderMesh.position.x, colliderMesh.position.y, colliderMesh.position.z);
     
-    // Add behaviors later in the system or here
     const wanderBehavior = new YUKA.WanderBehavior();
     vehicle.steering.add(wanderBehavior);
     this.entityManager.add(vehicle);
@@ -169,15 +184,15 @@ export class EntityFactory {
     // 5. ECS Entity Assembly
     const entityId = `spider_${uniqueId}`;
     
-    // Tag metadata for Raycasting/UI (The "Metadata Leak" fix comes later)
     colliderMesh.metadata = { 
         enemyType: "spider", 
-        entityId: entityId // Store ID instead of class instance
+        entityId: entityId 
     };
 
     world.add({
       enemy: { type: "spider", isAggro: false },
-      transform: { mesh: colliderMesh }, // The physics root
+      transform: { mesh: colliderMesh }, 
+      visual: { mesh: visualMesh },
       health: { current: 50, max: 50 },
       combat: { 
           damage: 10, 
@@ -199,4 +214,3 @@ export class EntityFactory {
     });
   }
 }
-

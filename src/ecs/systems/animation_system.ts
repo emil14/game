@@ -2,11 +2,13 @@ import { world } from "../world";
 
 export class AnimationSystem {
   public update() {
-    const entities = world.with("animations", "yuka", "ai");
+    const entities = world.with("animations", "yuka", "ai", "physics");
 
     for (const entity of entities) {
-      const velocity = entity.yuka.vehicle.velocity;
-      const speed = velocity.squaredLength();
+      // FIX: Use PHYSICS velocity, not AI velocity. 
+      // If AI wants to move but Physics says "blocked", we should stay in Idle/Push, not Walk.
+      const physicsVel = entity.physics.aggregate.body.getLinearVelocity();
+      const speed = Math.sqrt(physicsVel.x * physicsVel.x + physicsVel.z * physicsVel.z);
       
       let targetAnim = entity.animations.idle;
 
@@ -28,6 +30,12 @@ export class AnimationSystem {
           // Play new
           // Handle non-looping death/attack
           const loop = (entity.ai.state !== "dead" && entity.ai.state !== "attack");
+          
+          // Reset to frame 0 for non-looping actions to ensure full playback
+          if (!loop) {
+              targetAnim.reset();
+          }
+          
           targetAnim.start(loop, 1.0, targetAnim.from, targetAnim.to, false);
           
           entity.animations.current = targetAnim;
@@ -35,4 +43,3 @@ export class AnimationSystem {
     }
   }
 }
-

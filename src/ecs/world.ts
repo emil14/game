@@ -9,7 +9,11 @@ import { CharacterController } from "../lib/character_controller";
 // --- Components ---
 
 export type TransformComponent = {
-  mesh: AbstractMesh;
+  mesh: AbstractMesh; // The Physics Root (Collider)
+};
+
+export type VisualComponent = {
+  mesh: AbstractMesh; // The Visual Child (Model)
 };
 
 export type PlayerComponent = {
@@ -68,6 +72,7 @@ export type AIComponent = {
 
 export type Entity = {
   transform?: TransformComponent;
+  visual?: VisualComponent;
   player?: PlayerComponent;
   enemy?: EnemyComponent;
   health?: HealthComponent;

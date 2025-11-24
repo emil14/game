@@ -24,6 +24,18 @@ export class EnemyAISystem {
     for (const entity of enemies) {
       if (entity.health.current <= 0) {
           entity.ai.state = "dead";
+          // Clear behaviors if dead
+          entity.yuka.vehicle.steering.clear();
+          entity.yuka.vehicle.velocity.set(0, 0, 0);
+          continue;
+      }
+      
+      // CRITICAL FIX: Do not override 'attack' state. 
+      // CombatSystem manages the 'attack' -> 'chase' transition.
+      if (entity.ai.state === "attack") {
+          // Stop moving while attacking (optional, but good for melee)
+          entity.yuka.vehicle.steering.clear();
+          entity.yuka.vehicle.velocity.set(0, 0, 0);
           continue;
       }
 
@@ -43,18 +55,10 @@ export class EnemyAISystem {
       }
 
       // Apply Behaviors based on State
-      // Note: In a robust system, we'd manage behavior instances per entity or use a BehaviorComponent.
-      // For now, we manipulate the steering list.
-      
       const hasSeek = vehicle.steering.behaviors.some(b => b instanceof YUKA.SeekBehavior);
       const hasWander = vehicle.steering.behaviors.some(b => b instanceof YUKA.WanderBehavior);
 
       if (entity.ai.state === "chase") {
-          // Ideally, we should have a unique SeekBehavior per entity if they target different things,
-          // but here they all target the player.
-          // However, YUKA behaviors are objects. If we reuse the SAME behavior instance for all,
-          // they modify the same target reference. That works for "Player".
-          
           if (!hasSeek) {
              vehicle.steering.clear();
              vehicle.steering.add(this.seekBehavior);
@@ -68,4 +72,3 @@ export class EnemyAISystem {
     }
   }
 }
-

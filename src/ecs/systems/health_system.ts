@@ -2,19 +2,14 @@ import { world } from "../world";
 import { PlayerManager } from "../../player_manager";
 
 export class HealthSystem {
-  constructor(private playerManager: PlayerManager) {}
+  // playerManager kept for potential future hybrid needs, but currently unused
+  constructor(private _playerManager: PlayerManager) {}
 
   public update() {
     // Entities with health + player tag
     const players = world.with("health", "player");
-    for (const entity of players) {
-        // We no longer sync from Manager to ECS.
-        // ECS is the source of truth.
-        
-        // Eventually, death logic should happen here
-        // if (entity.health.current <= 0) {
-        //     // Trigger death event
-        // }
+    for (const _entity of players) {
+        // No-op for now, waiting for pure ECS logic
     }
 
     // Enemies

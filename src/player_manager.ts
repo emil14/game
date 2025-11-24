@@ -118,6 +118,12 @@ export class PlayerManager {
       this.camera,
       PLAYER_CONFIG.SWORD_DAMAGE
     );
+    
+    // Attach to Entity
+    const playerEntity = this.playerEntity;
+    if (playerEntity && playerEntity.player) {
+        playerEntity.player.weapon = this.playerSword;
+    }
   }
 
   public update(deltaTime: number): void {
@@ -137,25 +143,9 @@ export class PlayerManager {
       this.playerIsDead = false;
     }
 
-    // SWORD ATTACK
-    if (
-      this.inputManager.isMouseButtonPressed(0) &&
-      this.playerSword &&
-      !this.playerIsDead &&
-      !this.playerSword.getIsSwinging()
-    ) {
-      this.playerSword.swing(
-        PLAYER_CONFIG.SWORD_ATTACK_DISTANCE,
-        (mesh: AbstractMesh) => {
-          return !!(mesh.metadata && mesh.metadata.entityId);
-        },
-        (targetMesh: AbstractMesh, _instance: any) => {
-          if (targetMesh.metadata && targetMesh.metadata.entityId) {
-              this.dealDamageToEntity(targetMesh.metadata.entityId, this.playerSword.attackDamage);
-          }
-        }
-      );
-    }
+    // SWORD ATTACK - MOVED TO COMBAT SYSTEM
+    // Input is captured by InputSystem, CombatSystem reads it and executes swing.
+    // Visuals are handled by the Weapon class itself (triggered by CombatSystem).
 
     // CROUCH INTENT (Visual Sync)
     const crouchKeyCurrentlyPressed = this.inputManager.isKeyPressed(KEY_MAPPINGS.CROUCH);
@@ -194,25 +184,7 @@ export class PlayerManager {
     }
   }
 
-  private dealDamageToEntity(entityId: string, damage: number) {
-      const enemies = world.with("health", "enemy", "transform");
-      let target = null;
-      for (const e of enemies) {
-          if (e.transform.mesh.metadata?.entityId === entityId) {
-              target = e;
-              break;
-          }
-      }
-
-      if (target && target.health.current > 0) {
-          target.health.current -= damage;
-          console.log(`Hit enemy ${entityId}. HP: ${target.health.current}`);
-          
-          if (target.health.current <= 0) {
-              target.health.current = 0;
-          }
-      }
-  }
+  // dealDamageToEntity moved to CombatSystem
 
   public takeDamage(amount: number): void {
     if (this.godmode) return;

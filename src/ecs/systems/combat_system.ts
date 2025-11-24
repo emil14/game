@@ -18,10 +18,31 @@ type PlayerEntity = typeof world.entities[number] & {
 export class CombatSystem {
   public update(deltaTime: number) {
     const enemies = world.with("enemy", "combat", "ai", "transform");
-    const player = world.with("player", "transform", "health").first;
+    const player = world.with("player", "transform", "health", "input").first;
 
     if (!player) return;
+    
+    // --- PLAYER ATTACK LOGIC ---
+    if (player.input.isAttacking && player.player.weapon) {
+        const weapon = player.player.weapon;
+        
+        if (!weapon.getIsSwinging()) { 
+            // Ideally we get range from weapon or stats
+            const range = 3.0; 
+            
+            weapon.swing(
+                range, 
+                (mesh: AbstractMesh) => !!(mesh.metadata && mesh.metadata.entityId),
+                (targetMesh: AbstractMesh) => {
+                     if (targetMesh.metadata?.entityId) {
+                         this.dealDamage(targetMesh.metadata.entityId, weapon.attackDamage);
+                     }
+                }
+            );
+        }
+    }
 
+    // --- ENEMY ATTACK LOGIC ---
     for (const entity of enemies) {
         if (entity.ai.state === "dead") continue;
 
@@ -46,6 +67,22 @@ export class CombatSystem {
     }
   }
 
+  private dealDamage(targetId: string, amount: number) {
+      // Find ECS entity by ID
+      // Slow linear search again. Ideally we'd have an ID map.
+      const targets = world.with("health", "transform"); // Could be enemy OR player technically
+      
+      for (const t of targets) {
+          if (t.transform.mesh.metadata?.entityId === targetId) {
+             t.health.current -= amount;
+             console.log(`Damage dealt to ${targetId}: ${amount}. Remaining: ${t.health.current}`);
+             
+             // HealthSystem handles death logic
+             return;
+          }
+      }
+  }
+
   private performAttack(enemy: EnemyEntity, player: PlayerEntity) {
       // 1. Trigger Animation State
       enemy.ai.state = "attack";
@@ -67,7 +104,7 @@ export class CombatSystem {
 
           if (dist <= enemy.combat.range + 1.0) { // Slight buffer
              player.health.current -= enemy.combat.damage;
-             if (player.health.current < 0) player.health.current = 0;
+             // HealthSystem handles clamping
           }
           
           // Reset state after attack finishes

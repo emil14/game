@@ -16,10 +16,13 @@ export type VisualComponent = {
   mesh: AbstractMesh; // The Visual Child (Model)
 };
 
+import { IWeapon } from "../weapons/iweapon";
+
 export type PlayerComponent = {
   id: string;
   controller?: CharacterController;
   camera?: Camera;
+  weapon?: IWeapon;
 };
 
 export type EnemyComponent = {

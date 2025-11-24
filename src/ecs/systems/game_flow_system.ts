@@ -16,7 +16,7 @@ export class GameFlowSystem {
 
     // 1. Check for Aggro
     let isAnyEnemyAggro = false;
-    const aggroEnemies = world.with("enemy").where(e => e.enemy.isAggro);
+    const aggroEnemies = world.with("enemy", "ai").where(e => e.ai.state === "chase" || e.ai.state === "attack");
     for (const _e of aggroEnemies) {
         isAnyEnemyAggro = true;
         break;

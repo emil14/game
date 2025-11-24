@@ -6,6 +6,7 @@ import { UniversalCamera } from "@babylonjs/core/Cameras/universalCamera";
 import { world } from "../world";
 import { PhysicsRegistry } from "../physics_registry";
 import { PLAYER_CONFIG } from "../../config";
+import { SwordFactory } from "../../weapons/sword";
 
 export class PlayerAssembler {
   constructor(private scene: Scene, private camera: UniversalCamera) {}
@@ -25,9 +26,7 @@ export class PlayerAssembler {
     );
     playerBodyMesh.position = playerStartPos.clone();
     playerBodyMesh.position.y = playerStartPos.y + PLAYER_CONFIG.PLAYER_HEIGHT / 2;
-    playerBodyMesh.isVisible = false; // Usually hidden, debug mode handles visibility elsewhere or we can toggle
-    // Note: Original code had isVisible = isDebugModeEnabled. 
-    // We'll leave it invisible by default or handle via debug system later.
+    playerBodyMesh.isVisible = false;
     
     playerBodyMesh.checkCollisions = true;
     playerBodyMesh.ellipsoid = new Vector3(
@@ -60,7 +59,11 @@ export class PlayerAssembler {
         inertia: new Vector3(0, 0, 0) // Lock rotation
     });
 
-    // 4. Create Entity
+    // 4. Weapon
+    await SwordFactory.loadAssets(this.scene);
+    const swordData = SwordFactory.create(this.scene, this.camera);
+
+    // 5. Create Entity
     const playerEntity = world.add({
       transform: { mesh: playerBodyMesh },
       physics: { aggregate: playerAggregate },
@@ -74,6 +77,15 @@ export class PlayerAssembler {
         isCrouching: false,
         isSprinting: false,
         isAttacking: false
+      },
+      weapon: {
+        mesh: swordData.mesh,
+        damage: PLAYER_CONFIG.SWORD_DAMAGE || 15,
+        range: 3.0,
+        cooldown: 0.5,
+        lastAttackTime: 0,
+        state: "idle",
+        swingAnimation: swordData.animation
       },
       sensor: {
           checkRange: 50.0,

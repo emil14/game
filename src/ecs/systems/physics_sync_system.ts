@@ -1,6 +1,5 @@
 import { world } from "../world";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
-import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { Space } from "@babylonjs/core/Maths/math.axis";
 
 export class PhysicsSyncSystem {
@@ -63,6 +62,9 @@ export class PhysicsSyncSystem {
         // --- POSITION SYNC (PHYSICS -> YUKA) ---
         // Havok is the source of truth for position (collisions, gravity)
         // Yuka needs to know where we are to plan the NEXT frame.
+        // We use the Mesh position which is updated by the Physics Engine (Pre-Step)
+        // or we could use body.getObjectCenterWorld() if we want the raw physics step result.
+        // For now, using the mesh position is reliable in Babylon.
         const physicsPos = entity.transform.mesh.getAbsolutePosition();
         vehicle.position.set(physicsPos.x, physicsPos.y, physicsPos.z);
     }

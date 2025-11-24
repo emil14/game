@@ -3,6 +3,7 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { Ray } from "@babylonjs/core/Culling/ray";
 import { PhysicsRegistry } from "../physics_registry";
+import { Animation } from "@babylonjs/core/Animations/animation";
 
 // Helper type for an entity with specific components
 type EnemyEntity = typeof world.entities[number] & {
@@ -20,35 +21,54 @@ type PlayerEntity = typeof world.entities[number] & {
 export class CombatSystem {
   public update(deltaTime: number) {
     const enemies = world.with("enemy", "combat", "ai", "transform");
-    const player = world.with("player", "transform", "health", "input").first;
+    const player = world.with("player", "transform", "health", "input", "weapon").first;
 
     // Zero Tolerance: We expect player to always be present in a running game.
-    // If not, we let it throw or simple skip (but given the directive, let's assume it exists if we are in 'playing' state)
-    // However, Miniplex returns undefined if no entity matches.
     if (!player) return; 
     
     // Death Check: If player is dead, no attacks allowed (player or enemy on player)
     const isPlayerDead = player.health.current <= 0;
 
     // --- PLAYER ATTACK LOGIC ---
-    if (!isPlayerDead && player.input.isAttacking && player.player.weapon) {
-        const weapon = player.player.weapon;
+    if (!isPlayerDead && player.input.isAttacking) {
+        const weapon = player.weapon;
         
-        if (!weapon.getIsSwinging()) { 
-            const range = 3.0; 
+        // Check cooldown and state
+        if (weapon.state === "idle" && (Date.now() - weapon.lastAttackTime > weapon.cooldown * 1000)) { 
             const damageDelaySeconds = 0.15; // 150ms synced
+            
+            // 1. Set State
+            weapon.state = "swinging";
+            weapon.lastAttackTime = Date.now();
 
-            // 1. Trigger Visuals
-            weapon.swing(range, () => false, () => {}); 
+            // 2. Trigger Visuals (Animation)
+            const scene = player.transform.mesh.getScene();
+            if (weapon.swingAnimation && weapon.mesh) {
+                 scene.beginDirectAnimation(
+                    weapon.mesh,
+                    [weapon.swingAnimation],
+                    0,
+                    15, // End frame (hardcoded based on SwordFactory)
+                    false,
+                    1.0,
+                    () => {
+                        // Animation ended callback
+                        weapon.state = "idle";
+                    }
+                );
+            } else {
+                 // Fallback if no animation: reset state after delay
+                 setTimeout(() => { weapon.state = "idle"; }, 300);
+            }
 
-            // 2. Schedule Damage Logic via ECS Timer
+            // 3. Schedule Damage Logic via ECS Timer
             world.add({
                 timer: {
                     timeRemaining: damageDelaySeconds,
                     duration: damageDelaySeconds,
                     label: "player_attack_delay",
                     onComplete: () => {
-                        this.performPlayerAttackRaycast(player, range, weapon.attackDamage);
+                        this.performPlayerAttackRaycast(player, weapon.range, weapon.damage);
                     }
                 }
             });
@@ -61,7 +81,6 @@ export class CombatSystem {
         
         // If player is dead, enemies stop aggro/attack
         if (isPlayerDead) {
-            entity.enemy.isAggro = false;
             entity.ai.state = "idle"; // Or victory?
             continue;
         }
@@ -70,18 +89,22 @@ export class CombatSystem {
         entity.combat.lastAttackTime += deltaTime;
 
         // Attack Logic
-        if (entity.enemy.isAggro) {
-            const playerPos = player.transform.mesh.getAbsolutePosition();
-            const enemyPos = entity.transform.mesh.getAbsolutePosition();
-            
-            // Simple distance check (ignoring height for now)
-            const dist = Vector3.Distance(playerPos, enemyPos);
+        if (entity.ai.state === "chase" || entity.ai.state === "attack") {
+             // Logic handled below, we check range
+        }
+        
+        // We use ai.state as the source of truth for "Aggro" now
+        // But we still need to check distance to decide to attack vs chase.
+        
+        const playerPos = player.transform.mesh.getAbsolutePosition();
+        const enemyPos = entity.transform.mesh.getAbsolutePosition();
+        
+        const dist = Vector3.Distance(playerPos, enemyPos);
 
-            if (dist <= entity.combat.range) {
-                // Check Cooldown
-                if (entity.combat.lastAttackTime >= entity.combat.cooldown) {
-                    this.performAttack(entity as EnemyEntity, player as PlayerEntity);
-                }
+        if (dist <= entity.combat.range) {
+            // Check Cooldown
+            if (entity.combat.lastAttackTime >= entity.combat.cooldown) {
+                this.performAttack(entity as EnemyEntity, player as PlayerEntity);
             }
         }
     }
@@ -95,8 +118,6 @@ export class CombatSystem {
       const forwardDirection = camera.getDirection(Vector3.Forward());
       const ray = new Ray(rayOrigin, forwardDirection, range);
 
-      // We need scene access. Ideally passed in constructor, 
-      // but for now accessing via mesh.getScene() is safe enough.
       const scene = player.transform.mesh.getScene();
 
       const pickInfo = scene.pickWithRay(ray, (mesh) => {

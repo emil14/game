@@ -3,6 +3,7 @@ import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { Camera } from "@babylonjs/core/Cameras/camera";
 import { PhysicsAggregate } from "@babylonjs/core/Physics";
 import { AnimationGroup } from "@babylonjs/core/Animations/animationGroup";
+import { Animation } from "@babylonjs/core/Animations/animation";
 import * as YUKA from "yuka";
 // CharacterController import removed
 
@@ -17,17 +18,23 @@ export type VisualComponent = {
   rotationOffset?: Vector3; // Euler angles to offset rotation (e.g. for glb models facing -Z)
 };
 
-import { IWeapon } from "../weapons/iweapon";
+export type WeaponComponent = {
+  mesh: AbstractMesh;
+  damage: number;
+  range: number;
+  cooldown: number;
+  lastAttackTime: number;
+  state: "idle" | "swinging";
+  swingAnimation?: Animation;
+};
 
 export type PlayerComponent = {
   id: string;
   camera?: Camera;
-  weapon?: IWeapon;
 };
 
 export type EnemyComponent = {
   type: string;
-  isAggro: boolean;
 };
 
 export type HealthComponent = {
@@ -92,6 +99,11 @@ export type WorldStateComponent = {
   isInFightMode: boolean;
 };
 
+export type SensorComponent = {
+  checkRange: number;
+  hitDistance: number;
+};
+
 // --- Entity Definition ---
 
 export type Entity = {
@@ -100,7 +112,8 @@ export type Entity = {
   transform?: TransformComponent;
   visual?: VisualComponent;
   player?: PlayerComponent;
-  input?: InputComponent; // <--- New Component
+  weapon?: WeaponComponent; // <--- Replaced IWeapon
+  input?: InputComponent;
   enemy?: EnemyComponent;
   health?: HealthComponent;
   stamina?: StaminaComponent;
@@ -109,6 +122,7 @@ export type Entity = {
   ai?: AIComponent;
   yuka?: YukaComponent;
   animations?: AnimationComponent;
+  sensor?: SensorComponent; // <--- Added missing component
 };
 
 // --- World ---

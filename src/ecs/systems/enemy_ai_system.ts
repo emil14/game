@@ -48,10 +48,8 @@ export class EnemyAISystem {
       // Determine State
       if (distToPlayer < AGGRO_RADIUS) {
           entity.ai.state = "chase";
-          entity.enemy.isAggro = true;
       } else {
           entity.ai.state = "idle"; // or wander
-          entity.enemy.isAggro = false;
       }
 
       // Apply Behaviors based on State

@@ -183,7 +183,7 @@ export class SpiderAssembler {
     };
 
     const entity = world.add({
-      enemy: { type: "spider", isAggro: false },
+      enemy: { type: "spider" },
       transform: { mesh: colliderMesh }, 
       visual: { 
           mesh: visualMesh, 

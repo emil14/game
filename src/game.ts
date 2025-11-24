@@ -278,7 +278,13 @@ export class Game {
     );
 
     // Create Player Entity in ECS
-    world.add({
+    // Note: We MUST create the entity after initializing controller, 
+    // AND we must attach the controller to the entity immediately 
+    // because PlayerManager.initializeCharacterController tries to attach it 
+    // BUT the entity doesn't exist yet inside that method call.
+    // So we manually attach it here to be safe.
+    
+    const playerEntity = world.add({
       transform: { mesh: playerBodyMeshInstance },
       health: { 
         current: this.config.PLAYER_CONFIG.MAX_HEALTH, 
@@ -297,7 +303,11 @@ export class Game {
         regenRate: this.config.PLAYER_CONFIG.STAMINA_REGENERATION_RATE,
         depletionRate: this.config.PLAYER_CONFIG.STAMINA_DEPLETION_RATE
       },
-      player: { id: "p1", camera: this.playerManager.camera } // Pass camera to ECS for InteractionSystem
+      player: { 
+          id: "p1", 
+          camera: this.playerManager.camera,
+          controller: this.playerManager.characterController // Explicitly attach here
+      } 
     });
   }
 

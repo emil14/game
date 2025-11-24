@@ -20,14 +20,6 @@ import { HUDManager } from "./hud_manager";
 import { Sword } from "./weapons/sword";
 import { world } from "./ecs/world";
 import { Sprite } from "@babylonjs/core/Sprites";
-// We need to import SpriteManager but it was static on Spider. 
-// We should probably move BloodEffect logic to a system or a singleton helper.
-// For now, let's assume we can't access Spider.bloodSplatManager directly easily if Spider is gone.
-// But we can create a new one or access the global one if we exposed it.
-// To save time, I will re-implement a simple blood effect helper here or just skip visual splat for now 
-// and focus on logic. But user wants "hit animation". 
-// The Spider entity has 'animations', we need to play hit reaction? 
-// Or just blood? "spider is immortal" implies health not going down.
 
 export class PlayerManager {
   public camera: UniversalCamera;
@@ -47,12 +39,8 @@ export class PlayerManager {
   public playerBodyMesh!: Mesh;
   private characterController!: CharacterController;
 
-  private isMovingForward: boolean = false;
-  private isMovingBackward: boolean = false;
-  private isMovingLeft: boolean = false;
-  private isMovingRight: boolean = false;
-  private isSprinting: boolean = false;
-  private jumpKeyPressedLastFrame: boolean = false;
+  // Input flags removed from class state as they are now ECS-driven or local to Update
+  // Kept some for internal camera logic if needed
 
   public godmode: boolean = false;
 
@@ -116,6 +104,12 @@ export class PlayerManager {
     this.characterController.setJumpSpeed(PLAYER_CONFIG.JUMP_FORCE); 
     this.characterController.setWalkSpeed(PLAYER_CONFIG.DEFAULT_SPEED);
     this.characterController.setRunSpeed(PLAYER_CONFIG.DEFAULT_SPEED * PLAYER_CONFIG.RUN_SPEED_MULTIPLIER);
+
+    // Attach Controller to Entity for ECS Systems
+    const playerEntity = this.playerEntity;
+    if (playerEntity && playerEntity.player) {
+        playerEntity.player.controller = this.characterController;
+    }
   }
 
   public async initializeSword() {
@@ -153,11 +147,9 @@ export class PlayerManager {
       this.playerSword.swing(
         PLAYER_CONFIG.SWORD_ATTACK_DISTANCE,
         (mesh: AbstractMesh) => {
-          // Target validation: Must have entityId in metadata
           return !!(mesh.metadata && mesh.metadata.entityId);
         },
-        (targetMesh: AbstractMesh, _instance: any) => { // instance is useless now
-          // DAMAGE LOGIC
+        (targetMesh: AbstractMesh, _instance: any) => {
           if (targetMesh.metadata && targetMesh.metadata.entityId) {
               this.dealDamageToEntity(targetMesh.metadata.entityId, this.playerSword.attackDamage);
           }
@@ -165,24 +157,16 @@ export class PlayerManager {
       );
     }
 
-    // MOVEMENT INPUTS
-    this.isMovingForward = this.inputManager.isKeyPressed(KEY_MAPPINGS.FORWARD);
-    this.isMovingBackward = this.inputManager.isKeyPressed(KEY_MAPPINGS.BACKWARD);
-    this.isMovingLeft = this.inputManager.isKeyPressed(KEY_MAPPINGS.LEFT);
-    this.isMovingRight = this.inputManager.isKeyPressed(KEY_MAPPINGS.RIGHT);
-
-    const shiftPressed = this.inputManager.isKeyCodePressed("ShiftLeft");
-    if (shiftPressed && player.stamina.current > 0 && !this.playerIsDead) {
-      this.isSprinting = true;
-    } else {
-      this.isSprinting = false;
-    }
-
+    // CROUCH INTENT (Visual Sync)
     const crouchKeyCurrentlyPressed = this.inputManager.isKeyPressed(KEY_MAPPINGS.CROUCH);
     if (crouchKeyCurrentlyPressed && !this.crouchKeyPressedLastFrame && !this.playerIsDead) {
       this.isCrouching = !this.isCrouching;
     }
     this.crouchKeyPressedLastFrame = crouchKeyCurrentlyPressed;
+
+    if (player.input) {
+        this.isCrouching = player.input.isCrouching;
+    }
 
     // Camera Crouch Lerp
     const crouchLerpSpeed = 10;
@@ -192,69 +176,25 @@ export class PlayerManager {
     const targetLocalCameraY = this.isCrouching ? crouchEyePositionRelToParent : standEyePositionRelToParent;
     this.camera.position.y += (targetLocalCameraY - this.camera.position.y) * Math.min(1, crouchLerpSpeed * deltaTime);
 
-    // Physics Movement
-    if (!this.playerIsDead && this.characterController) {
-      this.characterController.walk(this.isMovingForward);
-      this.characterController.walkBack(this.isMovingBackward);
-      this.characterController.strafeLeft(this.isMovingLeft);
-      this.characterController.strafeRight(this.isMovingRight);
-      
-      if (this.isCrouching) {
-          this.characterController.setWalkSpeed(PLAYER_CONFIG.DEFAULT_SPEED * PLAYER_CONFIG.CROUCH_SPEED_MULTIPLIER);
-      } else {
-          this.characterController.setWalkSpeed(PLAYER_CONFIG.DEFAULT_SPEED);
-      }
-      this.characterController.run(this.isSprinting);
-
-      const jumpKeyCurrentlyPressed = this.inputManager.isKeyPressed(KEY_MAPPINGS.JUMP);
-      if (jumpKeyCurrentlyPressed && !this.jumpKeyPressedLastFrame) {
-        if (player.stamina.current >= PLAYER_CONFIG.JUMP_STAMINA_COST) {
-             this.characterController.jump();
-             this.depleteStamina(PLAYER_CONFIG.JUMP_STAMINA_COST);
-        }
-      }
-      this.jumpKeyPressedLastFrame = jumpKeyCurrentlyPressed;
-
-      if (this.isSprinting && (this.isMovingForward || this.isMovingBackward || this.isMovingLeft || this.isMovingRight)) {
-        if (player.stamina.current > 0) {
-          this.depleteStamina(PLAYER_CONFIG.STAMINA_DEPLETION_RATE * deltaTime);
-        }
-        if (player.stamina.current <= 0) {
-          player.stamina.current = 0;
-          this.isSprinting = false;
-          this.characterController.run(false);
-        }
-      } else {
-        if (player.stamina.current < player.stamina.max) {
-          let currentRegenRate = PLAYER_CONFIG.STAMINA_REGENERATION_RATE;
-          if (!this.isSprinting && (this.isMovingForward || this.isMovingBackward || this.isMovingLeft || this.isMovingRight)) {
-            currentRegenRate = 0;
-          }
-          if (currentRegenRate > 0) {
-            this.regenerateStamina(currentRegenRate * deltaTime);
-          }
-        }
-      }
-
-    } else if (this.playerIsDead && this.characterController) {
+    // Stop physics if dead
+    if (this.playerIsDead && this.characterController) {
       this.characterController.stop(); 
     }
 
+    // Health Regen (Logic ideally moves to HealthSystem but keeping regen here for now or duplicate safe)
+    // Actually, let's trust HealthSystem isn't doing regen yet, so we keep this?
+    // The HealthSystem only clamps. So regen logic here is "fine" for now, or move to HealthSystem later.
     if (!this.playerIsDead && player.stamina.current >= player.stamina.max && player.health.current < player.health.max) {
       player.health.current += PLAYER_CONFIG.HEALTH_REGENERATION_RATE * deltaTime;
-      // Clamping handled by HealthSystem now
     }
 
     // DEATH CHECK
-    // React to the state of the component, which is managed by HealthSystem
     if (player.health.current <= 0 && !this.playerIsDead) {
       this.setDead();
     }
   }
 
   private dealDamageToEntity(entityId: string, damage: number) {
-      // Find ECS entity by ID
-      // Slow linear search again. Ideally we'd have an ID map.
       const enemies = world.with("health", "enemy", "transform");
       let target = null;
       for (const e of enemies) {
@@ -268,27 +208,19 @@ export class PlayerManager {
           target.health.current -= damage;
           console.log(`Hit enemy ${entityId}. HP: ${target.health.current}`);
           
-          // Trigger Hit Reaction / Blood
-          // This used to be in Spider.ts. 
-          // For now just log it, user reported "immortal".
-          
           if (target.health.current <= 0) {
               target.health.current = 0;
-              // The AnimationSystem or HealthSystem should handle the death anim transition
           }
       }
   }
 
   public takeDamage(amount: number): void {
-    if (this.godmode) {
-      return;
-    }
+    if (this.godmode) return;
     if (this.playerIsDead) return;
     
     const player = this.playerEntity;
     if (player) {
         player.health.current -= amount;
-        // Clamping handled by HealthSystem
     }
 
     this.hudManager.showBloodScreenEffect();
@@ -305,7 +237,6 @@ export class PlayerManager {
   }
 
   public isPlayerOnGround(): boolean {
-    // ... existing ground check ...
     const rayOrigin = this.playerBodyMesh.getAbsolutePosition().clone();
     rayOrigin.y -= PLAYER_CONFIG.PLAYER_HEIGHT / 2;
     const rayLength = PHYSICS_CONFIG.GROUND_CHECK_DISTANCE + 0.1;

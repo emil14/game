@@ -8,6 +8,7 @@ import { AnimationSystem } from "./systems/animation_system";
 import { CombatSystem } from "./systems/combat_system";
 import { InteractionSystem, TargetEvent } from "./systems/interaction_system";
 import { InputSystem } from "./systems/input_system";
+import { PlayerControlSystem } from "./systems/player_control_system";
 
 export class GameSystems {
     private healthSystem: HealthSystem;
@@ -17,6 +18,7 @@ export class GameSystems {
     private combatSystem: CombatSystem;
     private interactionSystem: InteractionSystem;
     private inputSystem: InputSystem;
+    private playerControlSystem: PlayerControlSystem;
 
     constructor(scene: Scene, playerManager: PlayerManager, hudManager: HUDManager) {
         this.healthSystem = new HealthSystem();
@@ -24,7 +26,8 @@ export class GameSystems {
         this.physicsSyncSystem = new PhysicsSyncSystem();
         this.animationSystem = new AnimationSystem();
         this.combatSystem = new CombatSystem();
-        this.inputSystem = new InputSystem(playerManager.inputManager, playerManager.camera); // Injecting dependencies
+        this.inputSystem = new InputSystem(playerManager.inputManager, playerManager.camera); 
+        this.playerControlSystem = new PlayerControlSystem(playerManager);
         
         // Wire Interaction -> HUD
         this.interactionSystem = new InteractionSystem(scene, (event: TargetEvent) => {
@@ -57,6 +60,7 @@ export class GameSystems {
     
     public update(dt: number, isDebugMode: boolean) {
         this.inputSystem.update();
+        this.playerControlSystem.update(dt);
         this.healthSystem.update();
         this.enemyAISystem.update();
         this.combatSystem.update(dt);

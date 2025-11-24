@@ -25,6 +25,8 @@ export class CharacterController {
   private _isStrafingLeft: boolean = false;
   private _isStrafingRight: boolean = false;
   private _isRunning: boolean = false;
+  
+  private moveDirection: Vector3 = Vector3.Zero(); // New Vector Input
 
   constructor(mesh: AbstractMesh, camera: Camera, scene: Scene) {
     this.mesh = mesh;
@@ -92,10 +94,17 @@ export class CharacterController {
       return pick?.hit || false;
   }
 
+  public setMoveDirection(direction: Vector3) {
+      this.moveDirection.copyFrom(direction);
+  }
+
   private update() {
     const dt = this.scene.getEngine().getDeltaTime() / 1000;
 
     // 1. Calculate input velocity
+    let moveDir = this.moveDirection.clone(); // Use the vector from ECS directly
+    
+    // Legacy support (OR logic)
     const cameraForward = this.camera.getDirection(Vector3.Forward());
     const cameraRight = this.camera.getDirection(Vector3.Right());
     cameraForward.y = 0;
@@ -103,8 +112,7 @@ export class CharacterController {
     cameraForward.normalize();
     cameraRight.normalize();
 
-    let moveDir = Vector3.Zero();
-
+    // If legacy flags are set, they override/add to the vector (for now)
     if (this._isWalking) moveDir.addInPlace(cameraForward);
     if (this._isWalkingBack) moveDir.subtractInPlace(cameraForward);
     if (this._isStrafingRight) moveDir.addInPlace(cameraRight);

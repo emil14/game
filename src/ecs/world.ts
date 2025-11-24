@@ -68,12 +68,23 @@ export type AIComponent = {
   target?: AbstractMesh;
 };
 
+import { Vector3 } from "@babylonjs/core/Maths/math.vector";
+
+export type InputComponent = {
+  moveDir: Vector3; // The desired movement direction (world space)
+  isJumping: boolean;
+  isCrouching: boolean;
+  isSprinting: boolean;
+  isAttacking: boolean;
+};
+
 // --- Entity Definition ---
 
 export type Entity = {
   transform?: TransformComponent;
   visual?: VisualComponent;
   player?: PlayerComponent;
+  input?: InputComponent; // <--- New Component
   enemy?: EnemyComponent;
   health?: HealthComponent;
   stamina?: StaminaComponent;

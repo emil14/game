@@ -22,6 +22,7 @@ import { GameSystems } from "./ecs/game_systems";
 import { world } from "./ecs/world";
 import { AIManager } from "./ai/ai_manager";
 import { EntityFactory } from "./ecs/entity_factory";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector"; // Added import
 
 export class Game {
   public readonly engine: Engine;
@@ -282,6 +283,13 @@ export class Game {
       health: { 
         current: this.config.PLAYER_CONFIG.MAX_HEALTH, 
         max: this.config.PLAYER_CONFIG.MAX_HEALTH 
+      },
+      input: {
+        moveDir: new Vector3(0, 0, 0),
+        isJumping: false,
+        isCrouching: false,
+        isSprinting: false,
+        isAttacking: false
       },
       stamina: {
         current: this.config.PLAYER_CONFIG.MAX_STAMINA,

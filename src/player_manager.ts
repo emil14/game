@@ -242,12 +242,11 @@ export class PlayerManager {
 
     if (!this.playerIsDead && player.stamina.current >= player.stamina.max && player.health.current < player.health.max) {
       player.health.current += PLAYER_CONFIG.HEALTH_REGENERATION_RATE * deltaTime;
-      if (player.health.current > player.health.max) {
-        player.health.current = player.health.max;
-      }
+      // Clamping handled by HealthSystem now
     }
 
     // DEATH CHECK
+    // React to the state of the component, which is managed by HealthSystem
     if (player.health.current <= 0 && !this.playerIsDead) {
       this.setDead();
     }
@@ -289,9 +288,7 @@ export class PlayerManager {
     const player = this.playerEntity;
     if (player) {
         player.health.current -= amount;
-        if (player.health.current < 0) player.health.current = 0;
-        // Ensure death check happens immediately or next update
-        if (player.health.current <= 0) this.setDead();
+        // Clamping handled by HealthSystem
     }
 
     this.hudManager.showBloodScreenEffect();

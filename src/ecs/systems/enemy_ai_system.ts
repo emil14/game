@@ -3,37 +3,28 @@ import * as YUKA from "yuka";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 
 export class EnemyAISystem {
-  private seekBehavior: YUKA.SeekBehavior;
-  private wanderBehavior: YUKA.WanderBehavior;
-
-  constructor() {
-    this.seekBehavior = new YUKA.SeekBehavior(new YUKA.Vector3());
-    this.wanderBehavior = new YUKA.WanderBehavior();
-  }
+  
+  constructor() {}
 
   public update() {
     const playerEntity = world.with("player", "transform").first;
     if (!playerEntity) return;
 
     const playerPos = playerEntity.transform.mesh.getAbsolutePosition();
-    // Update the shared seek target
-    this.seekBehavior.target.set(playerPos.x, playerPos.y, playerPos.z);
+    const AGGRO_RADIUS = 20;
 
     const enemies = world.with("enemy", "yuka", "ai", "transform", "health");
 
     for (const entity of enemies) {
       if (entity.health.current <= 0) {
           entity.ai.state = "dead";
-          // Clear behaviors if dead
           entity.yuka.vehicle.steering.clear();
           entity.yuka.vehicle.velocity.set(0, 0, 0);
           continue;
       }
       
-      // CRITICAL FIX: Do not override 'attack' state. 
       // CombatSystem manages the 'attack' -> 'chase' transition.
       if (entity.ai.state === "attack") {
-          // Stop moving while attacking (optional, but good for melee)
           entity.yuka.vehicle.steering.clear();
           entity.yuka.vehicle.velocity.set(0, 0, 0);
           continue;
@@ -41,30 +32,36 @@ export class EnemyAISystem {
 
       const enemyPos = entity.transform.mesh.getAbsolutePosition();
       const distToPlayer = Vector3.Distance(playerPos, enemyPos);
-      const AGGRO_RADIUS = 20;
 
-      const vehicle = entity.yuka.vehicle;
-      
       // Determine State
       if (distToPlayer < AGGRO_RADIUS) {
           entity.ai.state = "chase";
       } else {
-          entity.ai.state = "idle"; // or wander
+          entity.ai.state = "idle"; 
       }
 
-      // Apply Behaviors based on State
-      const hasSeek = vehicle.steering.behaviors.some(b => b instanceof YUKA.SeekBehavior);
-      const hasWander = vehicle.steering.behaviors.some(b => b instanceof YUKA.WanderBehavior);
+      // Check for behaviors
+      if (!entity.yuka.behaviors) {
+          // Should have been initialized by assembler, but safe fallback or log warning
+          continue;
+      }
 
+      const { seek, wander } = entity.yuka.behaviors;
+      const vehicle = entity.yuka.vehicle;
+
+      // Update Targets
       if (entity.ai.state === "chase") {
-          if (!hasSeek) {
-             vehicle.steering.clear();
-             vehicle.steering.add(this.seekBehavior);
+          // Update this specific entity's seek target
+          seek.target.set(playerPos.x, playerPos.y, playerPos.z);
+          
+          if (!vehicle.steering.behaviors.includes(seek)) {
+              vehicle.steering.clear();
+              vehicle.steering.add(seek);
           }
       } else {
-          if (!hasWander) {
+          if (!vehicle.steering.behaviors.includes(wander)) {
               vehicle.steering.clear();
-              vehicle.steering.add(this.wanderBehavior);
+              vehicle.steering.add(wander);
           }
       }
     }

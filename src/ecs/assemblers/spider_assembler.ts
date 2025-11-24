@@ -171,7 +171,13 @@ export class SpiderAssembler {
     vehicle.position.set(colliderMesh.position.x, colliderMesh.position.y, colliderMesh.position.z);
     
     const wanderBehavior = new YUKA.WanderBehavior();
+    const seekBehavior = new YUKA.SeekBehavior(new YUKA.Vector3());
+    
+    // Default to Wander
     vehicle.steering.add(wanderBehavior);
+    // Seek is added but effectively disabled by not being in steering or handled by system
+    // But here we'll just keep instances ready and let System manage the steering list
+    
     this.entityManager.add(vehicle);
 
     // 5. ECS Entity Assembly
@@ -198,7 +204,13 @@ export class SpiderAssembler {
           attackDuration: SpiderAssembler.templateAttackAnimDuration 
       },
       physics: { aggregate: physicsAggregate },
-      yuka: { vehicle: vehicle },
+      yuka: { 
+        vehicle: vehicle,
+        behaviors: {
+          seek: seekBehavior,
+          wander: wanderBehavior
+        }
+      },
       animations: {
           idle: idleAnimation,
           walk: walkAnimation,

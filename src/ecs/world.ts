@@ -63,6 +63,10 @@ export type PhysicsAggregateComponent = {
 
 export type YukaComponent = {
   vehicle: YUKA.Vehicle;
+  behaviors?: {
+    seek: YUKA.SeekBehavior;
+    wander: YUKA.WanderBehavior;
+  };
 };
 
 export type AnimationComponent = {

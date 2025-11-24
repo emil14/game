@@ -81,8 +81,16 @@ export class Game {
 
     this.assetManager = new AssetManager(this.scene);
     this.eventSystem = new EventSystem();
-    this.gameSystems = new GameSystems(this.scene, this.inputManager, this.hudManager);
+    
+    // Reordered: Initialize AIManager FIRST, then pass to GameSystems
     this.aiManager = new AIManager();
+    this.gameSystems = new GameSystems(
+      this.scene, 
+      this.inputManager, 
+      this.hudManager,
+      this.aiManager
+    );
+
     this.entityFactory = new EntityFactory(
       this.scene, 
       this.aiManager.getEntityManager(),
@@ -120,16 +128,15 @@ export class Game {
   public update(): void {
     this._deltaTime = this.engine.getDeltaTime() / 1000;
     
-    // 1. Independent Managers (Time, Sky, AI Decisions)
+    // 1. Independent Managers (Time, Sky)
     this.skyManager.update(this._deltaTime);
-    this.aiManager.update(); // Update Yuka first so it sets Desired Velocity
+    // aiManager.update() is now handled within GameSystems for proper orchestration
 
     // 2. Logic Systems (ECS)
-    // Runs: Timers -> Input -> Player Control -> AI Steering -> Combat -> Physics Sync -> Animation -> Camera -> Game Flow -> HUD -> Interaction
+    // Runs: Timers -> Input -> Player Control -> AI (Plan/Steer/Sync) -> Combat -> Animation -> Camera -> Game Flow -> HUD -> Interaction
     this.gameSystems.update(this._deltaTime, this.isDebugModeEnabled);
 
     // 3. Visual / Legacy Managers
-    // Camera moved to ECS
   }
 
   public async start(): Promise<void> {

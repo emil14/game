@@ -13,6 +13,8 @@ import { TimerSystem } from "./systems/timer_system";
 import { PlayerStateSystem } from "./systems/player_state_system";
 import { SensorSystem } from "./systems/sensor_system";
 import { CameraSystem } from "./systems/camera_system";
+import { GameFlowSystem } from "./systems/game_flow_system";
+import { HUDSystem } from "./systems/hud_system";
 
 import { InputManager } from "../input_manager";
 
@@ -29,6 +31,8 @@ export class GameSystems {
     private playerStateSystem: PlayerStateSystem;
     private sensorSystem: SensorSystem;
     private cameraSystem: CameraSystem;
+    private gameFlowSystem: GameFlowSystem;
+    private hudSystem: HUDSystem;
 
     constructor(scene: Scene, inputManager: InputManager, hudManager: HUDManager) {
         this.healthSystem = new HealthSystem();
@@ -42,6 +46,8 @@ export class GameSystems {
         this.playerStateSystem = new PlayerStateSystem(hudManager);
         this.sensorSystem = new SensorSystem();
         this.cameraSystem = new CameraSystem();
+        this.gameFlowSystem = new GameFlowSystem();
+        this.hudSystem = new HUDSystem(hudManager);
         
         // Wire Interaction -> HUD
         this.interactionSystem = new InteractionSystem(scene, (event: TargetEvent) => {
@@ -84,6 +90,8 @@ export class GameSystems {
         this.physicsSyncSystem.update();
         this.animationSystem.update();
         this.cameraSystem.update(dt);
+        this.gameFlowSystem.update();
+        this.hudSystem.update();
         this.interactionSystem.update(isDebugMode);
     }
 }

@@ -39,7 +39,6 @@ export class Game {
   private readonly canvas: HTMLCanvasElement;
 
   private _deltaTime: number = 0;
-  private isInFightMode: boolean = this.config.GAME_SETTINGS.DEBUG_START_MODE;
   private isDebugModeEnabled: boolean =
     this.config.GAME_SETTINGS.DEBUG_START_MODE;
   private havokInstance: any;
@@ -377,55 +376,11 @@ export class Game {
     this.aiManager.update(); // Update Yuka first so it sets Desired Velocity
 
     // 2. Logic Systems (ECS)
-    // Runs: Timers -> Input -> Player Control -> AI Steering -> Combat -> Physics Sync -> Animation
+    // Runs: Timers -> Input -> Player Control -> AI Steering -> Combat -> Physics Sync -> Animation -> Camera -> Game Flow -> HUD -> Interaction
     this.gameSystems.update(this._deltaTime, this.isDebugModeEnabled);
 
     // 3. Visual / Legacy Managers
     // Camera moved to ECS
-    
-    // 4. Game Flow Logic (Aggro check)
-    // Could move to a "GameFlowSystem"
-    const aggroEnemies = world.with("enemy").where(e => e.enemy.isAggro);
-    let isAnyEnemyAggro = false;
-    for (const _e of aggroEnemies) {
-        isAnyEnemyAggro = true;
-        break;
-    }
-
-    // Zero Tolerance: We expect player entity to exist if we are calculating game flow involving player health.
-    const player = world.with("player", "health", "stamina").first;
-    // However, if we are in a 'game over' state, player might be dead/removed? 
-    // In this codebase, player entity persists but health goes to 0. 
-    // If player is missing, something is critically wrong -> Let it crash or assume 0 health safely?
-    // "Zero tolerance" implies we fix the root cause if player is missing, so assuming it exists is valid if initialization is guaranteed.
-    // But safely defaulting to 0 health avoids crash during shutdown/init.
-    const currentHealth = player?.health.current ?? 0;
-
-    switch (true) {
-      case isAnyEnemyAggro && !this.isInFightMode:
-        this.isInFightMode = true;
-        break;
-      case !isAnyEnemyAggro && this.isInFightMode:
-      case currentHealth <= 0 && this.isInFightMode:
-        this.isInFightMode = false;
-        break;
-    }
-
-    // 5. HUD Updates (Reactive where possible, polling for now)
-    // Deprecated: Moving to HUDSystem? 
-    
-    // Let's rely on HUDManager.update() if we create one, or just keep this bridge for now 
-    // but ensure it reads from ECS.
-    if (player) {
-        this.hudManager.updatePlayerStats(
-          player.health.current,
-          player.health.max,
-          player.stamina.current,
-          player.stamina.max
-        );
-    }
-
-    this.hudManager.updateFPS();
   }
 
   public async start(): Promise<void> {

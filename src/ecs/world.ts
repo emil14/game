@@ -88,10 +88,15 @@ export type TimerComponent = {
   label?: string;
 };
 
+export type WorldStateComponent = {
+  isInFightMode: boolean;
+};
+
 // --- Entity Definition ---
 
 export type Entity = {
   timer?: TimerComponent;
+  worldState?: WorldStateComponent;
   transform?: TransformComponent;
   visual?: VisualComponent;
   player?: PlayerComponent;

@@ -91,7 +91,7 @@ export class LevelManager {
         this.scene
       );
       wall.position = new Vector3(props[0], wallHeight / 2, props[1]);
-      // wall.isVisible = false; // Should be controlled by debug or config
+      wall.isVisible = config.GAME_SETTINGS.DEBUG_START_MODE;
       wall.checkCollisions = true;
       new PhysicsAggregate(
         wall,
@@ -226,7 +226,7 @@ export class LevelManager {
         this.scene
       );
 
-      // collider.isVisible = false; // Debug mode controlled elsewhere?
+      collider.isVisible = config.GAME_SETTINGS.DEBUG_START_MODE;
       collider.checkCollisions = true;
 
       visualMesh.parent = collider;
